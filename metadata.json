@@ -1,0 +1,5 @@
+{
+  "name": "Gestor de Proyectos de Grado",
+  "description": "Una aplicación para gestionar proyectos de grado universitarios, incluyendo estudiantes, docentes, roles y estados de proyectos. Todos los datos se almacenan localmente en su navegador.",
+  "requestFramePermissions": []
+}
