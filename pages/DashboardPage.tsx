@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../services/database';
-import { Project, Student, Teacher } from '../types';
+import { Project, Status } from '../types';
 import { ProjectIcon, StudentIcon, TeacherIcon } from '../components/Icons';
 
 interface StatCardProps {
@@ -31,11 +31,15 @@ export const DashboardPage: React.FC = () => {
         unassignedStudents: 0
     });
     const [recentProjects, setRecentProjects] = useState<Project[]>([]);
+    const [statuses, setStatuses] = useState<Status[]>([]);
 
     useEffect(() => {
         const projects = db.getProjects();
         const students = db.getStudents();
         const teachers = db.getTeachers();
+        const allStatuses = db.getStatuses();
+
+        setStatuses(allStatuses);
 
         setStats({
             projects: projects.length,
@@ -51,7 +55,6 @@ export const DashboardPage: React.FC = () => {
         );
     }, []);
 
-    const statuses = db.getStatuses();
     const getStatusName = (id: string) => statuses.find(s => s.id === id)?.name || 'Desconocido';
 
     return (
