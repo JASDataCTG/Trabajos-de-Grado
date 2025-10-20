@@ -47,14 +47,23 @@ const getSeedData = (): AppDatabase => {
 };
 
 export const initializeDB = (): void => {
+    // Proteger contra el entorno del servidor
+    if (typeof window === 'undefined' || !window.localStorage) return;
+
     if (!localStorage.getItem(DB_KEY)) {
         localStorage.setItem(DB_KEY, JSON.stringify(getSeedData()));
     }
 };
 
 const readDB = (): AppDatabase => {
-    const dbString = localStorage.getItem(DB_KEY);
     const seedData = getSeedData();
+
+    // Proteger contra el entorno del servidor
+    if (typeof window === 'undefined' || !window.localStorage) {
+        return seedData;
+    }
+
+    const dbString = localStorage.getItem(DB_KEY);
     if (!dbString) {
         localStorage.setItem(DB_KEY, JSON.stringify(seedData));
         return seedData;
@@ -69,8 +78,6 @@ const readDB = (): AppDatabase => {
         // Asegúrate de que cada clave tenga un valor de array, incluso si localStorage tiene null/undefined.
         for (const key of Object.keys(seedData) as Array<keyof AppDatabase>) {
              if (!Array.isArray(validatedDb[key])) {
-                 // FIX: Cast validatedDb to `any` to work around a TypeScript limitation with indexed access types.
-                 // This is safe because `key` is guaranteed to be a key of both `validatedDb` and `seedData`, ensuring type consistency at runtime.
                  (validatedDb as any)[key] = seedData[key];
              }
         }
@@ -84,6 +91,8 @@ const readDB = (): AppDatabase => {
 
 
 const writeDB = (db: AppDatabase): void => {
+    // Proteger contra el entorno del servidor
+    if (typeof window === 'undefined' || !window.localStorage) return;
     localStorage.setItem(DB_KEY, JSON.stringify(db));
 };
 
