@@ -7,61 +7,157 @@ import { PlusIcon, EditIcon, TrashIcon } from '../components/Icons';
 
 const ProjectForm: React.FC<{
     project: Partial<Project> | null;
-    onSave: (project: Omit<Project, 'id'> | Project) => void;
+    onSave: (project: Omit<Project, 'id'> | Project, assignments: Array<{teacherId: string, roleId: string}>) => void;
     onClose: () => void;
     statuses: Status[];
     formats: Format[];
-}> = ({ project, onSave, onClose, statuses, formats }) => {
-    const [formData, setFormData] = useState<Partial<Project>>({
-        title: '',
-        presentationDate: '',
-        filesUrl: '',
-        statusId: statuses[0]?.id || '',
-        formatId: formats[0]?.id || '',
-        ...project
-    });
+    teachers: Teacher[];
+    roles: TeacherRole[];
+    initialAssignments: ProjectTeacher[];
+}> = ({ project, onSave, onClose, statuses, formats, teachers, roles, initialAssignments }) => {
+    const [formData, setFormData] = useState<Partial<Project>>({});
+    const [assignments, setAssignments] = useState<Array<{teacherId: string, roleId: string, tempId: number}>>([]);
+    const [newAssignment, setNewAssignment] = useState({ teacherId: '', roleId: '' });
+
+    useEffect(() => {
+        setFormData({
+            title: '',
+            presentationDate: '',
+            filesUrl: '',
+            statusId: statuses[0]?.id || '',
+            formatId: formats[0]?.id || '',
+            ...project
+        });
+        setAssignments(initialAssignments.map(a => ({
+            teacherId: a.teacherId,
+            roleId: a.roleId,
+            tempId: Math.random()
+        })));
+        setNewAssignment({ teacherId: '', roleId: '' });
+    }, [project, initialAssignments, statuses, formats]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleAssignmentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setNewAssignment(prev => ({...prev, [name]: value}));
+    };
+
+    const handleAddAssignment = () => {
+        if (newAssignment.teacherId && newAssignment.roleId) {
+            if (assignments.some(a => a.teacherId === newAssignment.teacherId)) {
+                alert('Este docente ya ha sido asignado al proyecto.');
+                return;
+            }
+            setAssignments(prev => [...prev, {...newAssignment, tempId: Math.random()}]);
+            setNewAssignment({ teacherId: '', roleId: '' });
+        } else {
+            alert('Por favor, selecciona un docente y un rol.');
+        }
+    };
+
+    const handleRemoveAssignment = (tempId: number) => {
+        setAssignments(prev => prev.filter(a => a.tempId !== tempId));
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.title || !formData.presentationDate || !formData.statusId || !formData.formatId) {
-            alert('Por favor, completa todos los campos requeridos');
+            alert('Por favor, completa todos los campos requeridos del proyecto.');
             return;
         }
-        onSave(formData as Omit<Project, 'id'> | Project);
+        onSave(formData as Omit<Project, 'id'> | Project, assignments);
     };
+    
+    const getTeacherName = (id: string) => teachers.find(t => t.id === id)?.name || 'Desconocido';
+    const getRoleName = (id: string) => roles.find(r => r.id === id)?.name || 'Desconocido';
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-                <label htmlFor="title" className="block text-sm font-medium text-gray-700">Título del Proyecto</label>
-                <input type="text" name="title" id="title" value={formData.title} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+        <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
+                <div>
+                    <label htmlFor="title" className="block text-sm font-medium text-gray-700">Título del Proyecto</label>
+                    <input type="text" name="title" id="title" value={formData.title} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                </div>
+                <div>
+                    <label htmlFor="presentationDate" className="block text-sm font-medium text-gray-700">Fecha de Presentación</label>
+                    <input type="date" name="presentationDate" id="presentationDate" value={formData.presentationDate} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                </div>
+                <div>
+                    <label htmlFor="filesUrl" className="block text-sm font-medium text-gray-700">URL de Archivos</label>
+                    <input type="url" name="filesUrl" id="filesUrl" value={formData.filesUrl} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                </div>
+                <div>
+                    <label htmlFor="statusId" className="block text-sm font-medium text-gray-700">Estado</label>
+                    <select name="statusId" id="statusId" value={formData.statusId} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                        {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="formatId" className="block text-sm font-medium text-gray-700">Formato</label>
+                    <select name="formatId" id="formatId" value={formData.formatId} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                        {formats.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    </select>
+                </div>
             </div>
-            <div>
-                <label htmlFor="presentationDate" className="block text-sm font-medium text-gray-700">Fecha de Presentación</label>
-                <input type="date" name="presentationDate" id="presentationDate" value={formData.presentationDate} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+
+            <hr className="my-6" />
+
+            <div className="space-y-4">
+                <h4 className="text-lg font-medium text-gray-800">Docentes Asignados</h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                    {assignments.length > 0 ? assignments.map((a) => (
+                        <div key={a.tempId} className="flex items-center justify-between bg-gray-50 p-3 rounded-md">
+                            <div>
+                                <p className="font-medium text-gray-900">{getTeacherName(a.teacherId)}</p>
+                                <p className="text-sm text-gray-500">{getRoleName(a.roleId)}</p>
+                            </div>
+                            <button type="button" onClick={() => handleRemoveAssignment(a.tempId)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 transition-colors">
+                                <TrashIcon className="h-5 w-5" />
+                            </button>
+                        </div>
+                    )) : (
+                        <p className="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-md">No hay docentes asignados.</p>
+                    )}
+                </div>
+
+                <div className="flex items-end space-x-3 pt-2">
+                    <div className="flex-grow">
+                        <label htmlFor="teacherId" className="block text-sm font-medium text-gray-700">Docente</label>
+                        <select 
+                            name="teacherId" 
+                            id="teacherId" 
+                            value={newAssignment.teacherId} 
+                            onChange={handleAssignmentChange} 
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        >
+                            <option value="">Seleccionar docente...</option>
+                            {teachers.filter(t => !assignments.some(a => a.teacherId === t.id)).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="flex-grow">
+                        <label htmlFor="roleId" className="block text-sm font-medium text-gray-700">Rol</label>
+                        <select 
+                            name="roleId" 
+                            id="roleId" 
+                            value={newAssignment.roleId} 
+                            onChange={handleAssignmentChange} 
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        >
+                            <option value="">Seleccionar rol...</option>
+                            {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        </select>
+                    </div>
+                    <button type="button" onClick={handleAddAssignment} className="bg-primary-100 text-primary-800 px-4 py-2 rounded-md hover:bg-primary-200 h-[38px] flex-shrink-0 font-medium">
+                        Añadir
+                    </button>
+                </div>
             </div>
-            <div>
-                <label htmlFor="filesUrl" className="block text-sm font-medium text-gray-700">URL de Archivos</label>
-                <input type="url" name="filesUrl" id="filesUrl" value={formData.filesUrl} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
-            </div>
-            <div>
-                <label htmlFor="statusId" className="block text-sm font-medium text-gray-700">Estado</label>
-                <select name="statusId" id="statusId" value={formData.statusId} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
-                    {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-            </div>
-            <div>
-                <label htmlFor="formatId" className="block text-sm font-medium text-gray-700">Formato</label>
-                <select name="formatId" id="formatId" value={formData.formatId} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
-                    {formats.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                </select>
-            </div>
-            <div className="flex justify-end space-x-3 pt-4">
+
+            <div className="flex justify-end space-x-3 pt-6 border-t mt-6">
                 <button type="button" onClick={onClose} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300">Cancelar</button>
                 <button type="submit" className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700">Guardar Proyecto</button>
             </div>
@@ -96,12 +192,27 @@ export const ProjectsPage: React.FC = () => {
         loadData();
     }, [loadData]);
 
-    const handleSave = (project: Omit<Project, 'id'> | Project) => {
-        if ('id' in project) {
-            db.updateProject(project);
+    const handleSave = (project: Omit<Project, 'id'> | Project, assignments: Array<{teacherId: string, roleId: string}>) => {
+        let savedProject: Project;
+        if ('id' in project && project.id) {
+            savedProject = db.updateProject(project as Project);
         } else {
-            db.addProject(project);
+            savedProject = db.addProject(project);
         }
+
+        const existingAssignments = db.getProjectTeachers().filter(pt => pt.projectId === savedProject.id);
+        existingAssignments.forEach(pt => db.deleteProjectTeacher(pt.id));
+        
+        assignments.forEach(assignment => {
+            if (assignment.teacherId && assignment.roleId) {
+                db.addProjectTeacher({
+                    projectId: savedProject.id,
+                    teacherId: assignment.teacherId,
+                    roleId: assignment.roleId,
+                });
+            }
+        });
+
         loadData();
         setIsModalOpen(false);
         setEditingProject(null);
@@ -191,6 +302,9 @@ export const ProjectsPage: React.FC = () => {
                     onClose={() => { setIsModalOpen(false); setEditingProject(null); }}
                     statuses={statuses}
                     formats={formats}
+                    teachers={teachers}
+                    roles={roles}
+                    initialAssignments={editingProject ? projectTeachers.filter(pt => pt.projectId === editingProject.id) : []}
                 />
             </Modal>
             
