@@ -1,4 +1,4 @@
-import { AppDatabase, Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status } from '../types';
+import { AppDatabase, Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status, Program } from '../types';
 
 const DB_KEY = 'degreeProjectsDB';
 
@@ -32,18 +32,22 @@ const getSeedData = (): AppDatabase => {
         { id: 'project-1', title: 'Mantenimiento Predictivo con IA', presentationDate: '2024-12-15', filesUrl: 'https://example.com/project1', statusId: 'status-2', formatId: 'format-3' },
         { id: 'project-2', title: 'Computación Cuántica para Fármacos', presentationDate: '2025-01-20', filesUrl: 'https://example.com/project2', statusId: 'status-1', formatId: 'format-1' },
     ];
+    const programs: Program[] = [
+        { id: 'prog-1', name: 'Tecnología en Desarrollo de Sistemas de Información y Software' },
+        { id: 'prog-2', name: 'Ingeniería de Sistemas' },
+    ];
     const students: Student[] = [
-        { id: 'student-1', name: 'Alice Johnson', email: 'alice.j@student.edu', projectId: 'project-1' },
-        { id: 'student-2', name: 'Bob Williams', email: 'bob.w@student.edu', projectId: 'project-1' },
-        { id: 'student-3', name: 'Charlie Brown', email: 'charlie.b@student.edu', projectId: 'project-2' },
-        { id: 'student-4', name: 'Diana Miller', email: 'diana.m@student.edu', projectId: null },
+        { id: 'student-1', name: 'Alice Johnson', email: 'alice.j@student.edu', projectId: 'project-1', programId: 'prog-2' },
+        { id: 'student-2', name: 'Bob Williams', email: 'bob.w@student.edu', projectId: 'project-1', programId: 'prog-1' },
+        { id: 'student-3', name: 'Charlie Brown', email: 'charlie.b@student.edu', projectId: 'project-2', programId: 'prog-2' },
+        { id: 'student-4', name: 'Diana Miller', email: 'diana.m@student.edu', projectId: null, programId: 'prog-1' },
     ];
     const projectTeachers: ProjectTeacher[] = [
         {id: 'pt-1', projectId: 'project-1', teacherId: 'teacher-1', roleId: 'role-1'},
         {id: 'pt-2', projectId: 'project-1', teacherId: 'teacher-2', roleId: 'role-3'},
     ];
 
-    return { statuses, formats, teacherRoles, teachers, projects, students, projectTeachers };
+    return { statuses, formats, teacherRoles, teachers, projects, students, projectTeachers, programs };
 };
 
 export const initializeDB = (): void => {
@@ -166,6 +170,9 @@ export const db = {
     addProject: (project: Omit<Project, 'id'>) => addItem('projects', project),
     updateProject: (project: Project) => updateItem('projects', project),
     deleteProject: (id: string) => deleteItem('projects', id),
+
+    // Programas
+    getPrograms: () => getItems('programs'),
 
     // Estudiantes
     getStudents: () => getItems('students'),

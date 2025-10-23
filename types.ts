@@ -8,11 +8,17 @@ export interface Project {
   formatId: string;
 }
 
+export interface Program {
+  id: string;
+  name: string;
+}
+
 export interface Student {
   id: string;
   name: string;
   email: string;
   projectId: string | null;
+  programId: string;
 }
 
 export interface Teacher {
@@ -45,6 +51,7 @@ export interface Status {
 
 export interface AppDatabase {
     projects: Project[];
+    programs: Program[];
     students: Student[];
     teachers: Teacher[];
     projectTeachers: ProjectTeacher[];

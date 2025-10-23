@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../services/database';
-import { Project, Student, Teacher, TeacherRole, Status, Format, ProjectTeacher } from '../types';
+import { Project, Student, Teacher, TeacherRole, Status, Format, ProjectTeacher, Program } from '../types';
 import { arrayToCsv } from '../utils/csv';
 
 // Informa a TypeScript sobre la variable global Chart de la CDN
@@ -13,6 +13,7 @@ interface ProjectStatusReport {
     'Formato': string;
     'Fecha de Presentación': string;
     'Estudiantes Asignados': string;
+    'Programas de Estudiantes': string;
     'Docentes Asignados': string;
 }
 
@@ -28,6 +29,7 @@ interface TeacherWorkloadReport {
 interface UnassignedStudentsReport {
     'Nombre del Estudiante': string;
     'Email': string;
+    'Programa': string;
 }
 
 
@@ -110,6 +112,7 @@ export const ReportsPage: React.FC = () => {
     const [projectStatusChartData, setProjectStatusChartData] = useState(null);
     const [studentAssignmentChartData, setStudentAssignmentChartData] = useState(null);
     const [teacherWorkloadChartData, setTeacherWorkloadChartData] = useState(null);
+    const [studentsPerProgramChartData, setStudentsPerProgramChartData] = useState(null);
 
     const loadReportData = useCallback(() => {
         const projects = db.getProjects();
@@ -119,14 +122,23 @@ export const ReportsPage: React.FC = () => {
         const statuses = db.getStatuses();
         const formats = db.getFormats();
         const projectTeachers = db.getProjectTeachers();
+        const programs = db.getPrograms();
 
         // --- Lógica para reportes tabulares ---
         const projectStatusData = projects.map(p => {
-            const assignedStudents = students.filter(s => s.projectId === p.id).map(s => s.name).join(', ');
+            const assignedStudents = students.filter(s => s.projectId === p.id);
+            const studentNames = assignedStudents.map(s => s.name).join(', ');
+            const studentPrograms = [...new Set(assignedStudents.map(s => programs.find(prog => prog.id === s.programId)?.name || 'N/A'))].join(', ');
             const assignedTeachers = projectTeachers.filter(pt => pt.projectId === p.id).map(pt => `${teachers.find(t => t.id === pt.teacherId)?.name || 'N/A'} (${roles.find(r => r.id === pt.roleId)?.name || 'N/A'})`).join('; ');
+            
             return {
-                'Título del Proyecto': p.title, 'Estado': statuses.find(s => s.id === p.statusId)?.name || 'N/A', 'Formato': formats.find(f => f.id === p.formatId)?.name || 'N/A',
-                'Fecha de Presentación': p.presentationDate, 'Estudiantes Asignados': assignedStudents || 'Ninguno', 'Docentes Asignados': assignedTeachers || 'Ninguno',
+                'Título del Proyecto': p.title, 
+                'Estado': statuses.find(s => s.id === p.statusId)?.name || 'N/A', 
+                'Formato': formats.find(f => f.id === p.formatId)?.name || 'N/A',
+                'Fecha de Presentación': p.presentationDate, 
+                'Estudiantes Asignados': studentNames || 'Ninguno',
+                'Programas de Estudiantes': studentPrograms || 'N/A',
+                'Docentes Asignados': assignedTeachers || 'Ninguno',
             };
         });
         setProjectStatus(projectStatusData);
@@ -147,7 +159,13 @@ export const ReportsPage: React.FC = () => {
         });
         setTeacherWorkload(workloadData);
         
-        const unassignedStudentsData = students.filter(s => !s.projectId).map(s => ({ 'Nombre del Estudiante': s.name, 'Email': s.email }));
+        const unassignedStudentsData = students
+            .filter(s => !s.projectId)
+            .map(s => ({ 
+                'Nombre del Estudiante': s.name, 
+                'Email': s.email, 
+                'Programa': programs.find(p => p.id === s.programId)?.name || 'N/A' 
+            }));
         setUnassignedStudents(unassignedStudentsData);
 
         // --- Lógica para datos de gráficos ---
@@ -164,6 +182,21 @@ export const ReportsPage: React.FC = () => {
         setStudentAssignmentChartData({
             labels: ['Asignados', 'Sin Asignar'],
             datasets: [{ data: [assignedCount, unassignedCount], backgroundColor: ['#3b82f6', '#f59e0b'], borderColor: '#ffffff', borderWidth: 2 }]
+        });
+
+        const studentsPerProgramCounts = programs.map(program => ({
+            name: program.name,
+            count: students.filter(s => s.programId === program.id).length
+        }));
+        setStudentsPerProgramChartData({
+            labels: studentsPerProgramCounts.map(p => p.name),
+            datasets: [{
+                label: 'Estudiantes',
+                data: studentsPerProgramCounts.map(p => p.count),
+                backgroundColor: ['#1d4ed8', '#9333ea'],
+                borderColor: '#ffffff',
+                borderWidth: 2
+            }]
         });
 
         setTeacherWorkloadChartData({
@@ -205,9 +238,10 @@ export const ReportsPage: React.FC = () => {
 
             <div>
                 <h2 className="text-2xl font-bold text-gray-700 mb-6">Visualizaciones Gráficas</h2>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
                     {projectStatusChartData && <ChartCard title="Distribución de Proyectos por Estado" type="pie" data={projectStatusChartData} />}
                     {studentAssignmentChartData && <ChartCard title="Distribución de Estudiantes" type="doughnut" data={studentAssignmentChartData} />}
+                    {studentsPerProgramChartData && <ChartCard title="Estudiantes por Programa" type="pie" data={studentsPerProgramChartData} />}
                 </div>
                 {teacherWorkloadChartData && (
                     <ChartCard 
@@ -231,7 +265,7 @@ export const ReportsPage: React.FC = () => {
                     >
                         <table className="w-full text-left">
                             <thead className="bg-gray-50"><tr>{projectStatus.length > 0 && Object.keys(projectStatus[0]).map(key => (<th key={key} className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
-                            <tbody className="divide-y divide-gray-200">{projectStatus.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{projectStatus.length === 0 && (<tr><td colSpan={6} className="text-center py-10 text-gray-500">No hay proyectos para mostrar.</td></tr>)}</tbody>
+                            <tbody className="divide-y divide-gray-200">{projectStatus.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{projectStatus.length === 0 && (<tr><td colSpan={7} className="text-center py-10 text-gray-500">No hay proyectos para mostrar.</td></tr>)}</tbody>
                         </table>
                     </ReportTableCard>
                     
@@ -255,7 +289,7 @@ export const ReportsPage: React.FC = () => {
                     >
                         <table className="w-full text-left">
                             <thead className="bg-gray-50"><tr>{unassignedStudents.length > 0 && Object.keys(unassignedStudents[0]).map(key => (<th key={key} className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
-                            <tbody className="divide-y divide-gray-200">{unassignedStudents.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{unassignedStudents.length === 0 && (<tr><td colSpan={2} className="text-center py-10 text-gray-500">Todos los estudiantes están asignados a un proyecto.</td></tr>)}</tbody>
+                            <tbody className="divide-y divide-gray-200">{unassignedStudents.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{unassignedStudents.length === 0 && (<tr><td colSpan={3} className="text-center py-10 text-gray-500">Todos los estudiantes están asignados a un proyecto.</td></tr>)}</tbody>
                         </table>
                     </ReportTableCard>
                 </div>

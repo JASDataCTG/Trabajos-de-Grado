@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/database';
-import { Student, Project } from '../types';
+import { Student, Project, Program } from '../types';
 import { Modal } from '../components/Modal';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { PlusIcon, EditIcon, TrashIcon } from '../components/Icons';
@@ -10,13 +10,25 @@ const StudentForm: React.FC<{
     onSave: (student: Omit<Student, 'id'> | Student) => void;
     onClose: () => void;
     projects: Project[];
-}> = ({ student, onSave, onClose, projects }) => {
+    programs: Program[];
+}> = ({ student, onSave, onClose, projects, programs }) => {
     const [formData, setFormData] = useState<Partial<Student>>({
         name: '',
         email: '',
         projectId: null,
+        programId: programs[0]?.id || '',
         ...student
     });
+
+    useEffect(() => {
+        setFormData({
+            name: '',
+            email: '',
+            projectId: null,
+            programId: programs[0]?.id || '',
+            ...student
+        });
+    }, [student, programs]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -25,7 +37,7 @@ const StudentForm: React.FC<{
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.name || !formData.email) {
+        if (!formData.name || !formData.email || !formData.programId) {
             alert('Por favor, completa todos los campos requeridos');
             return;
         }
@@ -41,6 +53,12 @@ const StudentForm: React.FC<{
             <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700">Correo Electrónico</label>
                 <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+            </div>
+            <div>
+                <label htmlFor="programId" className="block text-sm font-medium text-gray-700">Programa Académico</label>
+                <select name="programId" id="programId" value={formData.programId} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                    {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
             </div>
              <div>
                 <label htmlFor="projectId" className="block text-sm font-medium text-gray-700">Proyecto Asignado</label>
@@ -60,6 +78,7 @@ const StudentForm: React.FC<{
 export const StudentsPage: React.FC = () => {
     const [students, setStudents] = useState<Student[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
+    const [programs, setPrograms] = useState<Program[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
     const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
@@ -67,6 +86,7 @@ export const StudentsPage: React.FC = () => {
     const loadData = useCallback(() => {
         setStudents(db.getStudents());
         setProjects(db.getProjects());
+        setPrograms(db.getPrograms());
     }, []);
 
     useEffect(() => {
@@ -96,6 +116,10 @@ export const StudentsPage: React.FC = () => {
         if (!projectId) return <span className="text-gray-400 italic">Sin Asignar</span>;
         return projects.find(p => p.id === projectId)?.title || 'Proyecto Desconocido';
     };
+
+    const getProgramName = (programId: string) => {
+        return programs.find(p => p.id === programId)?.name || 'Programa Desconocido';
+    };
     
     return (
         <div className="space-y-6">
@@ -113,7 +137,7 @@ export const StudentsPage: React.FC = () => {
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Correo Electrónico</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Programa</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proyecto Asignado</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                             </tr>
@@ -121,8 +145,11 @@ export const StudentsPage: React.FC = () => {
                         <tbody className="bg-white divide-y divide-gray-200">
                             {students.map(student => (
                                 <tr key={student.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{student.name}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.email}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                                        <div className="text-xs text-gray-500">{student.email}</div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getProgramName(student.programId)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{getProjectTitle(student.projectId)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                         <button onClick={() => { setEditingStudent(student); setIsModalOpen(true); }} className="text-primary-600 hover:text-primary-900"><EditIcon className="h-5 w-5" /></button>
@@ -146,6 +173,7 @@ export const StudentsPage: React.FC = () => {
                     onSave={handleSave} 
                     onClose={() => { setIsModalOpen(false); setEditingStudent(null); }}
                     projects={projects}
+                    programs={programs}
                 />
             </Modal>
             
