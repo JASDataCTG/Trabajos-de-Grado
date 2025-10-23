@@ -1,7 +1,7 @@
 import React from 'react';
-import { HomeIcon, ProjectIcon, StudentIcon, TeacherIcon, SettingsIcon } from './Icons';
+import { HomeIcon, ProjectIcon, StudentIcon, TeacherIcon, SettingsIcon, ReportIcon } from './Icons';
 
-type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings';
+type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings' | 'reports';
 
 interface SidebarProps {
   currentPage: Page;
@@ -41,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         { page: 'projects', label: 'Proyectos', icon: <ProjectIcon className="h-5 w-5" /> },
         { page: 'students', label: 'Estudiantes', icon: <StudentIcon className="h-5 w-5" /> },
         { page: 'teachers', label: 'Docentes', icon: <TeacherIcon className="h-5 w-5" /> },
+        { page: 'reports', label: 'Reportes', icon: <ReportIcon className="h-5 w-5" /> },
         { page: 'settings', label: 'Configuración', icon: <SettingsIcon className="h-5 w-5" /> },
     ];
 

@@ -6,9 +6,10 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { StudentsPage } from './pages/StudentsPage';
 import { TeachersPage } from './pages/TeachersPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { MenuIcon, XIcon } from './components/Icons';
 
-type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings';
+type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings' | 'reports';
 
 const pageLabels: Record<Page, string> = {
     dashboard: 'Panel Principal',
@@ -16,6 +17,7 @@ const pageLabels: Record<Page, string> = {
     students: 'Estudiantes',
     teachers: 'Docentes',
     settings: 'Configuración',
+    reports: 'Reportes',
 };
 
 const App: React.FC = () => {
@@ -38,6 +40,8 @@ const App: React.FC = () => {
         return <TeachersPage />;
       case 'settings':
         return <SettingsPage />;
+      case 'reports':
+        return <ReportsPage />;
       default:
         return <DashboardPage />;
     }

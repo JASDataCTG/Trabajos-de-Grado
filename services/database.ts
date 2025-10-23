@@ -151,6 +151,13 @@ const deleteItem = (entityName: EntityName, id: string): void => {
     writeDB(db);
 };
 
+const replaceAllItems = <K extends EntityName>(entityName: K, newItems: AppDatabase[K]): void => {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    const db = readDB();
+    (db as any)[entityName] = newItems;
+    writeDB(db);
+};
+
 // Exportar funciones específicas para cada entidad
 export const db = {
     // Proyectos
@@ -197,4 +204,7 @@ export const db = {
     addStatus: (status: Omit<Status, 'id'>) => addItem('statuses', status),
     updateStatus: (status: Status) => updateItem('statuses', status),
     deleteStatus: (id: string) => deleteItem('statuses', id),
+
+    // Función de reemplazo
+    replaceAll: replaceAllItems,
 };
