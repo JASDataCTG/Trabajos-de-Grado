@@ -20,7 +20,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const storedUser = sessionStorage.getItem('degreeProjectManagerUser');
+    const storedUser = localStorage.getItem('degreeProjectManagerUser');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
@@ -31,7 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const foundUser = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
     if (foundUser) {
       setUser(foundUser);
-      sessionStorage.setItem('degreeProjectManagerUser', JSON.stringify(foundUser));
+      localStorage.setItem('degreeProjectManagerUser', JSON.stringify(foundUser));
       return true;
     }
     return false;
@@ -39,7 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
-    sessionStorage.removeItem('degreeProjectManagerUser');
+    localStorage.removeItem('degreeProjectManagerUser');
   };
 
   const getProjectRolesForCurrentUser = (projectId: string): string[] => {
