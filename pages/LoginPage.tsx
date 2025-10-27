@@ -5,23 +5,14 @@ export const LoginPage: React.FC = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
     const { login } = useAuth();
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        setLoading(true);
-        try {
-            const success = await login(username, password);
-            if (!success) {
-                setError('Usuario o contraseña incorrectos.');
-            }
-        } catch (err) {
-            setError('Error al conectar con el servidor. Inténtalo de nuevo.');
-            console.error(err);
-        } finally {
-            setLoading(false);
+        const success = login(username, password);
+        if (!success) {
+            setError('Usuario o contraseña incorrectos.');
         }
     };
 
@@ -69,10 +60,9 @@ export const LoginPage: React.FC = () => {
                     <div>
                         <button
                             type="submit"
-                            disabled={loading}
-                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-primary-400"
+                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                         >
-                            {loading ? 'Ingresando...' : 'Iniciar Sesión'}
+                            Iniciar Sesión
                         </button>
                     </div>
                 </form>

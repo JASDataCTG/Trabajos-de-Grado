@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../services/database';
+import { Project, Student, Teacher, TeacherRole, Status, Format, ProjectTeacher, Program } from '../types';
 import { arrayToCsv } from '../utils/csv';
 
 // Informa a TypeScript sobre la variable global Chart de la CDN
@@ -30,6 +31,9 @@ interface UnassignedStudentsReport {
     'Email': string;
     'Programa': string;
 }
+
+
+// --- Componentes Reutilizables ---
 
 const ReportTableCard: React.FC<{ title: string; description: string; children: React.ReactNode; onExport: () => void; hasData: boolean; }> = ({ title, description, children, onExport, hasData }) => (
     <div className="bg-white rounded-lg shadow">
@@ -99,7 +103,6 @@ const ChartCard: React.FC<{ title: string; type: 'pie' | 'doughnut' | 'bar'; dat
 
 
 export const ReportsPage: React.FC = () => {
-    const [loading, setLoading] = useState(true);
     // State para reportes tabulares
     const [projectStatus, setProjectStatus] = useState<ProjectStatusReport[]>([]);
     const [teacherWorkload, setTeacherWorkload] = useState<TeacherWorkloadReport[]>([]);
@@ -111,102 +114,100 @@ export const ReportsPage: React.FC = () => {
     const [teacherWorkloadChartData, setTeacherWorkloadChartData] = useState(null);
     const [studentsPerProgramChartData, setStudentsPerProgramChartData] = useState(null);
 
-    const loadReportData = useCallback(async () => {
-        setLoading(true);
-        try {
-            const [projects, students, teachers, roles, statuses, formats, projectTeachers, programs] = await Promise.all([
-                db.getProjects(), db.getStudents(), db.getTeachers(), db.getTeacherRoles(),
-                db.getStatuses(), db.getFormats(), db.getProjectTeachers(), db.getPrograms()
-            ]);
+    const loadReportData = useCallback(() => {
+        const projects = db.getProjects();
+        const students = db.getStudents();
+        const teachers = db.getTeachers();
+        const roles = db.getTeacherRoles();
+        const statuses = db.getStatuses();
+        const formats = db.getFormats();
+        const projectTeachers = db.getProjectTeachers();
+        const programs = db.getPrograms();
 
-            // --- Lógica para reportes tabulares ---
-            const projectStatusData = projects.map(p => {
-                const assignedStudents = students.filter(s => s.projectId === p.id);
-                const studentNames = assignedStudents.map(s => s.name).join(', ');
-                const studentPrograms = [...new Set(assignedStudents.map(s => programs.find(prog => prog.id === s.programId)?.name || 'N/A'))].join(', ');
-                const assignedTeachers = projectTeachers.filter(pt => pt.projectId === p.id).map(pt => `${teachers.find(t => t.id === pt.teacherId)?.name || 'N/A'} (${roles.find(r => r.id === pt.roleId)?.name || 'N/A'})`).join('; ');
-                
-                return {
-                    'Título del Proyecto': p.title, 
-                    'Estado': statuses.find(s => s.id === p.statusId)?.name || 'N/A', 
-                    'Formato': formats.find(f => f.id === p.formatId)?.name || 'N/A',
-                    'Fecha de Presentación': p.presentationDate, 
-                    'Estudiantes Asignados': studentNames || 'Ninguno',
-                    'Programas de Estudiantes': studentPrograms || 'N/A',
-                    'Docentes Asignados': assignedTeachers || 'Ninguno',
-                };
-            });
-            setProjectStatus(projectStatusData);
-
-            const workloadData = teachers.map(teacher => {
-                const assignments = projectTeachers.filter(pt => pt.teacherId === teacher.id);
-                let directorCount = 0, coDirectorCount = 0, evaluatorCount = 0;
-                assignments.forEach(assignment => {
-                    const roleName = roles.find(r => r.id === assignment.roleId)?.name.toLowerCase() || '';
-                    if (roleName.includes('director') && !roleName.includes('co-director')) directorCount++;
-                    else if (roleName.includes('co-director')) coDirectorCount++;
-                    else if (roleName.includes('evaluador')) evaluatorCount++;
-                });
-                return {
-                    'Nombre del Docente': teacher.name, 'Email': teacher.email, 'Proyectos como Director': directorCount,
-                    'Proyectos como Co-Director': coDirectorCount, 'Proyectos como Evaluador': evaluatorCount, 'Total de Proyectos': assignments.length,
-                };
-            });
-            setTeacherWorkload(workloadData);
+        // --- Lógica para reportes tabulares ---
+        const projectStatusData = projects.map(p => {
+            const assignedStudents = students.filter(s => s.projectId === p.id);
+            const studentNames = assignedStudents.map(s => s.name).join(', ');
+            const studentPrograms = [...new Set(assignedStudents.map(s => programs.find(prog => prog.id === s.programId)?.name || 'N/A'))].join(', ');
+            const assignedTeachers = projectTeachers.filter(pt => pt.projectId === p.id).map(pt => `${teachers.find(t => t.id === pt.teacherId)?.name || 'N/A'} (${roles.find(r => r.id === pt.roleId)?.name || 'N/A'})`).join('; ');
             
-            const unassignedStudentsData = students
-                .filter(s => !s.projectId)
-                .map(s => ({ 
-                    'Nombre del Estudiante': s.name, 
-                    'Email': s.email, 
-                    'Programa': programs.find(p => p.id === s.programId)?.name || 'N/A' 
-                }));
-            setUnassignedStudents(unassignedStudentsData);
+            return {
+                'Título del Proyecto': p.title, 
+                'Estado': statuses.find(s => s.id === p.statusId)?.name || 'N/A', 
+                'Formato': formats.find(f => f.id === p.formatId)?.name || 'N/A',
+                'Fecha de Presentación': p.presentationDate, 
+                'Estudiantes Asignados': studentNames || 'Ninguno',
+                'Programas de Estudiantes': studentPrograms || 'N/A',
+                'Docentes Asignados': assignedTeachers || 'Ninguno',
+            };
+        });
+        setProjectStatus(projectStatusData);
 
-            // --- Lógica para datos de gráficos ---
-            const chartColors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#6366f1', '#ec4899'];
-            
-            const statusCounts = statuses.map(status => ({ name: status.name, count: projects.filter(p => p.statusId === status.id).length }));
-            setProjectStatusChartData({
-                labels: statusCounts.map(s => s.name),
-                datasets: [{ label: 'Proyectos', data: statusCounts.map(s => s.count), backgroundColor: chartColors, borderColor: '#ffffff', borderWidth: 2 }]
+        const workloadData = teachers.map(teacher => {
+            const assignments = projectTeachers.filter(pt => pt.teacherId === teacher.id);
+            let directorCount = 0, coDirectorCount = 0, evaluatorCount = 0;
+            assignments.forEach(assignment => {
+                const roleName = roles.find(r => r.id === assignment.roleId)?.name.toLowerCase() || '';
+                if (roleName.includes('director') && !roleName.includes('co-director')) directorCount++;
+                else if (roleName.includes('co-director')) coDirectorCount++;
+                else if (roleName.includes('evaluador')) evaluatorCount++;
             });
-
-            const unassignedCount = unassignedStudentsData.length;
-            const assignedCount = students.length - unassignedCount;
-            setStudentAssignmentChartData({
-                labels: ['Asignados', 'Sin Asignar'],
-                datasets: [{ data: [assignedCount, unassignedCount], backgroundColor: ['#3b82f6', '#f59e0b'], borderColor: '#ffffff', borderWidth: 2 }]
-            });
-
-            const studentsPerProgramCounts = programs.map(program => ({
-                name: program.name,
-                count: students.filter(s => s.programId === program.id).length
+            return {
+                'Nombre del Docente': teacher.name, 'Email': teacher.email, 'Proyectos como Director': directorCount,
+                'Proyectos como Co-Director': coDirectorCount, 'Proyectos como Evaluador': evaluatorCount, 'Total de Proyectos': assignments.length,
+            };
+        });
+        setTeacherWorkload(workloadData);
+        
+        const unassignedStudentsData = students
+            .filter(s => !s.projectId)
+            .map(s => ({ 
+                'Nombre del Estudiante': s.name, 
+                'Email': s.email, 
+                'Programa': programs.find(p => p.id === s.programId)?.name || 'N/A' 
             }));
-            setStudentsPerProgramChartData({
-                labels: studentsPerProgramCounts.map(p => p.name),
-                datasets: [{
-                    label: 'Estudiantes',
-                    data: studentsPerProgramCounts.map(p => p.count),
-                    backgroundColor: ['#1d4ed8', '#9333ea'],
-                    borderColor: '#ffffff',
-                    borderWidth: 2
-                }]
-            });
+        setUnassignedStudents(unassignedStudentsData);
 
-            setTeacherWorkloadChartData({
-                labels: workloadData.map(w => w['Nombre del Docente']),
-                datasets: [
-                    { label: 'Director', data: workloadData.map(w => w['Proyectos como Director']), backgroundColor: '#1d4ed8' },
-                    { label: 'Co-Director', data: workloadData.map(w => w['Proyectos como Co-Director']), backgroundColor: '#3b82f6' },
-                    { label: 'Evaluador', data: workloadData.map(w => w['Proyectos como Evaluador']), backgroundColor: '#93c5fd' },
-                ]
-            });
-        } catch (error) {
-            console.error("Error loading report data:", error);
-        } finally {
-            setLoading(false);
-        }
+        // --- Lógica para datos de gráficos ---
+        const chartColors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#6366f1', '#ec4899'];
+        
+        const statusCounts = statuses.map(status => ({ name: status.name, count: projects.filter(p => p.statusId === status.id).length }));
+        setProjectStatusChartData({
+            labels: statusCounts.map(s => s.name),
+            datasets: [{ label: 'Proyectos', data: statusCounts.map(s => s.count), backgroundColor: chartColors, borderColor: '#ffffff', borderWidth: 2 }]
+        });
+
+        const unassignedCount = unassignedStudentsData.length;
+        const assignedCount = students.length - unassignedCount;
+        setStudentAssignmentChartData({
+            labels: ['Asignados', 'Sin Asignar'],
+            datasets: [{ data: [assignedCount, unassignedCount], backgroundColor: ['#3b82f6', '#f59e0b'], borderColor: '#ffffff', borderWidth: 2 }]
+        });
+
+        const studentsPerProgramCounts = programs.map(program => ({
+            name: program.name,
+            count: students.filter(s => s.programId === program.id).length
+        }));
+        setStudentsPerProgramChartData({
+            labels: studentsPerProgramCounts.map(p => p.name),
+            datasets: [{
+                label: 'Estudiantes',
+                data: studentsPerProgramCounts.map(p => p.count),
+                backgroundColor: ['#1d4ed8', '#9333ea'],
+                borderColor: '#ffffff',
+                borderWidth: 2
+            }]
+        });
+
+        setTeacherWorkloadChartData({
+            labels: workloadData.map(w => w['Nombre del Docente']),
+            datasets: [
+                { label: 'Director', data: workloadData.map(w => w['Proyectos como Director']), backgroundColor: '#1d4ed8' },
+                { label: 'Co-Director', data: workloadData.map(w => w['Proyectos como Co-Director']), backgroundColor: '#3b82f6' },
+                { label: 'Evaluador', data: workloadData.map(w => w['Proyectos como Evaluador']), backgroundColor: '#93c5fd' },
+            ]
+        });
+
     }, []);
 
     useEffect(() => {
@@ -227,10 +228,6 @@ export const ReportsPage: React.FC = () => {
         link.click();
         document.body.removeChild(link);
     };
-
-    if (loading) {
-        return <div className="text-center p-10">Generando reportes...</div>;
-    }
 
     return (
         <div className="space-y-10">

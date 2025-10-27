@@ -57,7 +57,6 @@ const TeacherForm: React.FC<{
 
 export const TeachersPage: React.FC = () => {
     const { isAdmin } = useAuth();
-    const [loading, setLoading] = useState(true);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [roles, setRoles] = useState<TeacherRole[]>([]);
@@ -67,46 +66,33 @@ export const TeachersPage: React.FC = () => {
     const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
     const [deletingTeacher, setDeletingTeacher] = useState<Teacher | null>(null);
 
-    const loadData = useCallback(async () => {
-        setLoading(true);
-        try {
-            const [teachersData, projectsData, rolesData, projectTeachersData] = await Promise.all([
-                db.getTeachers(),
-                db.getProjects(),
-                db.getTeacherRoles(),
-                db.getProjectTeachers()
-            ]);
-            setTeachers(teachersData);
-            setProjects(projectsData);
-            setRoles(rolesData);
-            setProjectTeachers(projectTeachersData);
-        } catch (error) {
-            console.error("Error loading teachers data:", error);
-        } finally {
-            setLoading(false);
-        }
+    const loadData = useCallback(() => {
+        setTeachers(db.getTeachers());
+        setProjects(db.getProjects());
+        setRoles(db.getTeacherRoles());
+        setProjectTeachers(db.getProjectTeachers());
     }, []);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
 
-    const handleSave = async (teacher: Omit<Teacher, 'id'> | Teacher) => {
+    const handleSave = (teacher: Omit<Teacher, 'id'> | Teacher) => {
         if (!isAdmin) return;
         if ('id' in teacher) {
-            await db.updateTeacher(teacher);
+            db.updateTeacher(teacher);
         } else {
-            await db.addTeacher(teacher);
+            db.addTeacher(teacher);
         }
-        await loadData();
+        loadData();
         setIsModalOpen(false);
         setEditingTeacher(null);
     };
 
-    const handleDelete = async () => {
+    const handleDelete = () => {
         if (deletingTeacher && isAdmin) {
-            await db.deleteTeacher(deletingTeacher.id);
-            await loadData();
+            db.deleteTeacher(deletingTeacher.id);
+            loadData();
             setDeletingTeacher(null);
         }
     };
@@ -124,10 +110,6 @@ export const TeachersPage: React.FC = () => {
             });
     };
     
-    if (loading) {
-        return <div className="text-center p-10">Cargando docentes...</div>;
-    }
-
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -169,7 +151,7 @@ export const TeachersPage: React.FC = () => {
                                     )}
                                 </tr>
                             ))}
-                             {teachers.length === 0 && !loading && (
+                             {teachers.length === 0 && (
                                 <tr>
                                     <td colSpan={isAdmin ? 5 : 4} className="text-center py-10 text-gray-500">No se encontraron docentes.</td>
                                 </tr>

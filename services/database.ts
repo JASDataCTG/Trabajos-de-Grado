@@ -1,9 +1,6 @@
 import { AppDatabase, Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status, Program, User } from '../types';
 
-// Centralized database configuration using a REST API (JSONBin.io)
-// This enables access from any computer/IP address.
-const BIN_ID = '673e33f3e4034b42b23652f9';
-const MASTER_KEY = '$2a$10$3l.n4cs3gmvNoR130j0jVOk3KzsdKbnBIiTOfL5qQTp2j1DxN2V9i'; // This is a read/write key for this specific bin.
+const DB_KEY = 'degreeProjectsDB';
 
 const generateId = (): string => Date.now().toString(36) + Math.random().toString(36).substring(2);
 
@@ -56,6 +53,7 @@ const getSeedData = (): AppDatabase => {
         {id: 'pt-5', projectId: 'project-2', teacherId: 'teacher-3', roleId: 'role-4'},
     ];
     
+    // Generar usuarios a partir de docentes y estudiantes
     const users: User[] = [
         { id: 'user-admin', username: 'admin', password: 'Ja39362505', role: 'admin', teacherId: null, studentId: null },
         ...teachers.map(t => ({
@@ -79,118 +77,148 @@ const getSeedData = (): AppDatabase => {
     return { users, statuses, formats, teacherRoles, teachers, projects, students, projectTeachers, programs };
 };
 
-const readDB = async (): Promise<AppDatabase> => {
+export const initializeDB = (): void => {
+    // Proteger contra el entorno del servidor
+    if (typeof window === 'undefined' || !window.localStorage) return;
+
+    if (!localStorage.getItem(DB_KEY)) {
+        localStorage.setItem(DB_KEY, JSON.stringify(getSeedData()));
+    }
+};
+
+const readDB = (): AppDatabase => {
+    const seedData = getSeedData();
+
+    // Proteger contra el entorno del servidor
+    if (typeof window === 'undefined' || !window.localStorage) {
+        return seedData;
+    }
+
+    const dbString = localStorage.getItem(DB_KEY);
+    if (!dbString) {
+        localStorage.setItem(DB_KEY, JSON.stringify(seedData));
+        return seedData;
+    }
     try {
-        const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-            headers: { 'X-Master-Key': MASTER_KEY }
-        });
-        if (response.status === 404) { // Bin is empty or doesn't exist
-            console.log("No database found. Initializing with seed data...");
-            const seedData = getSeedData();
-            await writeDB(seedData);
-            return seedData;
+        const storedDb = JSON.parse(dbString) as Partial<AppDatabase>;
+        // Fusiona los datos almacenados con los datos iniciales para garantizar que todas las claves existan.
+        const validatedDb: AppDatabase = {
+            ...seedData,
+            ...storedDb,
+        };
+        // Asegúrate de que cada clave tenga un valor de array, incluso si localStorage tiene null/undefined.
+        for (const key of Object.keys(seedData) as Array<keyof AppDatabase>) {
+             if (!Array.isArray(validatedDb[key])) {
+                 (validatedDb as any)[key] = seedData[key];
+             }
         }
-        if (!response.ok) {
-            throw new Error(`Failed to read from DB: ${response.statusText}`);
-        }
-        const data = await response.json();
-        // The data is nested under `record` by jsonbin
-        return data.record;
+        return validatedDb;
     } catch (error) {
-        console.error("Failed to read from remote DB:", error);
-        throw new Error("Could not connect to the database.");
+        console.error("No se pudo analizar la BD desde localStorage, volviendo a los datos iniciales.", error);
+        localStorage.setItem(DB_KEY, JSON.stringify(seedData));
+        return seedData;
     }
 };
 
-const writeDB = async (db: AppDatabase): Promise<void> => {
-     try {
-        const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Master-Key': MASTER_KEY
-            },
-            body: JSON.stringify(db)
-        });
-        if (!response.ok) {
-            throw new Error(`Failed to write to DB: ${response.statusText}`);
-        }
-    } catch (error) {
-        console.error("Failed to write to remote DB:", error);
-        throw new Error("Could not save to the database.");
-    }
+
+const writeDB = (db: AppDatabase): void => {
+    // Proteger contra el entorno del servidor
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
 };
 
+// Funciones CRUD genéricas y seguras en tipos
 type EntityName = keyof AppDatabase;
 
-const getItems = async <K extends EntityName>(entityName: K): Promise<AppDatabase[K]> => {
-    const db = await readDB();
-    return db[entityName] || [];
+const getItems = <K extends EntityName>(entityName: K): AppDatabase[K] => {
+    const db = readDB();
+    return db[entityName];
 };
 
-const getItemById = async <K extends EntityName>(entityName: K, id: string): Promise<AppDatabase[K][number] | undefined> => {
-    const items = await getItems(entityName);
+const getItemById = <K extends EntityName>(entityName: K, id: string): AppDatabase[K][number] | undefined => {
+    const items = getItems(entityName);
     return items.find((item: { id: string }) => item.id === id);
 };
 
-const addItem = async <K extends EntityName>(
+const addItem = <K extends EntityName>(
     entityName: K,
     item: Omit<AppDatabase[K][number], 'id'>
-): Promise<AppDatabase[K][number]> => {
-    const db = await readDB();
+): AppDatabase[K][number] => {
+    const db = readDB();
     const newItem = { ...item, id: generateId() } as AppDatabase[K][number];
     (db[entityName] as AppDatabase[K][number][]).push(newItem);
-    await writeDB(db);
+    writeDB(db);
     return newItem;
 };
 
-const updateItem = async <K extends EntityName>(
+const updateItem = <K extends EntityName>(
     entityName: K,
     updatedItem: AppDatabase[K][number]
-): Promise<AppDatabase[K][number]> => {
-    const db = await readDB();
+): AppDatabase[K][number] => {
+    const db = readDB();
     const items = db[entityName] as AppDatabase[K][number][];
     const index = items.findIndex(item => item.id === updatedItem.id);
     if (index !== -1) {
         items[index] = updatedItem;
-        await writeDB(db);
+        writeDB(db);
     }
     return updatedItem;
 };
 
-const deleteItem = async (entityName: EntityName, id: string): Promise<void> => {
-    const db = await readDB();
+const deleteItem = (entityName: EntityName, id: string): void => {
+    const db = readDB();
     let items = (db[entityName] as { id: string }[]).filter(item => item.id !== id);
     (db as any)[entityName] = items;
     
+    // Lógica de eliminación en cascada
     if (entityName === 'projects') {
         db.students = db.students.map(s => s.projectId === id ? { ...s, projectId: null } : s);
         db.projectTeachers = db.projectTeachers.filter(pt => pt.projectId !== id);
     }
     if (entityName === 'teachers') {
         db.projectTeachers = db.projectTeachers.filter(pt => pt.teacherId !== id);
+        // Eliminar usuario asociado
         db.users = db.users.filter(u => u.teacherId !== id);
     }
     if (entityName === 'students') {
+        // Eliminar usuario asociado
         db.users = db.users.filter(u => u.studentId !== id);
     }
     if (entityName === 'users') {
+        // No permitir eliminar el admin
         const adminUser = getSeedData().users.find(u => u.role === 'admin');
         if (id === adminUser?.id) {
-            console.warn('Cannot delete admin user.');
-            return; 
+            console.warn('No se puede eliminar el usuario administrador.');
+            // Si la eliminación fue cancelada, restaura los elementos
+            items = (readDB()[entityName] as { id: string }[]);
+            (db as any)[entityName] = items;
+        } else {
+             const userToDelete = getItemById('users', id);
+             if (userToDelete?.teacherId) {
+                // Si eliminamos un usuario de profesor, no eliminamos al profesor. Solo el usuario.
+             }
         }
     }
-    await writeDB(db);
+
+
+    writeDB(db);
 };
 
-// --- Functions with coupled user logic ---
+const replaceAllItems = <K extends EntityName>(entityName: K, newItems: AppDatabase[K]): void => {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    const db = readDB();
+    (db as any)[entityName] = newItems;
+    writeDB(db);
+};
 
-const addTeacher = async (teacher: Omit<Teacher, 'id'>) => {
-    const dbState = await readDB();
+// --- Funciones CRUD con lógica de usuario acoplada ---
+
+const addTeacher = (teacher: Omit<Teacher, 'id'>) => {
+    const dbState = readDB();
     const newTeacher = { ...teacher, id: generateId() };
     dbState.teachers.push(newTeacher);
 
+    // Crear usuario asociado
     const newUser: Omit<User, 'id'> = {
         username: newTeacher.email.split('@')[0],
         password: newTeacher.cedula,
@@ -198,34 +226,38 @@ const addTeacher = async (teacher: Omit<Teacher, 'id'>) => {
         teacherId: newTeacher.id,
         studentId: null,
     };
-    dbState.users.push({ ...newUser, id: generateId() });
+    const newUserId = generateId();
+    dbState.users.push({ ...newUser, id: newUserId });
 
-    await writeDB(dbState);
+    writeDB(dbState);
     return newTeacher;
 };
 
-const updateTeacher = async (updatedTeacher: Teacher) => {
-    const dbState = await readDB();
+const updateTeacher = (updatedTeacher: Teacher) => {
+    const dbState = readDB();
     
+    // Actualizar docente
     const teacherIndex = dbState.teachers.findIndex(t => t.id === updatedTeacher.id);
     if (teacherIndex === -1) return updatedTeacher;
     dbState.teachers[teacherIndex] = updatedTeacher;
 
+    // Actualizar usuario asociado
     const userIndex = dbState.users.findIndex(u => u.teacherId === updatedTeacher.id);
     if (userIndex !== -1) {
         dbState.users[userIndex].username = updatedTeacher.email.split('@')[0];
         dbState.users[userIndex].password = updatedTeacher.cedula;
     }
     
-    await writeDB(dbState);
+    writeDB(dbState);
     return updatedTeacher;
 };
 
-const addStudent = async (student: Omit<Student, 'id'>) => {
-    const dbState = await readDB();
+const addStudent = (student: Omit<Student, 'id'>) => {
+    const dbState = readDB();
     const newStudent = { ...student, id: generateId() };
     dbState.students.push(newStudent);
 
+    // Crear usuario asociado
     const newUser: Omit<User, 'id'> = {
         username: newStudent.email.split('@')[0],
         password: newStudent.cedula,
@@ -233,61 +265,60 @@ const addStudent = async (student: Omit<Student, 'id'>) => {
         teacherId: null,
         studentId: newStudent.id,
     };
-    dbState.users.push({ ...newUser, id: generateId() });
+    const newUserId = generateId();
+    dbState.users.push({ ...newUser, id: newUserId });
     
-    await writeDB(dbState);
+    writeDB(dbState);
     return newStudent;
 };
 
-const updateStudent = async (updatedStudent: Student) => {
-    const dbState = await readDB();
+const updateStudent = (updatedStudent: Student) => {
+    const dbState = readDB();
 
+    // Actualizar estudiante
     const studentIndex = dbState.students.findIndex(s => s.id === updatedStudent.id);
     if (studentIndex === -1) return updatedStudent;
     dbState.students[studentIndex] = updatedStudent;
 
+    // Actualizar usuario asociado
     const userIndex = dbState.users.findIndex(u => u.studentId === updatedStudent.id);
     if (userIndex !== -1) {
         dbState.users[userIndex].username = updatedStudent.email.split('@')[0];
         dbState.users[userIndex].password = updatedStudent.cedula;
     }
     
-    await writeDB(dbState);
+    writeDB(dbState);
     return updatedStudent;
 };
 
-export const initializeDB = async (): Promise<void> => {
-    await readDB();
-};
 
-
-// Export async functions for each entity
+// Exportar funciones específicas para cada entidad
 export const db = {
-    // Users
+    // Usuarios
     getUsers: () => getItems('users'),
     getUserById: (id: string) => getItemById('users', id),
     addUser: (user: Omit<User, 'id'>) => addItem('users', user),
     updateUser: (user: User) => updateItem('users', user),
     deleteUser: (id: string) => deleteItem('users', id),
 
-    // Projects
+    // Proyectos
     getProjects: () => getItems('projects'),
     getProjectById: (id: string) => getItemById('projects', id),
     addProject: (project: Omit<Project, 'id'>) => addItem('projects', project),
     updateProject: (project: Project) => updateItem('projects', project),
     deleteProject: (id: string) => deleteItem('projects', id),
 
-    // Programs
+    // Programas
     getPrograms: () => getItems('programs'),
 
-    // Students
+    // Estudiantes
     getStudents: () => getItems('students'),
     getStudentById: (id: string) => getItemById('students', id),
     addStudent: addStudent,
     updateStudent: updateStudent,
     deleteStudent: (id: string) => deleteItem('students', id),
 
-    // Teachers
+    // Docentes
     getTeachers: () => getItems('teachers'),
     getTeacherById: (id: string) => getItemById('teachers', id),
     addTeacher: addTeacher,
@@ -300,7 +331,7 @@ export const db = {
     updateProjectTeacher: (pt: ProjectTeacher) => updateItem('projectTeachers', pt),
     deleteProjectTeacher: (id: string) => deleteItem('projectTeachers', id),
 
-    // Formats
+    // Formatos
     getFormats: () => getItems('formats'),
     addFormat: (format: Omit<Format, 'id'>) => addItem('formats', format),
     updateFormat: (format: Format) => updateItem('formats', format),
@@ -317,4 +348,7 @@ export const db = {
     addStatus: (status: Omit<Status, 'id'>) => addItem('statuses', status),
     updateStatus: (status: Status) => updateItem('statuses', status),
     deleteStatus: (id: string) => deleteItem('statuses', id),
+
+    // Función de reemplazo
+    replaceAll: replaceAllItems,
 };

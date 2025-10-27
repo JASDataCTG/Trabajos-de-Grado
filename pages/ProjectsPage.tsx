@@ -170,7 +170,6 @@ const ProjectForm: React.FC<{
 
 export const ProjectsPage: React.FC = () => {
     const { isAdmin, canEditProject, canGradeProject } = useAuth();
-    const [loading, setLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -183,70 +182,47 @@ export const ProjectsPage: React.FC = () => {
     const [editingProject, setEditingProject] = useState<Project | null>(null);
     const [deletingProject, setDeletingProject] = useState<Project | null>(null);
 
-    const [permissions, setPermissions] = useState<Record<string, { canEdit: boolean, gradeInfo: { canGrade: boolean, reviewerRole: string | null } }>>({});
-
-    const loadData = useCallback(async () => {
-        setLoading(true);
-        try {
-            const [projectsData, studentsData, teachersData, rolesData, statusesData, formatsData, projectTeachersData] = await Promise.all([
-                db.getProjects(), db.getStudents(), db.getTeachers(), db.getTeacherRoles(),
-                db.getStatuses(), db.getFormats(), db.getProjectTeachers()
-            ]);
-            setProjects(projectsData);
-            setStudents(studentsData);
-            setTeachers(teachersData);
-            setRoles(rolesData);
-            setStatuses(statusesData);
-            setFormats(formatsData);
-            setProjectTeachers(projectTeachersData);
-
-            const perms: Record<string, { canEdit: boolean, gradeInfo: { canGrade: boolean, reviewerRole: string | null } }> = {};
-            for (const p of projectsData) {
-                perms[p.id] = {
-                    canEdit: await canEditProject(p.id),
-                    gradeInfo: await canGradeProject(p.id),
-                };
-            }
-            setPermissions(perms);
-
-        } catch (error) {
-            console.error("Error loading projects data:", error);
-        } finally {
-            setLoading(false);
-        }
-    }, [canEditProject, canGradeProject]);
+    const loadData = useCallback(() => {
+        setProjects(db.getProjects());
+        setStudents(db.getStudents());
+        setTeachers(db.getTeachers());
+        setRoles(db.getTeacherRoles());
+        setStatuses(db.getStatuses());
+        setFormats(db.getFormats());
+        setProjectTeachers(db.getProjectTeachers());
+    }, []);
 
     useEffect(() => { loadData(); }, [loadData]);
 
-    const handleSave = async (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>) => {
+    const handleSave = (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>) => {
         let savedProject: Project;
 
-        if (editingProject && editingProject.id) {
-            const originalProject = await db.getProjectById(editingProject.id);
+        if (editingProject) { // Editing existing project
+            const originalProject = db.getProjectById(editingProject.id);
             if (!originalProject) return;
             const mergedProject = { ...originalProject, ...projectData };
-            savedProject = await db.updateProject(mergedProject);
-        } else {
+            savedProject = db.updateProject(mergedProject);
+        } else { // Creating new project
             if (!isAdmin) return;
-            savedProject = await db.addProject(projectData as Omit<Project, 'id'>);
-        }
-        
-        const canEdit = await canEditProject(savedProject.id);
-        if (canEdit) {
-            const existingAssignments = (await db.getProjectTeachers()).filter(pt => pt.projectId === savedProject.id);
-            await Promise.all(existingAssignments.map(pt => db.deleteProjectTeacher(pt.id)));
-            await Promise.all(assignments.map(a => db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId })));
+            savedProject = db.addProject(projectData as Omit<Project, 'id'>);
         }
 
-        await loadData();
+        // Only Directors/Admins can change assignments
+        if (canEditProject(savedProject.id)) {
+            const existingAssignments = db.getProjectTeachers().filter(pt => pt.projectId === savedProject.id);
+            existingAssignments.forEach(pt => db.deleteProjectTeacher(pt.id));
+            assignments.forEach(a => db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId }));
+        }
+
+        loadData();
         setIsModalOpen(false);
         setEditingProject(null);
     };
 
-    const handleDelete = async () => {
-        if (deletingProject && await canEditProject(deletingProject.id)) {
-            await db.deleteProject(deletingProject.id);
-            await loadData();
+    const handleDelete = () => {
+        if (deletingProject && canEditProject(deletingProject.id)) {
+            db.deleteProject(deletingProject.id);
+            loadData();
             setDeletingProject(null);
         }
     };
@@ -267,10 +243,6 @@ export const ProjectsPage: React.FC = () => {
         return (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(1);
     };
     
-    if (loading) {
-        return <div className="text-center p-10">Cargando proyectos...</div>;
-    }
-
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -294,7 +266,8 @@ export const ProjectsPage: React.FC = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                     </tr></thead>
                     <tbody className="bg-white divide-y divide-gray-200">{projects.map(project => {
-                        const projectPerms = permissions[project.id] || { canEdit: false, gradeInfo: { canGrade: false, reviewerRole: null } };
+                        const userCanEditDetails = canEditProject(project.id);
+                        const gradeInfo = canGradeProject(project.id);
                         const finalWritten = calculateAverage(project.writtenGradeReviewer1, project.writtenGradeReviewer2);
                         const finalPresentation = calculateAverage(project.presentationGradeReviewer1, project.presentationGradeReviewer2);
                         return (<tr key={project.id}>
@@ -305,16 +278,16 @@ export const ProjectsPage: React.FC = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-center">{project.isApprovedByDirector ? <span className="text-green-600 text-lg font-bold">✓</span> : <span className="text-red-500 text-lg font-bold">✗</span>}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{finalWritten} / {finalPresentation}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                {(projectPerms.canEdit || projectPerms.gradeInfo.canGrade) && <button onClick={() => { setEditingProject(project); setIsModalOpen(true); }} className="text-primary-600 hover:text-primary-900"><EditIcon className="h-5 w-5" /></button>}
-                                {projectPerms.canEdit && <button onClick={() => setDeletingProject(project)} className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5" /></button>}
+                                {(userCanEditDetails || gradeInfo.canGrade) && <button onClick={() => { setEditingProject(project); setIsModalOpen(true); }} className="text-primary-600 hover:text-primary-900"><EditIcon className="h-5 w-5" /></button>}
+                                {userCanEditDetails && <button onClick={() => setDeletingProject(project)} className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5" /></button>}
                             </td>
                         </tr>);
-                    })}{projects.length === 0 && !loading && (<tr><td colSpan={8} className="text-center py-10 text-gray-500">No se encontraron proyectos. Crea uno para comenzar.</td></tr>)}
+                    })}{projects.length === 0 && (<tr><td colSpan={8} className="text-center py-10 text-gray-500">No se encontraron proyectos. Crea uno para comenzar.</td></tr>)}
                     </tbody>
                 </table>
             </div></div>
             <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingProject(null); }} title={editingProject ? 'Editar/Calificar Proyecto' : 'Añadir Proyecto'}>
-                {isModalOpen && <ProjectForm project={editingProject} onSave={handleSave} onClose={() => { setIsModalOpen(false); setEditingProject(null); }} statuses={statuses} formats={formats} teachers={teachers} roles={roles} initialAssignments={editingProject ? projectTeachers.filter(pt => pt.projectId === editingProject.id) : []} canEditDetails={editingProject ? (permissions[editingProject.id]?.canEdit ?? false) : isAdmin} gradeInfo={editingProject ? (permissions[editingProject.id]?.gradeInfo ?? {canGrade: false, reviewerRole: null}) : {canGrade: false, reviewerRole: null}} />}
+                {isModalOpen && <ProjectForm project={editingProject} onSave={handleSave} onClose={() => { setIsModalOpen(false); setEditingProject(null); }} statuses={statuses} formats={formats} teachers={teachers} roles={roles} initialAssignments={editingProject ? projectTeachers.filter(pt => pt.projectId === editingProject.id) : []} canEditDetails={editingProject ? canEditProject(editingProject.id) : isAdmin} gradeInfo={editingProject ? canGradeProject(editingProject.id) : {canGrade: false, reviewerRole: null}} />}
             </Modal>
             <ConfirmationDialog isOpen={!!deletingProject} onClose={() => setDeletingProject(null)} onConfirm={handleDelete} title="Eliminar Proyecto" message={`¿Estás seguro de que quieres eliminar el proyecto "${deletingProject?.title}"? Esto también desasignará a sus estudiantes y eliminará los roles de los docentes. Esta acción no se puede deshacer.`} />
         </div>

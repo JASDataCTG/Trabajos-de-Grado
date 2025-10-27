@@ -1,40 +1,32 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../services/database';
-import { Student, Project, Status, Teacher, TeacherRole } from '../types';
+import { Student, Project, Status, ProjectTeacher, Teacher, TeacherRole } from '../types';
 import { ProjectIcon } from '../components/Icons';
 
 export const StudentProjectViewPage: React.FC = () => {
     const { user, logout } = useAuth();
-    const [loading, setLoading] = useState(true);
     const [student, setStudent] = useState<Student | null>(null);
     const [project, setProject] = useState<Project | null>(null);
     const [status, setStatus] = useState<Status | null>(null);
     const [directors, setDirectors] = useState<Teacher[]>([]);
 
-    const loadData = useCallback(async () => {
-        if (!user?.studentId) {
-            setLoading(false);
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const studentData = await db.getStudentById(user.studentId);
+    useEffect(() => {
+        if (user?.studentId) {
+            const studentData = db.getStudentById(user.studentId);
             setStudent(studentData || null);
 
             if (studentData?.projectId) {
-                const projectData = await db.getProjectById(studentData.projectId);
+                const projectData = db.getProjectById(studentData.projectId);
                 setProject(projectData || null);
 
                 if (projectData) {
-                    const allStatuses = await db.getStatuses();
-                    const statusData = allStatuses.find(s => s.id === projectData.statusId);
+                    const statusData = db.getStatuses().find(s => s.id === projectData.statusId);
                     setStatus(statusData || null);
 
-                    const projectTeachers = (await db.getProjectTeachers()).filter(pt => pt.projectId === projectData.id);
-                    const allTeachers = await db.getTeachers();
-                    const allRoles = await db.getTeacherRoles();
+                    const projectTeachers = db.getProjectTeachers().filter(pt => pt.projectId === projectData.id);
+                    const allTeachers = db.getTeachers();
+                    const allRoles = db.getTeacherRoles();
                     const directorRoles = allRoles.filter(r => r.name.toLowerCase().includes('director')).map(r => r.id);
                     
                     const assignedDirectors = projectTeachers
@@ -45,16 +37,8 @@ export const StudentProjectViewPage: React.FC = () => {
                     setDirectors(assignedDirectors);
                 }
             }
-        } catch (error) {
-            console.error("Error loading student project data:", error);
-        } finally {
-            setLoading(false);
         }
     }, [user]);
-
-    useEffect(() => {
-        loadData();
-    }, [loadData]);
 
     return (
         <div className="min-h-screen bg-gray-100 font-sans">
@@ -72,10 +56,6 @@ export const StudentProjectViewPage: React.FC = () => {
             </header>
             <main className="p-4 md:p-8">
                 <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6 md:p-8">
-                    {loading ? (
-                        <div className="text-center py-10">Cargando información...</div>
-                    ) : (
-                    <>
                     <div className="text-center mb-8">
                         <h2 className="text-2xl font-semibold text-gray-700">Bienvenido, {student?.name || 'Estudiante'}</h2>
                         <p className="text-gray-500 mt-1">Aquí puedes consultar la información actual de tu proyecto de grado.</p>
@@ -115,8 +95,6 @@ export const StudentProjectViewPage: React.FC = () => {
                             <p className="text-lg text-gray-600">Aún no tienes un proyecto de grado asignado.</p>
                             <p className="text-sm text-gray-500 mt-2">Por favor, contacta a tu director de programa para más información.</p>
                         </div>
-                    )}
-                    </>
                     )}
                 </div>
             </main>

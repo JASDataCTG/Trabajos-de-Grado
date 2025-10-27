@@ -7,38 +7,25 @@ import { useAuth } from '../contexts/AuthContext';
 
 export const UsersPage: React.FC = () => {
     const { user: currentUser } = useAuth();
-    const [loading, setLoading] = useState(true);
     const [users, setUsers] = useState<User[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     const [deletingUser, setDeletingUser] = useState<User | null>(null);
 
-    const loadData = useCallback(async () => {
-        setLoading(true);
-        try {
-            const [usersData, teachersData, studentsData] = await Promise.all([
-                db.getUsers(),
-                db.getTeachers(),
-                db.getStudents(),
-            ]);
-            setUsers(usersData);
-            setTeachers(teachersData);
-            setStudents(studentsData);
-        } catch (error) {
-            console.error("Error loading users data:", error);
-        } finally {
-            setLoading(false);
-        }
+    const loadData = useCallback(() => {
+        setUsers(db.getUsers());
+        setTeachers(db.getTeachers());
+        setStudents(db.getStudents());
     }, []);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
 
-    const handleDelete = async () => {
+    const handleDelete = () => {
         if (deletingUser) {
-            await db.deleteUser(deletingUser.id);
-            await loadData();
+            db.deleteUser(deletingUser.id);
+            loadData();
             setDeletingUser(null);
         }
     };
@@ -59,10 +46,6 @@ export const UsersPage: React.FC = () => {
             case 'teacher': return 'Docente';
             case 'student': return 'Estudiante';
         }
-    }
-    
-    if (loading) {
-        return <div className="text-center p-10">Cargando usuarios...</div>;
     }
 
     return (
@@ -98,7 +81,7 @@ export const UsersPage: React.FC = () => {
                                     </td>
                                 </tr>
                             ))}
-                             {users.length === 0 && !loading && (
+                             {users.length === 0 && (
                                 <tr>
                                     <td colSpan={4} className="text-center py-10 text-gray-500">No se encontraron usuarios.</td>
                                 </tr>
