@@ -9,8 +9,6 @@ import { useAuth } from '../contexts/AuthContext';
 type EntityType = 'status' | 'format' | 'role';
 type Entity = Status | Format | TeacherRole;
 
-// --- Components ---
-
 interface SettingsListProps<T extends Entity> {
     title: string;
     items: T[];
@@ -90,6 +88,7 @@ type AllEntityTypes = keyof AppDatabase;
 const DataManagement: React.FC = () => {
     const { isAdmin } = useAuth();
     const [confirmImport, setConfirmImport] = useState<{type: AllEntityTypes, data: any[]} | null>(null);
+    const [showUpdateSeedDialog, setShowUpdateSeedDialog] = useState(false);
 
     const entities: { key: AllEntityTypes; name: string }[] = [
         { key: 'projects', name: 'Proyectos' },
@@ -133,7 +132,7 @@ const DataManagement: React.FC = () => {
             }
         };
         reader.readAsText(file);
-        e.target.value = ''; // Reset input to allow re-uploading the same file
+        e.target.value = '';
     };
     
     const confirmImportAction = () => {
@@ -148,25 +147,47 @@ const DataManagement: React.FC = () => {
             alert("Ocurrió un error al importar los datos. Revisa la consola para más detalles.");
         }
     };
+    
+    const handleUpdateSeed = () => {
+        db.saveCurrentDbAsSeed();
+        setShowUpdateSeedDialog(false);
+        alert('¡Los datos de inicio han sido actualizados con éxito! La nueva configuración se aplicará en cualquier navegador que abra la aplicación por primera vez.');
+    };
 
     return (
         <div className="bg-white rounded-lg shadow p-6 col-span-1 md:col-span-2 lg:col-span-3">
             <h2 className="text-xl font-semibold text-gray-800 mb-2">Gestión de Datos</h2>
-            <p className="text-sm text-gray-600 mb-6">Realiza copias de seguridad o migra tus datos exportando e importando archivos CSV.</p>
+            <p className="text-sm text-gray-600 mb-6">Realiza copias de seguridad, migra tus datos o establece una nueva configuración de inicio para la aplicación.</p>
+            
+            {isAdmin && (
+                <div className="mb-8 p-4 border-l-4 border-primary-500 bg-primary-50 rounded-md">
+                    <h3 className="text-lg font-medium text-primary-800">Actualizar Datos de Inicio</h3>
+                    <p className="text-sm text-primary-700 mt-1 mb-3">
+                        Guarda el estado actual de toda la aplicación (usuarios, proyectos, etc.) como la nueva configuración predeterminada. 
+                        Esta configuración se cargará en cualquier navegador que abra la aplicación por primera vez.
+                    </p>
+                    <button 
+                        onClick={() => setShowUpdateSeedDialog(true)}
+                        className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 text-sm font-medium"
+                    >
+                        Guardar Datos Actuales como Predeterminados
+                    </button>
+                </div>
+            )}
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                    <h3 className="text-lg font-medium text-gray-700 mb-4">Exportar Datos</h3>
+                    <h3 className="text-lg font-medium text-gray-700 mb-4">Exportar Datos (CSV)</h3>
                     <div className="space-y-2 flex flex-col items-start">
                         {entities.map(entity => (
-                             <button key={entity.key} onClick={() => handleExport(entity.key)} className="text-sm bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+                             <button key={entity.key} onClick={() => handleExport(entity.key)} className="text-sm bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300">
                                 Exportar {entity.name}
                             </button>
                         ))}
                     </div>
                 </div>
                 <div>
-                     <h3 className="text-lg font-medium text-gray-700 mb-4">Importar Datos</h3>
+                     <h3 className="text-lg font-medium text-gray-700 mb-4">Importar Datos (CSV)</h3>
                      <p className="text-xs text-yellow-800 bg-yellow-50 p-3 rounded-lg mb-4 ring-1 ring-yellow-200">
                         <span className="font-bold">Atención:</span> La importación reemplazará <span className="font-bold">todos</span> los datos existentes para la categoría seleccionada.
                     </p>
@@ -203,6 +224,13 @@ const DataManagement: React.FC = () => {
                 onConfirm={confirmImportAction}
                 title={`Confirmar Importación de ${entities.find(e => e.key === confirmImport?.type)?.name}`}
                 message={`Estás a punto de reemplazar TODOS los datos de "${entities.find(e => e.key === confirmImport?.type)?.name}" con el contenido del archivo. Esta acción no se puede deshacer. ¿Deseas continuar?`}
+            />
+            <ConfirmationDialog
+                isOpen={showUpdateSeedDialog}
+                onClose={() => setShowUpdateSeedDialog(false)}
+                onConfirm={handleUpdateSeed}
+                title="Actualizar Datos de Inicio Predeterminados"
+                message="¿Estás seguro? Esto reemplazará la configuración inicial estándar con todos los datos actuales de la aplicación. Esta acción no se puede deshacer fácilmente."
             />
         </div>
     );

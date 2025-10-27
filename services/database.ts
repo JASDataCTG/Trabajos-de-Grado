@@ -1,6 +1,7 @@
 import { AppDatabase, Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status, Program, User } from '../types';
 
 const DB_KEY = 'degreeProjectsDB';
+const DB_CUSTOM_SEED_KEY = 'degreeProjectsDBCustomSeed';
 
 const generateId = (): string => Date.now().toString(36) + Math.random().toString(36).substring(2);
 
@@ -53,60 +54,51 @@ const getSeedData = (): AppDatabase => {
         {id: 'pt-5', projectId: 'project-2', teacherId: 'teacher-3', roleId: 'role-4'},
     ];
     
-    // Generar usuarios a partir de docentes y estudiantes
     const users: User[] = [
         { id: 'user-admin', username: 'admin', password: 'Ja39362505', role: 'admin', teacherId: null, studentId: null },
-        ...teachers.map(t => ({
-            id: generateId(),
-            username: t.email.split('@')[0],
-            password: t.cedula,
-            role: 'teacher' as const,
-            teacherId: t.id,
-            studentId: null,
-        })),
-        ...students.map(s => ({
-            id: generateId(),
-            username: s.email.split('@')[0],
-            password: s.cedula,
-            role: 'student' as const,
-            teacherId: null,
-            studentId: s.id,
-        }))
+        { id: 'user-teacher-1', username: 'eleanor.v', password: '12345678', role: 'teacher', teacherId: 'teacher-1', studentId: null },
+        { id: 'user-teacher-2', username: 'ben.c', password: '87654321', role: 'teacher', teacherId: 'teacher-2', studentId: null },
+        { id: 'user-teacher-3', username: 'olivia.c', password: '11223344', role: 'teacher', teacherId: 'teacher-3', studentId: null },
+        { id: 'user-student-1', username: 'alice.j', password: '100100100', role: 'student', teacherId: null, studentId: 'student-1' },
+        { id: 'user-student-2', username: 'bob.w', password: '200200200', role: 'student', teacherId: null, studentId: 'student-2' },
+        { id: 'user-student-3', username: 'charlie.b', password: '300300300', role: 'student', teacherId: null, studentId: 'student-3' },
+        { id: 'user-student-4', username: 'diana.m', password: '400400400', role: 'student', teacherId: null, studentId: 'student-4' },
     ];
 
     return { users, statuses, formats, teacherRoles, teachers, projects, students, projectTeachers, programs };
 };
 
 export const initializeDB = (): void => {
-    // Proteger contra el entorno del servidor
     if (typeof window === 'undefined' || !window.localStorage) return;
 
     if (!localStorage.getItem(DB_KEY)) {
-        localStorage.setItem(DB_KEY, JSON.stringify(getSeedData()));
+        const customSeed = localStorage.getItem(DB_CUSTOM_SEED_KEY);
+        if (customSeed) {
+            localStorage.setItem(DB_KEY, customSeed);
+        } else {
+            localStorage.setItem(DB_KEY, JSON.stringify(getSeedData()));
+        }
     }
 };
 
 const readDB = (): AppDatabase => {
     const seedData = getSeedData();
-
-    // Proteger contra el entorno del servidor
     if (typeof window === 'undefined' || !window.localStorage) {
         return seedData;
     }
 
     const dbString = localStorage.getItem(DB_KEY);
     if (!dbString) {
-        localStorage.setItem(DB_KEY, JSON.stringify(seedData));
-        return seedData;
+        initializeDB();
+        return readDB(); // Vuelve a leer después de inicializar
     }
+
     try {
         const storedDb = JSON.parse(dbString) as Partial<AppDatabase>;
-        // Fusiona los datos almacenados con los datos iniciales para garantizar que todas las claves existan.
         const validatedDb: AppDatabase = {
             ...seedData,
             ...storedDb,
         };
-        // Asegúrate de que cada clave tenga un valor de array, incluso si localStorage tiene null/undefined.
         for (const key of Object.keys(seedData) as Array<keyof AppDatabase>) {
              if (!Array.isArray(validatedDb[key])) {
                  (validatedDb as any)[key] = seedData[key];
@@ -122,12 +114,19 @@ const readDB = (): AppDatabase => {
 
 
 const writeDB = (db: AppDatabase): void => {
-    // Proteger contra el entorno del servidor
     if (typeof window === 'undefined' || !window.localStorage) return;
     localStorage.setItem(DB_KEY, JSON.stringify(db));
 };
 
-// Funciones CRUD genéricas y seguras en tipos
+const saveCurrentDbAsSeed = (): void => {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    const currentDb = localStorage.getItem(DB_KEY);
+    if (currentDb) {
+        localStorage.setItem(DB_CUSTOM_SEED_KEY, currentDb);
+    }
+};
+
+
 type EntityName = keyof AppDatabase;
 
 const getItems = <K extends EntityName>(entityName: K): AppDatabase[K] => {
@@ -170,33 +169,23 @@ const deleteItem = (entityName: EntityName, id: string): void => {
     let items = (db[entityName] as { id: string }[]).filter(item => item.id !== id);
     (db as any)[entityName] = items;
     
-    // Lógica de eliminación en cascada
     if (entityName === 'projects') {
         db.students = db.students.map(s => s.projectId === id ? { ...s, projectId: null } : s);
         db.projectTeachers = db.projectTeachers.filter(pt => pt.projectId !== id);
     }
     if (entityName === 'teachers') {
         db.projectTeachers = db.projectTeachers.filter(pt => pt.teacherId !== id);
-        // Eliminar usuario asociado
         db.users = db.users.filter(u => u.teacherId !== id);
     }
     if (entityName === 'students') {
-        // Eliminar usuario asociado
         db.users = db.users.filter(u => u.studentId !== id);
     }
     if (entityName === 'users') {
-        // No permitir eliminar el admin
         const adminUser = getSeedData().users.find(u => u.role === 'admin');
         if (id === adminUser?.id) {
             console.warn('No se puede eliminar el usuario administrador.');
-            // Si la eliminación fue cancelada, restaura los elementos
             items = (readDB()[entityName] as { id: string }[]);
             (db as any)[entityName] = items;
-        } else {
-             const userToDelete = getItemById('users', id);
-             if (userToDelete?.teacherId) {
-                // Si eliminamos un usuario de profesor, no eliminamos al profesor. Solo el usuario.
-             }
         }
     }
 
@@ -211,14 +200,11 @@ const replaceAllItems = <K extends EntityName>(entityName: K, newItems: AppDatab
     writeDB(db);
 };
 
-// --- Funciones CRUD con lógica de usuario acoplada ---
-
 const addTeacher = (teacher: Omit<Teacher, 'id'>) => {
     const dbState = readDB();
     const newTeacher = { ...teacher, id: generateId() };
     dbState.teachers.push(newTeacher);
 
-    // Crear usuario asociado
     const newUser: Omit<User, 'id'> = {
         username: newTeacher.email.split('@')[0],
         password: newTeacher.cedula,
@@ -236,12 +222,10 @@ const addTeacher = (teacher: Omit<Teacher, 'id'>) => {
 const updateTeacher = (updatedTeacher: Teacher) => {
     const dbState = readDB();
     
-    // Actualizar docente
     const teacherIndex = dbState.teachers.findIndex(t => t.id === updatedTeacher.id);
     if (teacherIndex === -1) return updatedTeacher;
     dbState.teachers[teacherIndex] = updatedTeacher;
 
-    // Actualizar usuario asociado
     const userIndex = dbState.users.findIndex(u => u.teacherId === updatedTeacher.id);
     if (userIndex !== -1) {
         dbState.users[userIndex].username = updatedTeacher.email.split('@')[0];
@@ -257,7 +241,6 @@ const addStudent = (student: Omit<Student, 'id'>) => {
     const newStudent = { ...student, id: generateId() };
     dbState.students.push(newStudent);
 
-    // Crear usuario asociado
     const newUser: Omit<User, 'id'> = {
         username: newStudent.email.split('@')[0],
         password: newStudent.cedula,
@@ -275,12 +258,10 @@ const addStudent = (student: Omit<Student, 'id'>) => {
 const updateStudent = (updatedStudent: Student) => {
     const dbState = readDB();
 
-    // Actualizar estudiante
     const studentIndex = dbState.students.findIndex(s => s.id === updatedStudent.id);
     if (studentIndex === -1) return updatedStudent;
     dbState.students[studentIndex] = updatedStudent;
 
-    // Actualizar usuario asociado
     const userIndex = dbState.users.findIndex(u => u.studentId === updatedStudent.id);
     if (userIndex !== -1) {
         dbState.users[userIndex].username = updatedStudent.email.split('@')[0];
@@ -292,63 +273,44 @@ const updateStudent = (updatedStudent: Student) => {
 };
 
 
-// Exportar funciones específicas para cada entidad
 export const db = {
-    // Usuarios
     getUsers: () => getItems('users'),
     getUserById: (id: string) => getItemById('users', id),
     addUser: (user: Omit<User, 'id'>) => addItem('users', user),
     updateUser: (user: User) => updateItem('users', user),
     deleteUser: (id: string) => deleteItem('users', id),
-
-    // Proyectos
     getProjects: () => getItems('projects'),
     getProjectById: (id: string) => getItemById('projects', id),
     addProject: (project: Omit<Project, 'id'>) => addItem('projects', project),
     updateProject: (project: Project) => updateItem('projects', project),
     deleteProject: (id: string) => deleteItem('projects', id),
-
-    // Programas
     getPrograms: () => getItems('programs'),
-
-    // Estudiantes
     getStudents: () => getItems('students'),
     getStudentById: (id: string) => getItemById('students', id),
     addStudent: addStudent,
     updateStudent: updateStudent,
     deleteStudent: (id: string) => deleteItem('students', id),
-
-    // Docentes
     getTeachers: () => getItems('teachers'),
     getTeacherById: (id: string) => getItemById('teachers', id),
     addTeacher: addTeacher,
     updateTeacher: updateTeacher,
     deleteTeacher: (id: string) => deleteItem('teachers', id),
-
-    // ProjectTeachers
     getProjectTeachers: () => getItems('projectTeachers'),
     addProjectTeacher: (pt: Omit<ProjectTeacher, 'id'>) => addItem('projectTeachers', pt),
     updateProjectTeacher: (pt: ProjectTeacher) => updateItem('projectTeachers', pt),
     deleteProjectTeacher: (id: string) => deleteItem('projectTeachers', id),
-
-    // Formatos
     getFormats: () => getItems('formats'),
     addFormat: (format: Omit<Format, 'id'>) => addItem('formats', format),
     updateFormat: (format: Format) => updateItem('formats', format),
     deleteFormat: (id: string) => deleteItem('formats',id),
-
-    // TeacherRoles
     getTeacherRoles: () => getItems('teacherRoles'),
     addTeacherRole: (role: Omit<TeacherRole, 'id'>) => addItem('teacherRoles', role),
     updateTeacherRole: (role: TeacherRole) => updateItem('teacherRoles', role),
     deleteTeacherRole: (id: string) => deleteItem('teacherRoles', id),
-    
-    // Statuses
     getStatuses: () => getItems('statuses'),
     addStatus: (status: Omit<Status, 'id'>) => addItem('statuses', status),
     updateStatus: (status: Status) => updateItem('statuses', status),
     deleteStatus: (id: string) => deleteItem('statuses', id),
-
-    // Función de reemplazo
     replaceAll: replaceAllItems,
+    saveCurrentDbAsSeed: saveCurrentDbAsSeed,
 };
