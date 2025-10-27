@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { db } from '../services/database';
 import { Project, Status } from '../types';
 import { ProjectIcon, StudentIcon, TeacherIcon } from '../components/Icons';
@@ -32,30 +32,48 @@ export const DashboardPage: React.FC = () => {
     });
     const [recentProjects, setRecentProjects] = useState<Project[]>([]);
     const [statuses, setStatuses] = useState<Status[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const projects = db.getProjects();
-        const students = db.getStudents();
-        const teachers = db.getTeachers();
-        const allStatuses = db.getStatuses();
+    const loadData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [projects, students, teachers, allStatuses] = await Promise.all([
+                db.getProjects(),
+                db.getStudents(),
+                db.getTeachers(),
+                db.getStatuses(),
+            ]);
 
-        setStatuses(allStatuses);
+            setStatuses(allStatuses);
 
-        setStats({
-            projects: projects.length,
-            students: students.length,
-            teachers: teachers.length,
-            unassignedStudents: students.filter(s => !s.projectId).length
-        });
-        
-        setRecentProjects(
-            [...projects]
-                .sort((a, b) => new Date(b.presentationDate).getTime() - new Date(a.presentationDate).getTime())
-                .slice(0, 5)
-        );
+            setStats({
+                projects: projects.length,
+                students: students.length,
+                teachers: teachers.length,
+                unassignedStudents: students.filter(s => !s.projectId).length
+            });
+            
+            setRecentProjects(
+                [...projects]
+                    .sort((a, b) => new Date(b.presentationDate).getTime() - new Date(a.presentationDate).getTime())
+                    .slice(0, 5)
+            );
+        } catch (error) {
+            console.error("Error loading dashboard data:", error);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
     const getStatusName = (id: string) => statuses.find(s => s.id === id)?.name || 'Desconocido';
+
+    if (loading) {
+        return <div className="text-center p-10">Cargando datos del panel...</div>;
+    }
 
     return (
         <div className="space-y-6">

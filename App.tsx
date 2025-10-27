@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { initializeDB } from './services/database';
+import React, { useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProjectsPage } from './pages/ProjectsPage';
@@ -26,13 +25,17 @@ const pageLabels: Record<Page, string> = {
 };
 
 const App: React.FC = () => {
-  const { isAuthenticated, logout, isStudent } = useAuth();
+  const { isAuthenticated, logout, isStudent, loading } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    initializeDB();
-  }, []);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-100">
+        <div className="text-xl font-semibold text-gray-700">Cargando...</div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <LoginPage />;

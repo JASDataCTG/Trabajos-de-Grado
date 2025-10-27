@@ -1,5 +1,5 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import { db } from '../services/database';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { db, initializeDB } from '../services/database';
 import { User } from '../types';
 
 interface AuthContextType {
@@ -8,30 +8,59 @@ interface AuthContextType {
   isAdmin: boolean;
   isTeacher: boolean;
   isStudent: boolean;
-  canEditProject: (projectId: string) => boolean;
-  canGradeProject: (projectId: string) => { canGrade: boolean, reviewerRole: string | null };
-  login: (username: string, password: string) => boolean;
+  loading: boolean;
+  canEditProject: (projectId: string) => Promise<boolean>;
+  canGradeProject: (projectId: string) => Promise<{ canGrade: boolean, reviewerRole: string | null }>;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const TOKEN_KEY = 'degreeProjectManagerToken';
+const TOKEN_DURATION = 60 * 60 * 1000; // 60 minutos
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem('degreeProjectManagerUser');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+  const validateToken = useCallback(async () => {
+    try {
+      await initializeDB(); // Asegurarse que la DB este inicializada
+      const tokenString = localStorage.getItem(TOKEN_KEY);
+      if (tokenString) {
+        const { user: storedUser, expiry } = JSON.parse(tokenString);
+        if (expiry > Date.now()) {
+          // Re-validar el usuario contra la base de datos por si ha cambiado
+          const freshUser = await db.getUserById(storedUser.id);
+          if (freshUser) {
+            setUser(freshUser);
+          } else {
+            localStorage.removeItem(TOKEN_KEY);
+          }
+        } else {
+          localStorage.removeItem(TOKEN_KEY);
+        }
+      }
+    } catch (error) {
+        console.error("Error validating token:", error);
+        localStorage.removeItem(TOKEN_KEY);
+    } finally {
+        setLoading(false);
     }
   }, []);
 
-  const login = (username: string, password: string): boolean => {
-    const users = db.getUsers();
+  useEffect(() => {
+    validateToken();
+  }, [validateToken]);
+
+  const login = async (username: string, password: string): Promise<boolean> => {
+    const users = await db.getUsers();
     const foundUser = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
     if (foundUser) {
       setUser(foundUser);
-      localStorage.setItem('degreeProjectManagerUser', JSON.stringify(foundUser));
+      const expiry = Date.now() + TOKEN_DURATION;
+      localStorage.setItem(TOKEN_KEY, JSON.stringify({ user: foundUser, expiry }));
       return true;
     }
     return false;
@@ -39,13 +68,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('degreeProjectManagerUser');
+    localStorage.removeItem(TOKEN_KEY);
   };
 
-  const getProjectRolesForCurrentUser = (projectId: string): string[] => {
+  const getProjectRolesForCurrentUser = async (projectId: string): Promise<string[]> => {
     if (!user || !user.teacherId) return [];
-    const projectTeachers = db.getProjectTeachers();
-    const roles = db.getTeacherRoles();
+    const projectTeachers = await db.getProjectTeachers();
+    const roles = await db.getTeacherRoles();
     const userAssignments = projectTeachers.filter(
       pt => pt.projectId === projectId && pt.teacherId === user.teacherId
     );
@@ -54,20 +83,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).filter(Boolean);
   };
 
-  const canEditProject = (projectId: string): boolean => {
+  const canEditProject = async (projectId: string): Promise<boolean> => {
     if (!user) return false;
     if (user.role === 'admin') return true;
     if (user.role !== 'teacher') return false;
-    const userRoles = getProjectRolesForCurrentUser(projectId);
+    const userRoles = await getProjectRolesForCurrentUser(projectId);
     return userRoles.some(role => role.toLowerCase().includes('director'));
   };
 
-  const canGradeProject = (projectId: string): { canGrade: boolean, reviewerRole: string | null } => {
+  const canGradeProject = async (projectId: string): Promise<{ canGrade: boolean, reviewerRole: string | null }> => {
       if (!user) return { canGrade: false, reviewerRole: null };
       if (user.role === 'admin') return { canGrade: true, reviewerRole: 'admin' };
       if (user.role !== 'teacher') return { canGrade: false, reviewerRole: null };
       
-      const userRoles = getProjectRolesForCurrentUser(projectId);
+      const userRoles = await getProjectRolesForCurrentUser(projectId);
       const reviewerRole = userRoles.find(role => role.toLowerCase().includes('evaluador'));
       
       return {
@@ -81,9 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isTeacher = user?.role === 'teacher';
   const isStudent = user?.role === 'student';
 
-
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, isAdmin, isTeacher, isStudent, login, logout, canEditProject, canGradeProject }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isAdmin, isTeacher, isStudent, loading, login, logout, canEditProject, canGradeProject }}>
       {children}
     </AuthContext.Provider>
   );

@@ -85,6 +85,7 @@ const StudentForm: React.FC<{
 
 export const StudentsPage: React.FC = () => {
     const { isAdmin } = useAuth();
+    const [loading, setLoading] = useState(true);
     const [students, setStudents] = useState<Student[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [programs, setPrograms] = useState<Program[]>([]);
@@ -92,32 +93,44 @@ export const StudentsPage: React.FC = () => {
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
     const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
 
-    const loadData = useCallback(() => {
-        setStudents(db.getStudents());
-        setProjects(db.getProjects());
-        setPrograms(db.getPrograms());
+    const loadData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [studentsData, projectsData, programsData] = await Promise.all([
+                db.getStudents(),
+                db.getProjects(),
+                db.getPrograms(),
+            ]);
+            setStudents(studentsData);
+            setProjects(projectsData);
+            setPrograms(programsData);
+        } catch (error) {
+            console.error("Error loading students data:", error);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
 
-    const handleSave = (student: Omit<Student, 'id'> | Student) => {
+    const handleSave = async (student: Omit<Student, 'id'> | Student) => {
         if (!isAdmin) return;
         if ('id' in student) {
-            db.updateStudent(student);
+            await db.updateStudent(student);
         } else {
-            db.addStudent(student);
+            await db.addStudent(student);
         }
-        loadData();
+        await loadData();
         setIsModalOpen(false);
         setEditingStudent(null);
     };
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (deletingStudent && isAdmin) {
-            db.deleteStudent(deletingStudent.id);
-            loadData();
+            await db.deleteStudent(deletingStudent.id);
+            await loadData();
             setDeletingStudent(null);
         }
     };
@@ -131,6 +144,10 @@ export const StudentsPage: React.FC = () => {
         return programs.find(p => p.id === programId)?.name || 'Programa Desconocido';
     };
     
+    if (loading) {
+        return <div className="text-center p-10">Cargando estudiantes...</div>;
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -173,7 +190,7 @@ export const StudentsPage: React.FC = () => {
                                     )}
                                 </tr>
                             ))}
-                            {students.length === 0 && (
+                            {students.length === 0 && !loading && (
                                 <tr>
                                     <td colSpan={isAdmin ? 5 : 4} className="text-center py-10 text-gray-500">No se encontraron estudiantes.</td>
                                 </tr>

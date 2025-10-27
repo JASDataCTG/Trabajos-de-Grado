@@ -55,7 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         <div className="flex flex-col h-full">
             <div className="flex items-center justify-center h-24 bg-white p-4">
                 <img 
-                    src="https://storage.googleapis.com/aai-web-samples/projects/DALE/sD36p75N8b1s7G12B85f/logo.png"
+                    src="https://i.imgur.com/v8iL3z2.png"
                     alt="Logo Corporación Universitaria Rafael Núñez"
                     className="h-full w-auto object-contain"
                 />
