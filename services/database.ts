@@ -82,31 +82,27 @@ export const initializeDB = (): void => {
 };
 
 const readDB = (): AppDatabase => {
-    const seedData = getSeedData();
     if (typeof window === 'undefined' || !window.localStorage) {
-        return seedData;
+        return getSeedData();
     }
 
     const dbString = localStorage.getItem(DB_KEY);
     if (!dbString) {
         initializeDB();
-        return readDB(); // Vuelve a leer después de inicializar
+        const fallbackString = localStorage.getItem(DB_KEY);
+        if(fallbackString) return JSON.parse(fallbackString);
+        return getSeedData();
     }
 
     try {
-        const storedDb = JSON.parse(dbString) as Partial<AppDatabase>;
-        const validatedDb: AppDatabase = {
-            ...seedData,
-            ...storedDb,
-        };
-        for (const key of Object.keys(seedData) as Array<keyof AppDatabase>) {
-             if (!Array.isArray(validatedDb[key])) {
-                 (validatedDb as any)[key] = seedData[key];
-             }
+        const db = JSON.parse(dbString);
+        if (typeof db === 'object' && db !== null && Array.isArray(db.users)) {
+            return db as AppDatabase;
         }
-        return validatedDb;
+        throw new Error("Invalid DB format");
     } catch (error) {
-        console.error("No se pudo analizar la BD desde localStorage, volviendo a los datos iniciales.", error);
+        console.error("Failed to parse DB from localStorage, resetting to default seed.", error);
+        const seedData = getSeedData();
         localStorage.setItem(DB_KEY, JSON.stringify(seedData));
         return seedData;
     }
@@ -126,12 +122,11 @@ const saveCurrentDbAsSeed = (): void => {
     }
 };
 
-
 type EntityName = keyof AppDatabase;
 
 const getItems = <K extends EntityName>(entityName: K): AppDatabase[K] => {
     const db = readDB();
-    return db[entityName];
+    return db[entityName] || [];
 };
 
 const getItemById = <K extends EntityName>(entityName: K, id: string): AppDatabase[K][number] | undefined => {
@@ -145,6 +140,9 @@ const addItem = <K extends EntityName>(
 ): AppDatabase[K][number] => {
     const db = readDB();
     const newItem = { ...item, id: generateId() } as AppDatabase[K][number];
+    if (!Array.isArray(db[entityName])) {
+        (db as any)[entityName] = [];
+    }
     (db[entityName] as AppDatabase[K][number][]).push(newItem);
     writeDB(db);
     return newItem;
@@ -182,13 +180,8 @@ const deleteItem = (entityName: EntityName, id: string): void => {
     }
     if (entityName === 'users') {
         const adminUser = getSeedData().users.find(u => u.role === 'admin');
-        if (id === adminUser?.id) {
-            console.warn('No se puede eliminar el usuario administrador.');
-            items = (readDB()[entityName] as { id: string }[]);
-            (db as any)[entityName] = items;
-        }
+        if (id === adminUser?.id) return; // Prevent admin deletion
     }
-
 
     writeDB(db);
 };
@@ -271,7 +264,6 @@ const updateStudent = (updatedStudent: Student) => {
     writeDB(dbState);
     return updatedStudent;
 };
-
 
 export const db = {
     getUsers: () => getItems('users'),

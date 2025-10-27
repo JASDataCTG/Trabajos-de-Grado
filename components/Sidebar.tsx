@@ -53,8 +53,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
       <div className={`fixed inset-0 z-20 bg-black bg-opacity-50 transition-opacity md:hidden ${isOpen ? 'block' : 'hidden'}`} onClick={() => setIsOpen(false)}></div>
       <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-primary-900 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:flex md:flex-shrink-0`}>
         <div className="flex flex-col h-full">
-          <div className="flex items-center justify-center h-16 bg-primary-950">
-            <span className="text-white text-2xl font-bold">Gestor Proyectos</span>
+           <div className="flex items-center justify-center p-4 bg-white" style={{ minHeight: '4rem' }}>
+            <img src="https://i.imgur.com/Tf9pG2s.png" alt="Logo Corporación Universitaria Rafael Núñez" className="h-24 object-contain"/>
           </div>
           <nav className="flex-1 px-2 py-4 space-y-2">
             {navItems.map(item => (
