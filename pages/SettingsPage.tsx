@@ -3,7 +3,6 @@ import { db } from '../services/database';
 import { Status, Format, TeacherRole, AppDatabase } from '../types';
 import { EditIcon, TrashIcon, PlusIcon } from '../components/Icons';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
-import { arrayToCsv, csvToArray } from '../utils/csv';
 import { useAuth } from '../contexts/AuthContext';
 
 type EntityType = 'status' | 'format' | 'role';
@@ -83,155 +82,79 @@ const SettingsList = <T extends {id: string; name: string}>({ title, items, plac
     );
 };
 
-type AllEntityTypes = keyof AppDatabase;
-
 const DataManagement: React.FC = () => {
     const { isAdmin } = useAuth();
-    const [confirmImport, setConfirmImport] = useState<{type: AllEntityTypes, data: any[]} | null>(null);
-    const [showUpdateSeedDialog, setShowUpdateSeedDialog] = useState(false);
+    const [seedCode, setSeedCode] = useState<string | null>(null);
+    const [copySuccess, setCopySuccess] = useState(false);
 
-    const entities: { key: AllEntityTypes; name: string }[] = [
-        { key: 'projects', name: 'Proyectos' },
-        { key: 'students', name: 'Estudiantes' },
-        { key: 'teachers', name: 'Docentes' },
-        { key: 'projectTeachers', name: 'Asignaciones Docente-Proyecto' },
-        { key: 'statuses', name: 'Estados' },
-        { key: 'formats', name: 'Formatos' },
-        { key: 'teacherRoles', name: 'Roles de Docente' },
-        { key: 'users', name: 'Usuarios' },
-    ];
-
-    const handleExport = (entityKey: AllEntityTypes) => {
-        const entityName = entityKey.charAt(0).toUpperCase() + entityKey.slice(1);
-        const getter = `get${entityName}` as keyof typeof db;
-        const data = (db as any)[getter]();
-        const csv = arrayToCsv(data);
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `${entityKey}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, entity: AllEntityTypes) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const text = event.target?.result as string;
-            const data = csvToArray(text);
-            if(data.length > 0) {
-                setConfirmImport({ type: entity, data });
-            } else {
-                alert('El archivo CSV está vacío o tiene un formato incorrecto.');
-            }
-        };
-        reader.readAsText(file);
-        e.target.value = '';
+    const handleGenerateSeedCode = () => {
+        const currentDb = db.getCurrentDB();
+        // Remove IDs to allow regeneration on import, except for specific seed users/entities
+        const dbForExport = JSON.parse(JSON.stringify(currentDb));
+        const codeString = `const getSeedData = (): AppDatabase => {\n  // Código generado el ${new Date().toLocaleString()}\n  return ${JSON.stringify(dbForExport, null, 2)};\n};`;
+        setSeedCode(`// Para actualizar los datos de inicio, reemplace el contenido de la función getSeedData() en services/database.ts con el siguiente código:\n\n${codeString}`);
+        setCopySuccess(false);
     };
     
-    const confirmImportAction = () => {
-        if (!confirmImport || !isAdmin) return;
-        try {
-            db.replaceAll(confirmImport.type, confirmImport.data);
-            alert(`¡Datos de ${entities.find(e => e.key === confirmImport.type)?.name} importados con éxito! La página se recargará para reflejar los cambios.`);
-            setConfirmImport(null);
-            window.location.reload();
-        } catch (error) {
-            console.error("Error al importar datos:", error);
-            alert("Ocurrió un error al importar los datos. Revisa la consola para más detalles.");
+    const handleCopyToClipboard = () => {
+        if (seedCode) {
+            navigator.clipboard.writeText(seedCode).then(() => {
+                setCopySuccess(true);
+                setTimeout(() => setCopySuccess(false), 2000);
+            }, (err) => {
+                console.error('Error al copiar al portapapeles: ', err);
+                alert('No se pudo copiar el código.');
+            });
         }
     };
-    
-    const handleUpdateSeed = () => {
-        db.saveCurrentDbAsSeed();
-        setShowUpdateSeedDialog(false);
-        alert('¡Los datos de inicio han sido actualizados con éxito! La nueva configuración se aplicará en cualquier navegador que abra la aplicación por primera vez.');
-    };
+
+
+    if (!isAdmin) {
+        return null;
+    }
 
     return (
         <div className="bg-white rounded-lg shadow p-6 col-span-1 md:col-span-2 lg:col-span-3">
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">Gestión de Datos</h2>
-            <p className="text-sm text-gray-600 mb-6">Realiza copias de seguridad, migra tus datos o establece una nueva configuración de inicio para la aplicación.</p>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">Gestión de Datos de Inicio</h2>
+            <p className="text-sm text-gray-600 mb-6">
+                Para actualizar los datos iniciales para todos los usuarios (ej. añadir nuevos usuarios por defecto), sigue estos pasos. 
+                Esto es útil para preparar la aplicación antes de un despliegue en Vercel.
+            </p>
             
-            {isAdmin && (
-                <div className="mb-8 p-4 border-l-4 border-primary-500 bg-primary-50 rounded-md">
-                    <h3 className="text-lg font-medium text-primary-800">Actualizar Datos de Inicio</h3>
-                    <p className="text-sm text-primary-700 mt-1 mb-3">
-                        Guarda el estado actual de toda la aplicación (usuarios, proyectos, etc.) como la nueva configuración predeterminada. 
-                        Esta configuración se cargará en cualquier navegador que abra la aplicación por primera vez.
-                    </p>
-                    <button 
-                        onClick={() => setShowUpdateSeedDialog(true)}
-                        className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 text-sm font-medium"
-                    >
-                        Guardar Datos Actuales como Predeterminados
-                    </button>
+            <div className="p-4 border-l-4 border-primary-500 bg-primary-50 rounded-md">
+                <h3 className="text-lg font-medium text-primary-800">Generar Código de Datos de Inicio</h3>
+                <p className="text-sm text-primary-700 mt-1 mb-3">
+                    1. Realiza todos los cambios que desees en la aplicación (añadir usuarios, proyectos, etc.).<br/>
+                    2. Haz clic en el botón de abajo para generar el código que representa el estado actual.<br/>
+                    3. Copia el código generado y reemplaza el contenido de la función `getSeedData` en el archivo `services/database.ts`.<br/>
+                    4. Despliega tu aplicación en Vercel. Los nuevos datos de inicio se cargarán para todos los nuevos visitantes.
+                </p>
+                <button 
+                    onClick={handleGenerateSeedCode}
+                    className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 text-sm font-medium"
+                >
+                    Generar Código
+                </button>
+            </div>
+
+            {seedCode && (
+                <div className="mt-6">
+                     <h3 className="text-lg font-medium text-gray-700 mb-2">Código Generado</h3>
+                    <div className="relative">
+                        <textarea
+                            readOnly
+                            value={seedCode}
+                            className="w-full h-64 p-4 font-mono text-xs bg-gray-900 text-gray-100 rounded-md border border-gray-700 focus:ring-primary-500 focus:border-primary-500"
+                        />
+                         <button 
+                            onClick={handleCopyToClipboard}
+                            className="absolute top-3 right-3 bg-gray-700 text-white px-3 py-1 rounded-md text-xs hover:bg-gray-600"
+                        >
+                            {copySuccess ? '¡Copiado!' : 'Copiar'}
+                        </button>
+                    </div>
                 </div>
             )}
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                    <h3 className="text-lg font-medium text-gray-700 mb-4">Exportar Datos (CSV)</h3>
-                    <div className="space-y-2 flex flex-col items-start">
-                        {entities.map(entity => (
-                             <button key={entity.key} onClick={() => handleExport(entity.key)} className="text-sm bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300">
-                                Exportar {entity.name}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                <div>
-                     <h3 className="text-lg font-medium text-gray-700 mb-4">Importar Datos (CSV)</h3>
-                     <p className="text-xs text-yellow-800 bg-yellow-50 p-3 rounded-lg mb-4 ring-1 ring-yellow-200">
-                        <span className="font-bold">Atención:</span> La importación reemplazará <span className="font-bold">todos</span> los datos existentes para la categoría seleccionada.
-                    </p>
-                    <div className="space-y-4">
-                        {entities.map(entity => (
-                            <div key={`import-${entity.key}`}>
-                                <label htmlFor={`import-${entity.key}`} className="text-sm font-medium text-gray-700 sr-only">
-                                    Importar {entity.name} (.csv)
-                                </label>
-                                <input 
-                                    type="file" 
-                                    id={`import-${entity.key}`}
-                                    accept=".csv,text/csv"
-                                    onChange={(e) => handleFileChange(e, entity.key)}
-                                    disabled={!isAdmin}
-                                    className="block w-full text-sm text-gray-500
-                                        file:mr-4 file:py-2 file:px-4
-                                        file:rounded-full file:border-0
-                                        file:text-sm file:font-semibold
-                                        file:bg-primary-50 file:text-primary-700
-                                        hover:file:bg-primary-100 cursor-pointer
-                                        disabled:cursor-not-allowed disabled:opacity-50"
-                                    aria-describedby={`help-text-${entity.key}`}
-                                />
-                                <p id={`help-text-${entity.key}`} className="mt-1 text-xs text-gray-500">Importar {entity.name}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-            <ConfirmationDialog
-                isOpen={!!confirmImport}
-                onClose={() => setConfirmImport(null)}
-                onConfirm={confirmImportAction}
-                title={`Confirmar Importación de ${entities.find(e => e.key === confirmImport?.type)?.name}`}
-                message={`Estás a punto de reemplazar TODOS los datos de "${entities.find(e => e.key === confirmImport?.type)?.name}" con el contenido del archivo. Esta acción no se puede deshacer. ¿Deseas continuar?`}
-            />
-            <ConfirmationDialog
-                isOpen={showUpdateSeedDialog}
-                onClose={() => setShowUpdateSeedDialog(false)}
-                onConfirm={handleUpdateSeed}
-                title="Actualizar Datos de Inicio Predeterminados"
-                message="¿Estás seguro? Esto reemplazará la configuración inicial estándar con todos los datos actuales de la aplicación. Esta acción no se puede deshacer fácilmente."
-            />
         </div>
     );
 };

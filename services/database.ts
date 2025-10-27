@@ -1,11 +1,12 @@
 import { AppDatabase, Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status, Program, User } from '../types';
 
 const DB_KEY = 'degreeProjectsDB';
-const DB_CUSTOM_SEED_KEY = 'degreeProjectsDBCustomSeed';
 
 const generateId = (): string => Date.now().toString(36) + Math.random().toString(36).substring(2);
 
 const getSeedData = (): AppDatabase => {
+    // Para actualizar los datos de inicio, genere el nuevo código desde la página de Configuración
+    // y reemplace el contenido de esta función.
     const statuses: Status[] = [
         { id: 'status-1', name: 'Propuesto' },
         { id: 'status-2', name: 'En Progreso' },
@@ -72,12 +73,7 @@ export const initializeDB = (): void => {
     if (typeof window === 'undefined' || !window.localStorage) return;
 
     if (!localStorage.getItem(DB_KEY)) {
-        const customSeed = localStorage.getItem(DB_CUSTOM_SEED_KEY);
-        if (customSeed) {
-            localStorage.setItem(DB_KEY, customSeed);
-        } else {
-            localStorage.setItem(DB_KEY, JSON.stringify(getSeedData()));
-        }
+        localStorage.setItem(DB_KEY, JSON.stringify(getSeedData()));
     }
 };
 
@@ -112,14 +108,6 @@ const readDB = (): AppDatabase => {
 const writeDB = (db: AppDatabase): void => {
     if (typeof window === 'undefined' || !window.localStorage) return;
     localStorage.setItem(DB_KEY, JSON.stringify(db));
-};
-
-const saveCurrentDbAsSeed = (): void => {
-    if (typeof window === 'undefined' || !window.localStorage) return;
-    const currentDb = localStorage.getItem(DB_KEY);
-    if (currentDb) {
-        localStorage.setItem(DB_CUSTOM_SEED_KEY, currentDb);
-    }
 };
 
 type EntityName = keyof AppDatabase;
@@ -183,13 +171,6 @@ const deleteItem = (entityName: EntityName, id: string): void => {
         if (id === adminUser?.id) return; // Prevent admin deletion
     }
 
-    writeDB(db);
-};
-
-const replaceAllItems = <K extends EntityName>(entityName: K, newItems: AppDatabase[K]): void => {
-    if (typeof window === 'undefined' || !window.localStorage) return;
-    const db = readDB();
-    (db as any)[entityName] = newItems;
     writeDB(db);
 };
 
@@ -266,6 +247,7 @@ const updateStudent = (updatedStudent: Student) => {
 };
 
 export const db = {
+    getCurrentDB: readDB,
     getUsers: () => getItems('users'),
     getUserById: (id: string) => getItemById('users', id),
     addUser: (user: Omit<User, 'id'>) => addItem('users', user),
@@ -303,6 +285,4 @@ export const db = {
     addStatus: (status: Omit<Status, 'id'>) => addItem('statuses', status),
     updateStatus: (status: Status) => updateItem('statuses', status),
     deleteStatus: (id: string) => deleteItem('statuses', id),
-    replaceAll: replaceAllItems,
-    saveCurrentDbAsSeed: saveCurrentDbAsSeed,
 };
