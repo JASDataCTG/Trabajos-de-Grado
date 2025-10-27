@@ -1,3 +1,11 @@
+export interface User {
+  id: string;
+  username: string;
+  password: string;
+  role: 'admin' | 'teacher' | 'student';
+  teacherId: string | null;
+  studentId: string | null;
+}
 
 export interface Project {
   id: string;
@@ -6,6 +14,11 @@ export interface Project {
   filesUrl: string;
   statusId: string;
   formatId: string;
+  isApprovedByDirector: boolean;
+  writtenGradeReviewer1: number | null;
+  presentationGradeReviewer1: number | null;
+  writtenGradeReviewer2: number | null;
+  presentationGradeReviewer2: number | null;
 }
 
 export interface Program {
@@ -17,6 +30,7 @@ export interface Student {
   id: string;
   name: string;
   email: string;
+  cedula: string;
   projectId: string | null;
   programId: string;
 }
@@ -25,6 +39,7 @@ export interface Teacher {
   id:string;
   name: string;
   email: string;
+  cedula: string;
 }
 
 export interface ProjectTeacher {
@@ -50,6 +65,7 @@ export interface Status {
 }
 
 export interface AppDatabase {
+    users: User[];
     projects: Project[];
     programs: Program[];
     students: Student[];

@@ -4,6 +4,7 @@ import { Student, Project, Program } from '../types';
 import { Modal } from '../components/Modal';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { PlusIcon, EditIcon, TrashIcon } from '../components/Icons';
+import { useAuth } from '../contexts/AuthContext';
 
 const StudentForm: React.FC<{
     student: Partial<Student> | null;
@@ -12,9 +13,11 @@ const StudentForm: React.FC<{
     projects: Project[];
     programs: Program[];
 }> = ({ student, onSave, onClose, projects, programs }) => {
+    const { isAdmin } = useAuth();
     const [formData, setFormData] = useState<Partial<Student>>({
         name: '',
         email: '',
+        cedula: '',
         projectId: null,
         programId: programs[0]?.id || '',
         ...student
@@ -24,6 +27,7 @@ const StudentForm: React.FC<{
         setFormData({
             name: '',
             email: '',
+            cedula: '',
             projectId: null,
             programId: programs[0]?.id || '',
             ...student
@@ -37,7 +41,7 @@ const StudentForm: React.FC<{
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.name || !formData.email || !formData.programId) {
+        if (!formData.name || !formData.email || !formData.programId || !formData.cedula) {
             alert('Por favor, completa todos los campos requeridos');
             return;
         }
@@ -51,7 +55,11 @@ const StudentForm: React.FC<{
                 <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
             </div>
             <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+                <label htmlFor="cedula" className="block text-sm font-medium text-gray-700">Cédula (será la contraseña)</label>
+                <input type="text" name="cedula" id="cedula" value={formData.cedula} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+            </div>
+            <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">Correo Electrónico (el usuario será la parte antes del @)</label>
                 <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
             </div>
             <div>
@@ -69,13 +77,14 @@ const StudentForm: React.FC<{
             </div>
             <div className="flex justify-end space-x-3 pt-4">
                 <button type="button" onClick={onClose} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300">Cancelar</button>
-                <button type="submit" className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700">Guardar Estudiante</button>
+                <button type="submit" disabled={!isAdmin} className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed">Guardar Estudiante</button>
             </div>
         </form>
     );
 };
 
 export const StudentsPage: React.FC = () => {
+    const { isAdmin } = useAuth();
     const [students, setStudents] = useState<Student[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [programs, setPrograms] = useState<Program[]>([]);
@@ -94,6 +103,7 @@ export const StudentsPage: React.FC = () => {
     }, [loadData]);
 
     const handleSave = (student: Omit<Student, 'id'> | Student) => {
+        if (!isAdmin) return;
         if ('id' in student) {
             db.updateStudent(student);
         } else {
@@ -105,7 +115,7 @@ export const StudentsPage: React.FC = () => {
     };
 
     const handleDelete = () => {
-        if (deletingStudent) {
+        if (deletingStudent && isAdmin) {
             db.deleteStudent(deletingStudent.id);
             loadData();
             setDeletingStudent(null);
@@ -125,10 +135,12 @@ export const StudentsPage: React.FC = () => {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-bold text-gray-800">Estudiantes</h1>
-                <button onClick={() => { setEditingStudent(null); setIsModalOpen(true); }} className="flex items-center bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 shadow">
-                    <PlusIcon className="h-5 w-5 mr-2" />
-                    Añadir Estudiante
-                </button>
+                {isAdmin && (
+                    <button onClick={() => { setEditingStudent(null); setIsModalOpen(true); }} className="flex items-center bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 shadow">
+                        <PlusIcon className="h-5 w-5 mr-2" />
+                        Añadir Estudiante
+                    </button>
+                )}
             </div>
 
             <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -137,9 +149,10 @@ export const StudentsPage: React.FC = () => {
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cédula</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Programa</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proyecto Asignado</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                                {isAdmin && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>}
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -149,17 +162,20 @@ export const StudentsPage: React.FC = () => {
                                         <div className="text-sm font-medium text-gray-900">{student.name}</div>
                                         <div className="text-xs text-gray-500">{student.email}</div>
                                     </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.cedula}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getProgramName(student.programId)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{getProjectTitle(student.projectId)}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                        <button onClick={() => { setEditingStudent(student); setIsModalOpen(true); }} className="text-primary-600 hover:text-primary-900"><EditIcon className="h-5 w-5" /></button>
-                                        <button onClick={() => setDeletingStudent(student)} className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5" /></button>
-                                    </td>
+                                    {isAdmin && (
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                            <button onClick={() => { setEditingStudent(student); setIsModalOpen(true); }} className="text-primary-600 hover:text-primary-900"><EditIcon className="h-5 w-5" /></button>
+                                            <button onClick={() => setDeletingStudent(student)} className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5" /></button>
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                             {students.length === 0 && (
                                 <tr>
-                                    <td colSpan={4} className="text-center py-10 text-gray-500">No se encontraron estudiantes.</td>
+                                    <td colSpan={isAdmin ? 5 : 4} className="text-center py-10 text-gray-500">No se encontraron estudiantes.</td>
                                 </tr>
                             )}
                         </tbody>
@@ -182,7 +198,7 @@ export const StudentsPage: React.FC = () => {
                 onClose={() => setDeletingStudent(null)}
                 onConfirm={handleDelete}
                 title="Eliminar Estudiante"
-                message={`¿Estás seguro de que quieres eliminar a ${deletingStudent?.name}? Esta acción no se puede deshacer.`}
+                message={`¿Estás seguro de que quieres eliminar a ${deletingStudent?.name}? Esto también eliminará su cuenta de usuario. Esta acción no se puede deshacer.`}
             />
         </div>
     );

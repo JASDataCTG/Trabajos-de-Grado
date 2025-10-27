@@ -4,6 +4,7 @@ import { Status, Format, TeacherRole, AppDatabase } from '../types';
 import { EditIcon, TrashIcon, PlusIcon } from '../components/Icons';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { arrayToCsv, csvToArray } from '../utils/csv';
+import { useAuth } from '../contexts/AuthContext';
 
 type EntityType = 'status' | 'format' | 'role';
 type Entity = Status | Format | TeacherRole;
@@ -20,6 +21,7 @@ interface SettingsListProps<T extends Entity> {
 }
 
 const SettingsList = <T extends {id: string; name: string}>({ title, items, placeholder, onAdd, onUpdate, onDelete }: SettingsListProps<T>) => {
+    const { isAdmin } = useAuth();
     const [newItemName, setNewItemName] = useState('');
     const [editingItem, setEditingItem] = useState<T | null>(null);
 
@@ -40,22 +42,24 @@ const SettingsList = <T extends {id: string; name: string}>({ title, items, plac
     return (
         <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">{title}</h2>
-            <div className="flex space-x-2 mb-4">
-                <input
-                    type="text"
-                    value={newItemName}
-                    onChange={(e) => setNewItemName(e.target.value)}
-                    placeholder={placeholder}
-                    className="flex-grow border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                />
-                <button onClick={handleAdd} className="flex-shrink-0 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 flex items-center">
-                    <PlusIcon className="h-5 w-5"/>
-                </button>
-            </div>
+            {isAdmin && (
+                <div className="flex space-x-2 mb-4">
+                    <input
+                        type="text"
+                        value={newItemName}
+                        onChange={(e) => setNewItemName(e.target.value)}
+                        placeholder={placeholder}
+                        className="flex-grow border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <button onClick={handleAdd} className="flex-shrink-0 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 flex items-center">
+                        <PlusIcon className="h-5 w-5"/>
+                    </button>
+                </div>
+            )}
             <ul className="divide-y divide-gray-200">
                 {items.map(item => (
                     <li key={item.id} className="py-3 flex justify-between items-center">
-                        {editingItem?.id === item.id ? (
+                        {editingItem?.id === item.id && isAdmin ? (
                            <input 
                             type="text"
                             value={editingItem.name}
@@ -68,10 +72,12 @@ const SettingsList = <T extends {id: string; name: string}>({ title, items, plac
                         ) : (
                             <span className="text-sm text-gray-800">{item.name}</span>
                         )}
-                        <div className="space-x-2">
-                            <button onClick={() => setEditingItem(item)} className="text-primary-600 hover:text-primary-900"><EditIcon className="h-5 w-5" /></button>
-                            <button onClick={() => onDelete(item)} className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5" /></button>
-                        </div>
+                        {isAdmin && (
+                            <div className="space-x-2">
+                                <button onClick={() => setEditingItem(item)} className="text-primary-600 hover:text-primary-900"><EditIcon className="h-5 w-5" /></button>
+                                <button onClick={() => onDelete(item)} className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5" /></button>
+                            </div>
+                        )}
                     </li>
                 ))}
             </ul>
@@ -82,6 +88,7 @@ const SettingsList = <T extends {id: string; name: string}>({ title, items, plac
 type AllEntityTypes = keyof AppDatabase;
 
 const DataManagement: React.FC = () => {
+    const { isAdmin } = useAuth();
     const [confirmImport, setConfirmImport] = useState<{type: AllEntityTypes, data: any[]} | null>(null);
 
     const entities: { key: AllEntityTypes; name: string }[] = [
@@ -92,6 +99,7 @@ const DataManagement: React.FC = () => {
         { key: 'statuses', name: 'Estados' },
         { key: 'formats', name: 'Formatos' },
         { key: 'teacherRoles', name: 'Roles de Docente' },
+        { key: 'users', name: 'Usuarios' },
     ];
 
     const handleExport = (entityKey: AllEntityTypes) => {
@@ -129,7 +137,7 @@ const DataManagement: React.FC = () => {
     };
     
     const confirmImportAction = () => {
-        if (!confirmImport) return;
+        if (!confirmImport || !isAdmin) return;
         try {
             db.replaceAll(confirmImport.type, confirmImport.data);
             alert(`¡Datos de ${entities.find(e => e.key === confirmImport.type)?.name} importados con éxito! La página se recargará para reflejar los cambios.`);
@@ -173,12 +181,14 @@ const DataManagement: React.FC = () => {
                                     id={`import-${entity.key}`}
                                     accept=".csv,text/csv"
                                     onChange={(e) => handleFileChange(e, entity.key)}
+                                    disabled={!isAdmin}
                                     className="block w-full text-sm text-gray-500
                                         file:mr-4 file:py-2 file:px-4
                                         file:rounded-full file:border-0
                                         file:text-sm file:font-semibold
                                         file:bg-primary-50 file:text-primary-700
-                                        hover:file:bg-primary-100 cursor-pointer"
+                                        hover:file:bg-primary-100 cursor-pointer
+                                        disabled:cursor-not-allowed disabled:opacity-50"
                                     aria-describedby={`help-text-${entity.key}`}
                                 />
                                 <p id={`help-text-${entity.key}`} className="mt-1 text-xs text-gray-500">Importar {entity.name}</p>
@@ -199,6 +209,7 @@ const DataManagement: React.FC = () => {
 };
 
 export const SettingsPage: React.FC = () => {
+    const { isAdmin } = useAuth();
     const [statuses, setStatuses] = useState<Status[]>([]);
     const [formats, setFormats] = useState<Format[]>([]);
     const [roles, setRoles] = useState<TeacherRole[]>([]);
@@ -215,6 +226,7 @@ export const SettingsPage: React.FC = () => {
     }, [loadData]);
     
     const handleAdd = (type: EntityType, name: string) => {
+        if (!isAdmin) return;
         if(type === 'status') db.addStatus({ name });
         if(type === 'format') db.addFormat({ name });
         if(type === 'role') db.addTeacherRole({ name });
@@ -222,6 +234,7 @@ export const SettingsPage: React.FC = () => {
     };
     
     const handleUpdate = (type: EntityType, item: Entity) => {
+        if (!isAdmin) return;
         if(type === 'status') db.updateStatus(item as Status);
         if(type === 'format') db.updateFormat(item as Format);
         if(type === 'role') db.updateTeacherRole(item as TeacherRole);
@@ -229,7 +242,7 @@ export const SettingsPage: React.FC = () => {
     };
 
     const handleDelete = () => {
-        if (!deletingItem) return;
+        if (!deletingItem || !isAdmin) return;
         const { item, type } = deletingItem;
 
         if(type === 'status') db.deleteStatus(item.id);

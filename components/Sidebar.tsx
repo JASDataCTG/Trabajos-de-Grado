@@ -1,7 +1,8 @@
 import React from 'react';
-import { HomeIcon, ProjectIcon, StudentIcon, TeacherIcon, SettingsIcon, ReportIcon } from './Icons';
+import { HomeIcon, ProjectIcon, StudentIcon, TeacherIcon, SettingsIcon, ReportIcon, UserAdminIcon } from './Icons';
+import { useAuth } from '../contexts/AuthContext';
 
-type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings' | 'reports';
+type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings' | 'reports' | 'users';
 
 interface SidebarProps {
   currentPage: Page;
@@ -36,12 +37,14 @@ const NavItem: React.FC<{
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, setIsOpen }) => {
-    const navItems: { page: Page; label: string; icon: React.ReactNode }[] = [
+    const { user } = useAuth();
+    const navItems: { page: Page; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
         { page: 'dashboard', label: 'Panel Principal', icon: <HomeIcon className="h-5 w-5" /> },
         { page: 'projects', label: 'Proyectos', icon: <ProjectIcon className="h-5 w-5" /> },
         { page: 'students', label: 'Estudiantes', icon: <StudentIcon className="h-5 w-5" /> },
         { page: 'teachers', label: 'Docentes', icon: <TeacherIcon className="h-5 w-5" /> },
         { page: 'reports', label: 'Reportes', icon: <ReportIcon className="h-5 w-5" /> },
+        { page: 'users', label: 'Usuarios', icon: <UserAdminIcon className="h-5 w-5" />, adminOnly: true },
         { page: 'settings', label: 'Configuración', icon: <SettingsIcon className="h-5 w-5" /> },
     ];
 
@@ -55,13 +58,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
           </div>
           <nav className="flex-1 px-2 py-4 space-y-2">
             {navItems.map(item => (
-                <NavItem 
-                    key={item.page}
-                    icon={item.icon}
-                    label={item.label}
-                    isActive={currentPage === item.page}
-                    onClick={() => onNavigate(item.page)}
-                />
+                (!item.adminOnly || user?.username === 'admin') && (
+                    <NavItem 
+                        key={item.page}
+                        icon={item.icon}
+                        label={item.label}
+                        isActive={currentPage === item.page}
+                        onClick={() => onNavigate(item.page)}
+                    />
+                )
             ))}
           </nav>
         </div>

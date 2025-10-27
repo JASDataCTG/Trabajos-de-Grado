@@ -1,4 +1,4 @@
-import { AppDatabase, Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status, Program } from '../types';
+import { AppDatabase, Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status, Program, User } from '../types';
 
 const DB_KEY = 'degreeProjectsDB';
 
@@ -24,30 +24,57 @@ const getSeedData = (): AppDatabase => {
         { id: 'role-4', name: 'Evaluador 2' },
     ];
     const teachers: Teacher[] = [
-        { id: 'teacher-1', name: 'Dr. Eleanor Vance', email: 'eleanor.v@university.edu' },
-        { id: 'teacher-2', name: 'Prof. Ben Carter', email: 'ben.c@university.edu' },
-        { id: 'teacher-3', name: 'Dra. Olivia Chen', email: 'olivia.c@university.edu' },
-    ];
-    const projects: Project[] = [
-        { id: 'project-1', title: 'Mantenimiento Predictivo con IA', presentationDate: '2024-12-15', filesUrl: 'https://example.com/project1', statusId: 'status-2', formatId: 'format-3' },
-        { id: 'project-2', title: 'Computación Cuántica para Fármacos', presentationDate: '2025-01-20', filesUrl: 'https://example.com/project2', statusId: 'status-1', formatId: 'format-1' },
+        { id: 'teacher-1', name: 'Dr. Eleanor Vance', email: 'eleanor.v@university.edu', cedula: '12345678' },
+        { id: 'teacher-2', name: 'Prof. Ben Carter', email: 'ben.c@university.edu', cedula: '87654321' },
+        { id: 'teacher-3', name: 'Dra. Olivia Chen', email: 'olivia.c@university.edu', cedula: '11223344' },
     ];
     const programs: Program[] = [
         { id: 'prog-1', name: 'Tecnología en Desarrollo de Sistemas de Información y Software' },
         { id: 'prog-2', name: 'Ingeniería de Sistemas' },
     ];
-    const students: Student[] = [
-        { id: 'student-1', name: 'Alice Johnson', email: 'alice.j@student.edu', projectId: 'project-1', programId: 'prog-2' },
-        { id: 'student-2', name: 'Bob Williams', email: 'bob.w@student.edu', projectId: 'project-1', programId: 'prog-1' },
-        { id: 'student-3', name: 'Charlie Brown', email: 'charlie.b@student.edu', projectId: 'project-2', programId: 'prog-2' },
-        { id: 'student-4', name: 'Diana Miller', email: 'diana.m@student.edu', projectId: null, programId: 'prog-1' },
+
+    const projects: Project[] = [
+        { id: 'project-1', title: 'Mantenimiento Predictivo con IA', presentationDate: '2024-12-15', filesUrl: 'https://example.com/project1', statusId: 'status-2', formatId: 'format-3', isApprovedByDirector: false, writtenGradeReviewer1: null, presentationGradeReviewer1: null, writtenGradeReviewer2: null, presentationGradeReviewer2: null },
+        { id: 'project-2', title: 'Computación Cuántica para Fármacos', presentationDate: '2025-01-20', filesUrl: 'https://example.com/project2', statusId: 'status-1', formatId: 'format-1', isApprovedByDirector: true, writtenGradeReviewer1: 4.3, presentationGradeReviewer1: 4.5, writtenGradeReviewer2: 4.4, presentationGradeReviewer2: 4.1 },
     ];
+
+    const students: Student[] = [
+        { id: 'student-1', name: 'Alice Johnson', email: 'alice.j@student.edu', cedula: '100100100', projectId: 'project-1', programId: 'prog-2' },
+        { id: 'student-2', name: 'Bob Williams', email: 'bob.w@student.edu', cedula: '200200200', projectId: 'project-1', programId: 'prog-1' },
+        { id: 'student-3', name: 'Charlie Brown', email: 'charlie.b@student.edu', cedula: '300300300', projectId: 'project-2', programId: 'prog-2' },
+        { id: 'student-4', name: 'Diana Miller', email: 'diana.m@student.edu', cedula: '400400400', projectId: null, programId: 'prog-1' },
+    ];
+    
     const projectTeachers: ProjectTeacher[] = [
         {id: 'pt-1', projectId: 'project-1', teacherId: 'teacher-1', roleId: 'role-1'},
         {id: 'pt-2', projectId: 'project-1', teacherId: 'teacher-2', roleId: 'role-3'},
+        {id: 'pt-3', projectId: 'project-2', teacherId: 'teacher-2', roleId: 'role-1'},
+        {id: 'pt-4', projectId: 'project-2', teacherId: 'teacher-1', roleId: 'role-3'},
+        {id: 'pt-5', projectId: 'project-2', teacherId: 'teacher-3', roleId: 'role-4'},
+    ];
+    
+    // Generar usuarios a partir de docentes y estudiantes
+    const users: User[] = [
+        { id: 'user-admin', username: 'admin', password: 'Ja39362505', role: 'admin', teacherId: null, studentId: null },
+        ...teachers.map(t => ({
+            id: generateId(),
+            username: t.email.split('@')[0],
+            password: t.cedula,
+            role: 'teacher' as const,
+            teacherId: t.id,
+            studentId: null,
+        })),
+        ...students.map(s => ({
+            id: generateId(),
+            username: s.email.split('@')[0],
+            password: s.cedula,
+            role: 'student' as const,
+            teacherId: null,
+            studentId: s.id,
+        }))
     ];
 
-    return { statuses, formats, teacherRoles, teachers, projects, students, projectTeachers, programs };
+    return { users, statuses, formats, teacherRoles, teachers, projects, students, projectTeachers, programs };
 };
 
 export const initializeDB = (): void => {
@@ -140,7 +167,7 @@ const updateItem = <K extends EntityName>(
 
 const deleteItem = (entityName: EntityName, id: string): void => {
     const db = readDB();
-    const items = (db[entityName] as { id: string }[]).filter(item => item.id !== id);
+    let items = (db[entityName] as { id: string }[]).filter(item => item.id !== id);
     (db as any)[entityName] = items;
     
     // Lógica de eliminación en cascada
@@ -150,7 +177,29 @@ const deleteItem = (entityName: EntityName, id: string): void => {
     }
     if (entityName === 'teachers') {
         db.projectTeachers = db.projectTeachers.filter(pt => pt.teacherId !== id);
+        // Eliminar usuario asociado
+        db.users = db.users.filter(u => u.teacherId !== id);
     }
+    if (entityName === 'students') {
+        // Eliminar usuario asociado
+        db.users = db.users.filter(u => u.studentId !== id);
+    }
+    if (entityName === 'users') {
+        // No permitir eliminar el admin
+        const adminUser = getSeedData().users.find(u => u.role === 'admin');
+        if (id === adminUser?.id) {
+            console.warn('No se puede eliminar el usuario administrador.');
+            // Si la eliminación fue cancelada, restaura los elementos
+            items = (readDB()[entityName] as { id: string }[]);
+            (db as any)[entityName] = items;
+        } else {
+             const userToDelete = getItemById('users', id);
+             if (userToDelete?.teacherId) {
+                // Si eliminamos un usuario de profesor, no eliminamos al profesor. Solo el usuario.
+             }
+        }
+    }
+
 
     writeDB(db);
 };
@@ -162,8 +211,96 @@ const replaceAllItems = <K extends EntityName>(entityName: K, newItems: AppDatab
     writeDB(db);
 };
 
+// --- Funciones CRUD con lógica de usuario acoplada ---
+
+const addTeacher = (teacher: Omit<Teacher, 'id'>) => {
+    const dbState = readDB();
+    const newTeacher = { ...teacher, id: generateId() };
+    dbState.teachers.push(newTeacher);
+
+    // Crear usuario asociado
+    const newUser: Omit<User, 'id'> = {
+        username: newTeacher.email.split('@')[0],
+        password: newTeacher.cedula,
+        role: 'teacher',
+        teacherId: newTeacher.id,
+        studentId: null,
+    };
+    const newUserId = generateId();
+    dbState.users.push({ ...newUser, id: newUserId });
+
+    writeDB(dbState);
+    return newTeacher;
+};
+
+const updateTeacher = (updatedTeacher: Teacher) => {
+    const dbState = readDB();
+    
+    // Actualizar docente
+    const teacherIndex = dbState.teachers.findIndex(t => t.id === updatedTeacher.id);
+    if (teacherIndex === -1) return updatedTeacher;
+    dbState.teachers[teacherIndex] = updatedTeacher;
+
+    // Actualizar usuario asociado
+    const userIndex = dbState.users.findIndex(u => u.teacherId === updatedTeacher.id);
+    if (userIndex !== -1) {
+        dbState.users[userIndex].username = updatedTeacher.email.split('@')[0];
+        dbState.users[userIndex].password = updatedTeacher.cedula;
+    }
+    
+    writeDB(dbState);
+    return updatedTeacher;
+};
+
+const addStudent = (student: Omit<Student, 'id'>) => {
+    const dbState = readDB();
+    const newStudent = { ...student, id: generateId() };
+    dbState.students.push(newStudent);
+
+    // Crear usuario asociado
+    const newUser: Omit<User, 'id'> = {
+        username: newStudent.email.split('@')[0],
+        password: newStudent.cedula,
+        role: 'student',
+        teacherId: null,
+        studentId: newStudent.id,
+    };
+    const newUserId = generateId();
+    dbState.users.push({ ...newUser, id: newUserId });
+    
+    writeDB(dbState);
+    return newStudent;
+};
+
+const updateStudent = (updatedStudent: Student) => {
+    const dbState = readDB();
+
+    // Actualizar estudiante
+    const studentIndex = dbState.students.findIndex(s => s.id === updatedStudent.id);
+    if (studentIndex === -1) return updatedStudent;
+    dbState.students[studentIndex] = updatedStudent;
+
+    // Actualizar usuario asociado
+    const userIndex = dbState.users.findIndex(u => u.studentId === updatedStudent.id);
+    if (userIndex !== -1) {
+        dbState.users[userIndex].username = updatedStudent.email.split('@')[0];
+        dbState.users[userIndex].password = updatedStudent.cedula;
+    }
+    
+    writeDB(dbState);
+    return updatedStudent;
+};
+
+
 // Exportar funciones específicas para cada entidad
 export const db = {
+    // Usuarios
+    getUsers: () => getItems('users'),
+    getUserById: (id: string) => getItemById('users', id),
+    addUser: (user: Omit<User, 'id'>) => addItem('users', user),
+    updateUser: (user: User) => updateItem('users', user),
+    deleteUser: (id: string) => deleteItem('users', id),
+
     // Proyectos
     getProjects: () => getItems('projects'),
     getProjectById: (id: string) => getItemById('projects', id),
@@ -177,15 +314,15 @@ export const db = {
     // Estudiantes
     getStudents: () => getItems('students'),
     getStudentById: (id: string) => getItemById('students', id),
-    addStudent: (student: Omit<Student, 'id'>) => addItem('students', student),
-    updateStudent: (student: Student) => updateItem('students', student),
+    addStudent: addStudent,
+    updateStudent: updateStudent,
     deleteStudent: (id: string) => deleteItem('students', id),
 
     // Docentes
     getTeachers: () => getItems('teachers'),
     getTeacherById: (id: string) => getItemById('teachers', id),
-    addTeacher: (teacher: Omit<Teacher, 'id'>) => addItem('teachers', teacher),
-    updateTeacher: (teacher: Teacher) => updateItem('teachers', teacher),
+    addTeacher: addTeacher,
+    updateTeacher: updateTeacher,
     deleteTeacher: (id: string) => deleteItem('teachers', id),
 
     // ProjectTeachers
@@ -198,7 +335,7 @@ export const db = {
     getFormats: () => getItems('formats'),
     addFormat: (format: Omit<Format, 'id'>) => addItem('formats', format),
     updateFormat: (format: Format) => updateItem('formats', format),
-    deleteFormat: (id: string) => deleteItem('formats', id),
+    deleteFormat: (id: string) => deleteItem('formats',id),
 
     // TeacherRoles
     getTeacherRoles: () => getItems('teacherRoles'),
