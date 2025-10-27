@@ -4,69 +4,175 @@ const DB_KEY = 'degreeProjectsDB';
 
 const generateId = (): string => Date.now().toString(36) + Math.random().toString(36).substring(2);
 
+// Para actualizar los datos de inicio, reemplace el contenido de la función getSeedData() en services/database.ts con el siguiente código:
+
 const getSeedData = (): AppDatabase => {
-    // Para actualizar los datos de inicio, genere el nuevo código desde la página de Configuración
-    // y reemplace el contenido de esta función.
-    const statuses: Status[] = [
-        { id: 'status-1', name: 'Propuesto' },
-        { id: 'status-2', name: 'En Progreso' },
-        { id: 'status-3', name: 'En Revisión' },
-        { id: 'status-4', name: 'Aprobado' },
-        { id: 'status-5', name: 'Rechazado' },
-    ];
-    const formats: Format[] = [
-        { id: 'format-1', name: 'Tesis Estándar' },
-        { id: 'format-2', name: 'Artículo de Investigación' },
-        { id: 'format-3', name: 'Proyecto de Software' },
-    ];
-    const teacherRoles: TeacherRole[] = [
-        { id: 'role-1', name: 'Director' },
-        { id: 'role-2', name: 'Co-Director' },
-        { id: 'role-3', name: 'Evaluador 1' },
-        { id: 'role-4', name: 'Evaluador 2' },
-    ];
-    const teachers: Teacher[] = [
-        { id: 'teacher-1', name: 'Dr. Eleanor Vance', email: 'eleanor.v@university.edu', cedula: '12345678' },
-        { id: 'teacher-2', name: 'Prof. Ben Carter', email: 'ben.c@university.edu', cedula: '87654321' },
-        { id: 'teacher-3', name: 'Dra. Olivia Chen', email: 'olivia.c@university.edu', cedula: '11223344' },
-    ];
-    const programs: Program[] = [
-        { id: 'prog-1', name: 'Tecnología en Desarrollo de Sistemas de Información y Software' },
-        { id: 'prog-2', name: 'Ingeniería de Sistemas' },
-    ];
-
-    const projects: Project[] = [
-        { id: 'project-1', title: 'Mantenimiento Predictivo con IA', presentationDate: '2024-12-15', filesUrl: 'https://example.com/project1', statusId: 'status-2', formatId: 'format-3', isApprovedByDirector: false, writtenGradeReviewer1: null, presentationGradeReviewer1: null, writtenGradeReviewer2: null, presentationGradeReviewer2: null },
-        { id: 'project-2', title: 'Computación Cuántica para Fármacos', presentationDate: '2025-01-20', filesUrl: 'https://example.com/project2', statusId: 'status-1', formatId: 'format-1', isApprovedByDirector: true, writtenGradeReviewer1: 4.3, presentationGradeReviewer1: 4.5, writtenGradeReviewer2: 4.4, presentationGradeReviewer2: 4.1 },
-    ];
-
-    const students: Student[] = [
-        { id: 'student-1', name: 'Alice Johnson', email: 'alice.j@student.edu', cedula: '100100100', projectId: 'project-1', programId: 'prog-2' },
-        { id: 'student-2', name: 'Bob Williams', email: 'bob.w@student.edu', cedula: '200200200', projectId: 'project-1', programId: 'prog-1' },
-        { id: 'student-3', name: 'Charlie Brown', email: 'charlie.b@student.edu', cedula: '300300300', projectId: 'project-2', programId: 'prog-2' },
-        { id: 'student-4', name: 'Diana Miller', email: 'diana.m@student.edu', cedula: '400400400', projectId: null, programId: 'prog-1' },
-    ];
-    
-    const projectTeachers: ProjectTeacher[] = [
-        {id: 'pt-1', projectId: 'project-1', teacherId: 'teacher-1', roleId: 'role-1'},
-        {id: 'pt-2', projectId: 'project-1', teacherId: 'teacher-2', roleId: 'role-3'},
-        {id: 'pt-3', projectId: 'project-2', teacherId: 'teacher-2', roleId: 'role-1'},
-        {id: 'pt-4', projectId: 'project-2', teacherId: 'teacher-1', roleId: 'role-3'},
-        {id: 'pt-5', projectId: 'project-2', teacherId: 'teacher-3', roleId: 'role-4'},
-    ];
-    
-    const users: User[] = [
-        { id: 'user-admin', username: 'admin', password: 'Ja39362505', role: 'admin', teacherId: null, studentId: null },
-        { id: 'user-teacher-1', username: 'eleanor.v', password: '12345678', role: 'teacher', teacherId: 'teacher-1', studentId: null },
-        { id: 'user-teacher-2', username: 'ben.c', password: '87654321', role: 'teacher', teacherId: 'teacher-2', studentId: null },
-        { id: 'user-teacher-3', username: 'olivia.c', password: '11223344', role: 'teacher', teacherId: 'teacher-3', studentId: null },
-        { id: 'user-student-1', username: 'alice.j', password: '100100100', role: 'student', teacherId: null, studentId: 'student-1' },
-        { id: 'user-student-2', username: 'bob.w', password: '200200200', role: 'student', teacherId: null, studentId: 'student-2' },
-        { id: 'user-student-3', username: 'charlie.b', password: '300300300', role: 'student', teacherId: null, studentId: 'student-3' },
-        { id: 'user-student-4', username: 'diana.m', password: '400400400', role: 'student', teacherId: null, studentId: 'student-4' },
-    ];
-
-    return { users, statuses, formats, teacherRoles, teachers, projects, students, projectTeachers, programs };
+  // Código generado el 27/10/2025, 12:43:54
+  return {
+  "users": [
+    {
+      "id": "user-admin",
+      "username": "admin",
+      "password": "Ja39362505",
+      "role": "admin",
+      "teacherId": null,
+      "studentId": null
+    },
+    {
+      "username": "jairo.acosta",
+      "password": "73136401",
+      "role": "teacher",
+      "teacherId": "mh99w7qdec9c0t35kz",
+      "studentId": null,
+      "id": "mh99w7qdm6uot11mmxj"
+    },
+    {
+      "username": "prueba",
+      "password": "12345678",
+      "role": "teacher",
+      "teacherId": "mh9a4xk656gxvqcpr1r",
+      "studentId": null,
+      "id": "mh9a4xk6qr6s77m995"
+    },
+    {
+      "username": "carlos.garzon",
+      "password": "3806942",
+      "role": "teacher",
+      "teacherId": "mh9armquebqtqj00pm",
+      "studentId": null,
+      "id": "mh9armquet3scc9e70l"
+    }
+  ],
+  "statuses": [
+    {
+      "id": "status-1",
+      "name": "Propuesto"
+    },
+    {
+      "id": "status-2",
+      "name": "En Progreso"
+    },
+    {
+      "id": "status-3",
+      "name": "En Revisión"
+    },
+    {
+      "id": "status-4",
+      "name": "Aprobado"
+    },
+    {
+      "id": "status-5",
+      "name": "Rechazado"
+    }
+  ],
+  "formats": [
+    {
+      "name": "Anteproyecto",
+      "id": "mh3j9b1d1hizzgfah8n"
+    },
+    {
+      "name": "Proyecto",
+      "id": "mh3j9g7i6szt030uwvl"
+    },
+    {
+      "name": "Informe final",
+      "id": "mh3j9knavrk8y5qx9r8"
+    },
+    {
+      "name": "Carta ART REV",
+      "id": "mh3j9yj2xrxizjyrdbp"
+    },
+    {
+      "name": "ART REV",
+      "id": "mh3ja6hqpvhc3pciqs"
+    }
+  ],
+  "teacherRoles": [
+    {
+      "id": "role-1",
+      "name": "Director"
+    },
+    {
+      "id": "role-2",
+      "name": "Co-Director"
+    },
+    {
+      "id": "role-3",
+      "name": "Evaluador 1"
+    },
+    {
+      "id": "role-4",
+      "name": "Evaluador 2"
+    }
+  ],
+  "teachers": [
+    {
+      "name": "Jairo Acosta Solano",
+      "email": "jairo.acosta@campusuninunez.edu.co",
+      "id": "mh3j11xz0yt13uxsz6"
+    },
+    {
+      "name": "Maybelline Sharick Castro Pérez",
+      "email": "maybelline.castro@campusuninunez.edu.co",
+      "id": "mh3j383jwdv0bqu5tec"
+    },
+    {
+      "name": "Jairo Acosta Solano",
+      "email": "jairo.acosta@campusuninunez.edu.co",
+      "cedula": "73136401",
+      "id": "mh99w7qdec9c0t35kz"
+    },
+    {
+      "name": "prueba",
+      "email": "prueba@campusuninunez.edu.co",
+      "cedula": "12345678",
+      "id": "mh9a4xk656gxvqcpr1r"
+    },
+    {
+      "name": "Carlos Garzón Mercado",
+      "email": "carlos.garzon@campusuninunez.edu.co",
+      "cedula": "3806942",
+      "id": "mh9armquebqtqj00pm"
+    }
+  ],
+  "projects": [
+    {
+      "title": "Desarrollo de una plataforma web de análisis territorial mediante mapa de concentración para la priorización y toma de decisiones públicas",
+      "presentationDate": "2025-09-09",
+      "filesUrl": "https://drive.google.com/drive/folders/1k0yDND578q5mK2g6wjC902VZf9RmrIuk?usp=drive_link",
+      "statusId": "status-3",
+      "formatId": "mh3j9g7i6szt030uwvl",
+      "id": "mh3jba5bpcafwsf6is"
+    }
+  ],
+  "students": [
+    {
+      "name": "José Luis Cuadro Rivera",
+      "email": "jcuadror21@campusuninunez.edu.co",
+      "projectId": "mh3jba5bpcafwsf6is",
+      "programId": "prog-2",
+      "id": "mh3j4z6mc2v78v2725j"
+    }
+  ],
+  "projectTeachers": [
+    {
+      "projectId": "mh3jba5bpcafwsf6is",
+      "teacherId": "mh3j383jwdv0bqu5tec",
+      "roleId": "role-1",
+      "id": "mh3kbag8ynl5zxci4ff"
+    }
+  ],
+  "programs": [
+    {
+      "id": "prog-1",
+      "name": "Tecnología en Desarrollo de Sistemas de Información y Software"
+    },
+    {
+      "id": "prog-2",
+      "name": "Ingeniería de Sistemas"
+    }
+  ]
+};
 };
 
 export const initializeDB = (): void => {
