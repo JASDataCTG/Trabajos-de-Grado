@@ -7,7 +7,7 @@ const generateId = (): string => Date.now().toString(36) + Math.random().toStrin
 // Para actualizar los datos de inicio, reemplace el contenido de la función getSeedData() en services/database.ts con el siguiente código:
 
 const getSeedData = (): AppDatabase => {
-  // Código generado el 27/10/2025, 12:43:54
+  // Código generado el 27/10/2025, 12:51:23
   return {
   "users": [
     {
