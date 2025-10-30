@@ -22,6 +22,7 @@ const ProjectForm: React.FC<{
     const [formData, setFormData] = useState<Partial<Project>>({});
     const [assignments, setAssignments] = useState<Array<{teacherId: string, roleId: string, tempId: number}>>([]);
     const [newAssignment, setNewAssignment] = useState({ teacherId: '', roleId: '' });
+    const [projectFormatName, setProjectFormatName] = useState('');
 
     useEffect(() => {
         const initialData: Partial<Project> = {
@@ -32,6 +33,14 @@ const ProjectForm: React.FC<{
             presentationGradeReviewer2: null, ...project
         };
         setFormData(initialData);
+
+        if (initialData.formatId) {
+            const format = formats.find(f => f.id === initialData.formatId);
+            setProjectFormatName(format?.name || '');
+        } else {
+            setProjectFormatName('');
+        }
+
         setAssignments(initialAssignments.map(a => ({ teacherId: a.teacherId, roleId: a.roleId, tempId: Math.random() })));
         setNewAssignment({ teacherId: '', roleId: '' });
     }, [project, initialAssignments, statuses, formats]);
@@ -102,18 +111,20 @@ const ProjectForm: React.FC<{
     const isReviewerOnly = gradeInfo.canGrade && !canEditDetails;
     const canSubmit = canEditDetails || gradeInfo.canGrade;
 
+    const isFinalReport = projectFormatName.toLowerCase().includes('informe final');
+    const isProjectType = projectFormatName.toLowerCase().includes('proyecto');
+    const canEvaluatorChangeStatus = gradeInfo.canGrade && isProjectType && (!!formData.isApprovedByDirector || isAdmin);
+
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
             <div className={`space-y-4 ${isReviewerOnly ? 'opacity-75' : ''}`}>
-                <fieldset disabled={!canEditDetails}>
-                    <div className="space-y-4">
-                        <div><label htmlFor="title" className="block text-sm font-medium text-gray-700">Título del Proyecto</label><input type="text" name="title" id="title" value={formData.title || ''} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100" /></div>
-                        <div><label htmlFor="presentationDate" className="block text-sm font-medium text-gray-700">Fecha de Presentación</label><input type="date" name="presentationDate" id="presentationDate" value={formData.presentationDate || ''} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100" /></div>
-                        <div><label htmlFor="filesUrl" className="block text-sm font-medium text-gray-700">URL de Archivos</label><input type="url" name="filesUrl" id="filesUrl" value={formData.filesUrl || ''} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100" /></div>
-                        <div><label htmlFor="statusId" className="block text-sm font-medium text-gray-700">Estado</label><select name="statusId" id="statusId" value={formData.statusId || ''} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100">{statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-                        <div><label htmlFor="formatId" className="block text-sm font-medium text-gray-700">Formato</label><select name="formatId" id="formatId" value={formData.formatId || ''} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100">{formats.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select></div>
-                    </div>
-                </fieldset>
+                 <div className="space-y-4">
+                    <div><label htmlFor="title" className="block text-sm font-medium text-gray-700">Título del Proyecto</label><input type="text" name="title" id="title" value={formData.title || ''} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100" disabled={!canEditDetails} /></div>
+                    <div><label htmlFor="presentationDate" className="block text-sm font-medium text-gray-700">Fecha de Presentación</label><input type="date" name="presentationDate" id="presentationDate" value={formData.presentationDate || ''} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100" disabled={!canEditDetails}/></div>
+                    <div><label htmlFor="filesUrl" className="block text-sm font-medium text-gray-700">URL de Archivos</label><input type="url" name="filesUrl" id="filesUrl" value={formData.filesUrl || ''} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100" disabled={!canEditDetails}/></div>
+                    <div><label htmlFor="statusId" className="block text-sm font-medium text-gray-700">Estado</label><select name="statusId" id="statusId" value={formData.statusId || ''} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100" disabled={!canEditDetails && !canEvaluatorChangeStatus}>{statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+                    <div><label htmlFor="formatId" className="block text-sm font-medium text-gray-700">Formato</label><select name="formatId" id="formatId" value={formData.formatId || ''} onChange={handleChange} required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100" disabled={!canEditDetails}>{formats.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select></div>
+                </div>
             </div>
             
             {canEditDetails && (
@@ -129,34 +140,44 @@ const ProjectForm: React.FC<{
 
             {gradeInfo.canGrade && (
                 <div className="space-y-4 pt-4 mt-4 border-t">
-                    <h4 className="text-lg font-medium text-gray-800">Calificaciones de Evaluador</h4>
-                    {!formData.isApprovedByDirector && !isAdmin ? (<p className="text-sm text-yellow-700 bg-yellow-50 p-3 rounded-md">El proyecto debe ser aprobado por el director antes de poder ingresar calificaciones.</p>) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="writtenGrade" className="block text-sm font-medium text-gray-700">Nota Trabajo Escrito (0.0 - 5.0)</label>
-                            <input type="number" name="writtenGrade" id="writtenGrade" min="0" max="5" step="0.1" onChange={handleGradeChange}
-                             value={
-                                (gradeInfo.reviewerRole?.includes('1') ? formData.writtenGradeReviewer1 :
-                                 gradeInfo.reviewerRole?.includes('2') ? formData.writtenGradeReviewer2 :
-                                 (formData.writtenGradeReviewer1 ?? '')) ?? ''
-                             }
-                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
-                        </div>
-                        <div>
-                            <label htmlFor="presentationGrade" className="block text-sm font-medium text-gray-700">Nota Sustentación (0.0 - 5.0)</label>
-                            <input type="number" name="presentationGrade" id="presentationGrade" min="0" max="5" step="0.1" onChange={handleGradeChange}
-                             value={
-                                (gradeInfo.reviewerRole?.includes('1') ? formData.presentationGradeReviewer1 :
-                                 gradeInfo.reviewerRole?.includes('2') ? formData.presentationGradeReviewer2 :
-                                 (formData.presentationGradeReviewer1 ?? '')) ?? ''
-                             }
-                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
-                        </div>
-                    </div>)}
-                    <div className="text-xs text-gray-500 space-y-1">
-                        <p>Evaluador 1: Escrito ({formData.writtenGradeReviewer1 ?? 'N/A'}), Sustentación ({formData.presentationGradeReviewer1 ?? 'N/A'})</p>
-                        <p>Evaluador 2: Escrito ({formData.writtenGradeReviewer2 ?? 'N/A'}), Sustentación ({formData.presentationGradeReviewer2 ?? 'N/A'})</p>
-                    </div>
+                    <h4 className="text-lg font-medium text-gray-800">Acción de Evaluador</h4>
+                    {!formData.isApprovedByDirector && !isAdmin ? (<p className="text-sm text-yellow-700 bg-yellow-50 p-3 rounded-md">El proyecto debe ser aprobado por el director antes de poder realizar una acción.</p>) : (
+                        isFinalReport ? (
+                            <>
+                                <h5 className="font-semibold text-gray-700">Calificaciones de Informe Final</h5>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label htmlFor="writtenGrade" className="block text-sm font-medium text-gray-700">Nota Trabajo Escrito (0.0 - 5.0)</label>
+                                        <input type="number" name="writtenGrade" id="writtenGrade" min="0" max="5" step="0.1" onChange={handleGradeChange}
+                                        value={
+                                            (gradeInfo.reviewerRole?.includes('1') ? formData.writtenGradeReviewer1 :
+                                            gradeInfo.reviewerRole?.includes('2') ? formData.writtenGradeReviewer2 :
+                                            (formData.writtenGradeReviewer1 ?? '')) ?? ''
+                                        }
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="presentationGrade" className="block text-sm font-medium text-gray-700">Nota Sustentación (0.0 - 5.0)</label>
+                                        <input type="number" name="presentationGrade" id="presentationGrade" min="0" max="5" step="0.1" onChange={handleGradeChange}
+                                        value={
+                                            (gradeInfo.reviewerRole?.includes('1') ? formData.presentationGradeReviewer1 :
+                                            gradeInfo.reviewerRole?.includes('2') ? formData.presentationGradeReviewer2 :
+                                            (formData.presentationGradeReviewer1 ?? '')) ?? ''
+                                        }
+                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                                    </div>
+                                </div>
+                                <div className="text-xs text-gray-500 space-y-1">
+                                    <p>Evaluador 1: Escrito ({formData.writtenGradeReviewer1 ?? 'N/A'}), Sustentación ({formData.presentationGradeReviewer1 ?? 'N/A'})</p>
+                                    <p>Evaluador 2: Escrito ({formData.writtenGradeReviewer2 ?? 'N/A'}), Sustentación ({formData.presentationGradeReviewer2 ?? 'N/A'})</p>
+                                </div>
+                            </>
+                        ) : isProjectType ? (
+                            <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">Como evaluador de un "Proyecto", tu acción es aprobar o rechazar cambiando el estado del proyecto en la sección de arriba.</p>
+                        ) : (
+                            <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">No hay acciones de evaluación para el formato "{projectFormatName}".</p>
+                        )
+                    )}
                 </div>
             )}
 
@@ -169,7 +190,7 @@ const ProjectForm: React.FC<{
 };
 
 export const ProjectsPage: React.FC = () => {
-    const { isAdmin, canEditProject, canGradeProject } = useAuth();
+    const { isAdmin, isTeacher, canEditProject, canGradeProject } = useAuth();
     const [projects, setProjects] = useState<Project[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -271,7 +292,18 @@ export const ProjectsPage: React.FC = () => {
                         const finalWritten = calculateAverage(project.writtenGradeReviewer1, project.writtenGradeReviewer2);
                         const finalPresentation = calculateAverage(project.presentationGradeReviewer1, project.presentationGradeReviewer2);
                         return (<tr key={project.id}>
-                            <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{project.title}</div><div className="text-xs text-gray-500">Entrega: {project.presentationDate}</div></td>
+                            <td className="px-6 py-4 whitespace-nowrap max-w-xs">
+                                <div className="text-sm font-medium text-gray-900 truncate" title={project.title}>
+                                    {(isAdmin || isTeacher) && project.filesUrl ? (
+                                        <a href={project.filesUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-800 hover:underline">
+                                            {project.title}
+                                        </a>
+                                    ) : (
+                                        project.title
+                                    )}
+                                </div>
+                                <div className="text-xs text-gray-500">Entrega: {project.presentationDate}</div>
+                            </td>
                             <td className="px-6 py-4 whitespace-normal text-sm text-gray-500">{getStudentsForProject(project.id)}</td>
                             <td className="px-6 py-4 whitespace-normal text-sm text-gray-500">{getTeachersForProject(project.id)}</td>
                             <td className="px-6 py-4 whitespace-nowrap"><span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">{getStatusName(project.statusId)}</span></td>

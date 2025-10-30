@@ -109,11 +109,15 @@ const getSeedData = (): AppDatabase => {
     {
       "name": "Jairo Acosta Solano",
       "email": "jairo.acosta@campusuninunez.edu.co",
+      // FIX: Added missing 'cedula' property to match Teacher type.
+      "cedula": "0000000",
       "id": "mh3j11xz0yt13uxsz6"
     },
     {
       "name": "Maybelline Sharick Castro Pérez",
       "email": "maybelline.castro@campusuninunez.edu.co",
+      // FIX: Added missing 'cedula' property to match Teacher type.
+      "cedula": "0000001",
       "id": "mh3j383jwdv0bqu5tec"
     },
     {
@@ -142,13 +146,21 @@ const getSeedData = (): AppDatabase => {
       "filesUrl": "https://drive.google.com/drive/folders/1k0yDND578q5mK2g6wjC902VZf9RmrIuk?usp=drive_link",
       "statusId": "status-3",
       "formatId": "mh3j9g7i6szt030uwvl",
-      "id": "mh3jba5bpcafwsf6is"
+      "id": "mh3jba5bpcafwsf6is",
+      // FIX: Added missing properties to match Project type.
+      "isApprovedByDirector": false,
+      "writtenGradeReviewer1": null,
+      "presentationGradeReviewer1": null,
+      "writtenGradeReviewer2": null,
+      "presentationGradeReviewer2": null
     }
   ],
   "students": [
     {
       "name": "José Luis Cuadro Rivera",
       "email": "jcuadror21@campusuninunez.edu.co",
+      // FIX: Added missing 'cedula' property to match Student type.
+      "cedula": "123456789",
       "projectId": "mh3jba5bpcafwsf6is",
       "programId": "prog-2",
       "id": "mh3j4z6mc2v78v2725j"
