@@ -113,23 +113,79 @@ export const ReportsPage: React.FC = () => {
     const [studentAssignmentChartData, setStudentAssignmentChartData] = useState(null);
     const [teacherWorkloadChartData, setTeacherWorkloadChartData] = useState(null);
     const [studentsPerProgramChartData, setStudentsPerProgramChartData] = useState(null);
+    
+    // State for filter values
+    const [filters, setFilters] = useState({
+        title: '',
+        programId: '',
+        statusId: '',
+        formatId: '',
+        teacherId: '',
+        startDate: '',
+        endDate: '',
+    });
 
-    const loadReportData = useCallback(() => {
-        const projects = db.getProjects();
-        const students = db.getStudents();
-        const teachers = db.getTeachers();
+    // State for dropdown options
+    const [allPrograms, setAllPrograms] = useState<Program[]>([]);
+    const [allStatuses, setAllStatuses] = useState<Status[]>([]);
+    const [allFormats, setAllFormats] = useState<Format[]>([]);
+    const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
+
+
+    const loadReportData = useCallback((currentFilters) => {
+        const allProjects = db.getProjects();
+        const allStudents = db.getStudents();
+        const allTeachers = db.getTeachers();
         const roles = db.getTeacherRoles();
         const statuses = db.getStatuses();
         const formats = db.getFormats();
         const projectTeachers = db.getProjectTeachers();
         const programs = db.getPrograms();
 
-        // --- Lógica para reportes tabulares ---
-        const projectStatusData = projects.map(p => {
-            const assignedStudents = students.filter(s => s.projectId === p.id);
+        // --- Filtering Logic ---
+        let filteredProjects = allProjects;
+
+        if (currentFilters.title) {
+            filteredProjects = filteredProjects.filter(p => p.title.toLowerCase().includes(currentFilters.title.toLowerCase()));
+        }
+        if (currentFilters.statusId) {
+            filteredProjects = filteredProjects.filter(p => p.statusId === currentFilters.statusId);
+        }
+        if (currentFilters.formatId) {
+            filteredProjects = filteredProjects.filter(p => p.formatId === currentFilters.formatId);
+        }
+        if (currentFilters.startDate) {
+            filteredProjects = filteredProjects.filter(p => new Date(p.presentationDate) >= new Date(currentFilters.startDate));
+        }
+        if (currentFilters.endDate) {
+            filteredProjects = filteredProjects.filter(p => new Date(p.presentationDate) <= new Date(currentFilters.endDate));
+        }
+        if (currentFilters.teacherId) {
+            const projectIdsForTeacher = projectTeachers
+                .filter(pt => pt.teacherId === currentFilters.teacherId)
+                .map(pt => pt.projectId);
+            filteredProjects = filteredProjects.filter(p => projectIdsForTeacher.includes(p.id));
+        }
+        if (currentFilters.programId) {
+            const projectIdsForProgram = [...new Set(allStudents
+                .filter(s => s.programId === currentFilters.programId && s.projectId)
+                .map(s => s.projectId))];
+            filteredProjects = filteredProjects.filter(p => projectIdsForProgram.includes(p.id as any));
+        }
+
+        const filteredProjectIds = new Set(filteredProjects.map(p => p.id));
+        
+        let filteredTeachersForWorkload = allTeachers;
+        if (currentFilters.teacherId) {
+            filteredTeachersForWorkload = allTeachers.filter(t => t.id === currentFilters.teacherId);
+        }
+
+        // --- Report Generation (using filtered data) ---
+        const projectStatusData = filteredProjects.map(p => {
+            const assignedStudents = allStudents.filter(s => s.projectId === p.id);
             const studentNames = assignedStudents.map(s => s.name).join(', ');
             const studentPrograms = [...new Set(assignedStudents.map(s => programs.find(prog => prog.id === s.programId)?.name || 'N/A'))].join(', ');
-            const assignedTeachers = projectTeachers.filter(pt => pt.projectId === p.id).map(pt => `${teachers.find(t => t.id === pt.teacherId)?.name || 'N/A'} (${roles.find(r => r.id === pt.roleId)?.name || 'N/A'})`).join('; ');
+            const assignedTeachers = projectTeachers.filter(pt => pt.projectId === p.id).map(pt => `${allTeachers.find(t => t.id === pt.teacherId)?.name || 'N/A'} (${roles.find(r => r.id === pt.roleId)?.name || 'N/A'})`).join('; ');
             
             return {
                 'Título del Proyecto': p.title, 
@@ -143,8 +199,8 @@ export const ReportsPage: React.FC = () => {
         });
         setProjectStatus(projectStatusData);
 
-        const workloadData = teachers.map(teacher => {
-            const assignments = projectTeachers.filter(pt => pt.teacherId === teacher.id);
+        const workloadData = filteredTeachersForWorkload.map(teacher => {
+            const assignments = projectTeachers.filter(pt => pt.teacherId === teacher.id && filteredProjectIds.has(pt.projectId));
             let directorCount = 0, coDirectorCount = 0, evaluatorCount = 0;
             assignments.forEach(assignment => {
                 const roleName = roles.find(r => r.id === assignment.roleId)?.name.toLowerCase() || '';
@@ -159,26 +215,29 @@ export const ReportsPage: React.FC = () => {
         });
         setTeacherWorkload(workloadData);
         
-        const unassignedStudentsData = students
-            .filter(s => !s.projectId)
-            .map(s => ({ 
+        let unassignedStudentsDataFiltered = allStudents.filter(s => !s.projectId);
+        if (currentFilters.programId) {
+            unassignedStudentsDataFiltered = unassignedStudentsDataFiltered.filter(s => s.programId === currentFilters.programId);
+        }
+        setUnassignedStudents(unassignedStudentsDataFiltered.map(s => ({ 
                 'Nombre del Estudiante': s.name, 
                 'Email': s.email, 
                 'Programa': programs.find(p => p.id === s.programId)?.name || 'N/A' 
-            }));
-        setUnassignedStudents(unassignedStudentsData);
+        })));
 
-        // --- Lógica para datos de gráficos ---
+        // --- Chart data generation ---
         const chartColors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#6366f1', '#ec4899'];
         
-        const statusCounts = statuses.map(status => ({ name: status.name, count: projects.filter(p => p.statusId === status.id).length }));
+        const statusCounts = statuses.map(status => ({ name: status.name, count: filteredProjects.filter(p => p.statusId === status.id).length }));
         setProjectStatusChartData({
             labels: statusCounts.map(s => s.name),
             datasets: [{ label: 'Proyectos', data: statusCounts.map(s => s.count), backgroundColor: chartColors, borderColor: '#ffffff', borderWidth: 2 }]
         });
+        
+        const totalStudents = currentFilters.programId ? allStudents.filter(s => s.programId === currentFilters.programId) : allStudents;
+        const unassignedCount = unassignedStudentsDataFiltered.length;
+        const assignedCount = totalStudents.length - unassignedCount;
 
-        const unassignedCount = unassignedStudentsData.length;
-        const assignedCount = students.length - unassignedCount;
         setStudentAssignmentChartData({
             labels: ['Asignados', 'Sin Asignar'],
             datasets: [{ data: [assignedCount, unassignedCount], backgroundColor: ['#3b82f6', '#f59e0b'], borderColor: '#ffffff', borderWidth: 2 }]
@@ -186,17 +245,11 @@ export const ReportsPage: React.FC = () => {
 
         const studentsPerProgramCounts = programs.map(program => ({
             name: program.name,
-            count: students.filter(s => s.programId === program.id).length
+            count: allStudents.filter(s => s.programId === program.id).length
         }));
         setStudentsPerProgramChartData({
             labels: studentsPerProgramCounts.map(p => p.name),
-            datasets: [{
-                label: 'Estudiantes',
-                data: studentsPerProgramCounts.map(p => p.count),
-                backgroundColor: ['#1d4ed8', '#9333ea'],
-                borderColor: '#ffffff',
-                borderWidth: 2
-            }]
+            datasets: [{ label: 'Estudiantes', data: studentsPerProgramCounts.map(p => p.count), backgroundColor: ['#1d4ed8', '#9333ea'], borderColor: '#ffffff', borderWidth: 2 }]
         });
 
         setTeacherWorkloadChartData({
@@ -211,7 +264,14 @@ export const ReportsPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        loadReportData();
+        setAllPrograms(db.getPrograms());
+        setAllStatuses(db.getStatuses());
+        setAllFormats(db.getFormats());
+        setAllTeachers(db.getTeachers());
+        loadReportData({
+            title: '', programId: '', statusId: '',
+            formatId: '', teacherId: '', startDate: '', endDate: '',
+        });
     }, [loadReportData]);
 
     const handleExport = (data: any[], filename: string) => {
@@ -228,12 +288,83 @@ export const ReportsPage: React.FC = () => {
         link.click();
         document.body.removeChild(link);
     };
+    
+    const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFilters(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleApplyFilters = () => {
+        loadReportData(filters);
+    };
+
+    const handleClearFilters = () => {
+        const cleared = {
+            title: '', programId: '', statusId: '',
+            formatId: '', teacherId: '', startDate: '', endDate: '',
+        };
+        setFilters(cleared);
+        loadReportData(cleared);
+    };
 
     return (
         <div className="space-y-10">
             <div>
                 <h1 className="text-3xl font-bold text-gray-800">Módulo de Reportes</h1>
                 <p className="mt-2 text-gray-600">Visualice y exporte informes clave para el seguimiento de los proyectos de grado.</p>
+            </div>
+
+            {/* --- Filter Panel --- */}
+            <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">Filtros de Reportes</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label htmlFor="title" className="block text-sm font-medium text-gray-700">Buscar por Título</label>
+                        <input type="text" name="title" id="title" value={filters.title} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                    </div>
+                     <div>
+                        <label htmlFor="programId" className="block text-sm font-medium text-gray-700">Programa Académico</label>
+                        <select name="programId" id="programId" value={filters.programId} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                            <option value="">Todos</option>
+                            {allPrograms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label htmlFor="statusId" className="block text-sm font-medium text-gray-700">Estado del Proyecto</label>
+                        <select name="statusId" id="statusId" value={filters.statusId} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                            <option value="">Todos</option>
+                            {allStatuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label htmlFor="formatId" className="block text-sm font-medium text-gray-700">Formato del Proyecto</label>
+                        <select name="formatId" id="formatId" value={filters.formatId} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                            <option value="">Todos</option>
+                            {allFormats.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                        </select>
+                    </div>
+                     <div>
+                        <label htmlFor="teacherId" className="block text-sm font-medium text-gray-700">Docente</label>
+                        <select name="teacherId" id="teacherId" value={filters.teacherId} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                            <option value="">Todos</option>
+                            {allTeachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700">Fecha Desde</label>
+                            <input type="date" name="startDate" id="startDate" value={filters.startDate} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                        </div>
+                        <div>
+                            <label htmlFor="endDate" className="block text-sm font-medium text-gray-700">Fecha Hasta</label>
+                            <input type="date" name="endDate" id="endDate" value={filters.endDate} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                        </div>
+                    </div>
+                </div>
+                <div className="flex justify-end space-x-3 mt-6 border-t pt-4">
+                    <button onClick={handleClearFilters} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm font-medium">Limpiar Filtros</button>
+                    <button onClick={handleApplyFilters} className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 text-sm font-medium">Aplicar Filtros</button>
+                </div>
             </div>
 
             <div>
@@ -265,7 +396,7 @@ export const ReportsPage: React.FC = () => {
                     >
                         <table className="w-full text-left">
                             <thead className="bg-gray-50"><tr>{projectStatus.length > 0 && Object.keys(projectStatus[0]).map(key => (<th key={key} className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
-                            <tbody className="divide-y divide-gray-200">{projectStatus.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{projectStatus.length === 0 && (<tr><td colSpan={7} className="text-center py-10 text-gray-500">No hay proyectos para mostrar.</td></tr>)}</tbody>
+                            <tbody className="divide-y divide-gray-200">{projectStatus.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{projectStatus.length === 0 && (<tr><td colSpan={7} className="text-center py-10 text-gray-500">No hay proyectos que coincidan con los filtros.</td></tr>)}</tbody>
                         </table>
                     </ReportTableCard>
                     
@@ -277,7 +408,7 @@ export const ReportsPage: React.FC = () => {
                     >
                         <table className="w-full text-left">
                             <thead className="bg-gray-50"><tr>{teacherWorkload.length > 0 && Object.keys(teacherWorkload[0]).map(key => (<th key={key} className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
-                            <tbody className="divide-y divide-gray-200">{teacherWorkload.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{teacherWorkload.length === 0 && (<tr><td colSpan={6} className="text-center py-10 text-gray-500">No hay docentes para mostrar.</td></tr>)}</tbody>
+                            <tbody className="divide-y divide-gray-200">{teacherWorkload.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{teacherWorkload.length === 0 && (<tr><td colSpan={6} className="text-center py-10 text-gray-500">No hay docentes que coincidan con los filtros.</td></tr>)}</tbody>
                         </table>
                     </ReportTableCard>
                     
@@ -289,7 +420,7 @@ export const ReportsPage: React.FC = () => {
                     >
                         <table className="w-full text-left">
                             <thead className="bg-gray-50"><tr>{unassignedStudents.length > 0 && Object.keys(unassignedStudents[0]).map(key => (<th key={key} className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
-                            <tbody className="divide-y divide-gray-200">{unassignedStudents.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{unassignedStudents.length === 0 && (<tr><td colSpan={3} className="text-center py-10 text-gray-500">Todos los estudiantes están asignados a un proyecto.</td></tr>)}</tbody>
+                            <tbody className="divide-y divide-gray-200">{unassignedStudents.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{unassignedStudents.length === 0 && (<tr><td colSpan={3} className="text-center py-10 text-gray-500">No hay estudiantes sin asignar que coincidan con los filtros.</td></tr>)}</tbody>
                         </table>
                     </ReportTableCard>
                 </div>
