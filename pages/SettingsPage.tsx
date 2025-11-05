@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/database';
-import { Status, Format, TeacherRole, AppDatabase } from '../types';
+import { Status, Format, TeacherRole, AppDatabase, Program, Student } from '../types';
 import { EditIcon, TrashIcon, PlusIcon } from '../components/Icons';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { useAuth } from '../contexts/AuthContext';
 
-type EntityType = 'status' | 'format' | 'role';
-type Entity = Status | Format | TeacherRole;
+type EntityType = 'status' | 'format' | 'role' | 'program';
+type Entity = Status | Format | TeacherRole | Program;
 
 interface SettingsListProps<T extends Entity> {
     title: string;
@@ -114,7 +114,7 @@ const DataManagement: React.FC = () => {
     }
 
     return (
-        <div className="bg-white rounded-lg shadow p-6 col-span-1 md:col-span-2 lg:col-span-3">
+        <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold text-gray-800 mb-2">Gestión de Datos de Inicio</h2>
             <p className="text-sm text-gray-600 mb-6">
                 Para actualizar los datos iniciales para todos los usuarios (ej. añadir nuevos usuarios por defecto), sigue estos pasos. 
@@ -164,12 +164,16 @@ export const SettingsPage: React.FC = () => {
     const [statuses, setStatuses] = useState<Status[]>([]);
     const [formats, setFormats] = useState<Format[]>([]);
     const [roles, setRoles] = useState<TeacherRole[]>([]);
+    const [programs, setPrograms] = useState<Program[]>([]);
+    const [students, setStudents] = useState<Student[]>([]);
     const [deletingItem, setDeletingItem] = useState<{item: Entity, type: EntityType} | null>(null);
 
     const loadData = useCallback(() => {
         setStatuses(db.getStatuses());
         setFormats(db.getFormats());
         setRoles(db.getTeacherRoles());
+        setPrograms(db.getPrograms());
+        setStudents(db.getStudents());
     }, []);
 
     useEffect(() => {
@@ -181,6 +185,7 @@ export const SettingsPage: React.FC = () => {
         if(type === 'status') db.addStatus({ name });
         if(type === 'format') db.addFormat({ name });
         if(type === 'role') db.addTeacherRole({ name });
+        if(type === 'program') db.addProgram({ name });
         loadData();
     };
     
@@ -189,6 +194,7 @@ export const SettingsPage: React.FC = () => {
         if(type === 'status') db.updateStatus(item as Status);
         if(type === 'format') db.updateFormat(item as Format);
         if(type === 'role') db.updateTeacherRole(item as TeacherRole);
+        if(type === 'program') db.updateProgram(item as Program);
         loadData();
     };
 
@@ -199,6 +205,7 @@ export const SettingsPage: React.FC = () => {
         if(type === 'status') db.deleteStatus(item.id);
         if(type === 'format') db.deleteFormat(item.id);
         if(type === 'role') db.deleteTeacherRole(item.id);
+        if(type === 'program') db.deleteProgram(item.id);
 
         loadData();
         setDeletingItem(null);
@@ -210,6 +217,7 @@ export const SettingsPage: React.FC = () => {
             case 'status': return 'Estado';
             case 'format': return 'Formato';
             case 'role': return 'Rol';
+            case 'program': return 'Programa Académico';
             default: return '';
         }
     }
@@ -217,7 +225,7 @@ export const SettingsPage: React.FC = () => {
     return (
         <div className="space-y-6">
             <h1 className="text-3xl font-bold text-gray-800">Configuración</h1>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                 <SettingsList
                     title="Estados de Proyecto"
                     items={statuses}
@@ -242,6 +250,23 @@ export const SettingsPage: React.FC = () => {
                     onUpdate={(item) => handleUpdate('role', item)}
                     onDelete={(item) => setDeletingItem({item, type: 'role'})}
                 />
+                <SettingsList
+                    title="Programas Académicos"
+                    items={programs}
+                    placeholder="Nuevo programa académico"
+                    onAdd={(name) => handleAdd('program', name)}
+                    onUpdate={(item) => handleUpdate('program', item)}
+                    onDelete={(item) => {
+                        const isProgramInUse = students.some(s => s.programId === item.id);
+                        if (isProgramInUse) {
+                            alert('No se puede eliminar este programa académico porque está asignado a uno o más estudiantes.');
+                            return;
+                        }
+                        setDeletingItem({item, type: 'program'});
+                    }}
+                />
+            </div>
+            <div className="mt-6">
                 <DataManagement />
             </div>
             <ConfirmationDialog
@@ -249,7 +274,7 @@ export const SettingsPage: React.FC = () => {
                 onClose={() => setDeletingItem(null)}
                 onConfirm={handleDelete}
                 title={`Eliminar ${getEntityTypeSpanish(deletingItem?.type)}`}
-                message={`¿Estás seguro de que quieres eliminar "${deletingItem?.item.name}"? Esto podría afectar a los proyectos existentes.`}
+                message={`¿Estás seguro de que quieres eliminar "${deletingItem?.item.name}"? Esto podría afectar a los proyectos y estudiantes existentes.`}
             />
         </div>
     );
