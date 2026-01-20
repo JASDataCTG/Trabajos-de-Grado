@@ -30,14 +30,34 @@ const App: React.FC = () => {
   const { isAuthenticated, logout, isStudent } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isPublicReportsView, setIsPublicReportsView] = useState(false);
 
   useEffect(() => {
-    // Fix: Used db.initializeDB() instead of an unexported direct function to properly initialize with Supabase
     db.initializeDB();
   }, []);
 
+  // Si el usuario elige ver reportes de forma pública
+  if (isPublicReportsView && !isAuthenticated) {
+      return (
+          <div className="min-h-screen bg-gray-100 p-4 md:p-8">
+              <div className="max-w-7xl mx-auto">
+                <header className="mb-6 flex justify-between items-center bg-white p-4 rounded-lg shadow-sm">
+                    <img src="https://i.ibb.co/L8yFz9p/logo.png" alt="Logo" className="h-12 object-contain"/>
+                    <button 
+                        onClick={() => setIsPublicReportsView(false)}
+                        className="text-primary-600 font-bold hover:underline"
+                    >
+                        &larr; Volver al Inicio de Sesión
+                    </button>
+                </header>
+                <ReportsPage isPublicView={true} />
+              </div>
+          </div>
+      );
+  }
+
   if (!isAuthenticated) {
-    return <LoginPage />;
+    return <LoginPage onOpenPublicReports={() => setIsPublicReportsView(true)} />;
   }
   
   if (isStudent) {
@@ -57,7 +77,7 @@ const App: React.FC = () => {
       case 'settings':
         return <SettingsPage />;
       case 'reports':
-        return <ReportsPage />;
+        return <ReportsPage isPublicView={false} />;
       case 'users':
         return <UsersPage />;
       default:

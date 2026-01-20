@@ -33,10 +33,13 @@ interface UnassignedStudentsReport {
     'Programa': string;
 }
 
+interface ReportsPageProps {
+    isPublicView?: boolean;
+}
 
 // --- Componentes Reutilizables ---
 
-const ReportTableCard: React.FC<{ title: string; description: string; children: React.ReactNode; onExport: () => void; hasData: boolean; }> = ({ title, description, children, onExport, hasData }) => (
+const ReportTableCard: React.FC<{ title: string; description: string; children: React.ReactNode; onExport: () => void; hasData: boolean; showExport?: boolean }> = ({ title, description, children, onExport, hasData, showExport = true }) => (
     <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b">
             <div className="flex justify-between items-start">
@@ -44,13 +47,15 @@ const ReportTableCard: React.FC<{ title: string; description: string; children: 
                     <h3 className="text-xl font-semibold text-gray-800">{title}</h3>
                     <p className="text-sm text-gray-600 mt-1">{description}</p>
                 </div>
-                <button
-                    onClick={onExport}
-                    disabled={!hasData}
-                    className="bg-primary-100 text-primary-700 px-4 py-2 rounded-md hover:bg-primary-200 text-sm font-medium disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-                >
-                    Exportar a CSV
-                </button>
+                {showExport && (
+                    <button
+                        onClick={onExport}
+                        disabled={!hasData}
+                        className="bg-primary-100 text-primary-700 px-4 py-2 rounded-md hover:bg-primary-200 text-sm font-medium disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    >
+                        Exportar a CSV
+                    </button>
+                )}
             </div>
         </div>
         <div className="overflow-x-auto">
@@ -103,7 +108,7 @@ const ChartCard: React.FC<{ title: string; type: 'pie' | 'doughnut' | 'bar'; dat
 };
 
 
-export const ReportsPage: React.FC = () => {
+export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }) => {
     // State para reportes tabulares
     const [projectStatus, setProjectStatus] = useState<ProjectStatusReport[]>([]);
     const [teacherWorkload, setTeacherWorkload] = useState<TeacherWorkloadReport[]>([]);
@@ -132,7 +137,6 @@ export const ReportsPage: React.FC = () => {
     const [allFormats, setAllFormats] = useState<Format[]>([]);
     const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
 
-    // Fix: Made loadReportData async and use Promise.all to await all database results to resolve type Promise<any> errors
     const loadReportData = useCallback(async (currentFilters: any) => {
         const [allProjects, allStudents, allTeachers, roles, statuses, formats, projectTeachers, programs] = await Promise.all([
             db.getProjects(),
@@ -267,7 +271,6 @@ export const ReportsPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        // Fix: Use an async function within useEffect to resolve the async loadReportData
         const initData = async () => {
             setAllPrograms(await db.getPrograms());
             setAllStatuses(await db.getStatuses());
@@ -317,8 +320,10 @@ export const ReportsPage: React.FC = () => {
     return (
         <div className="space-y-10">
             <div>
-                <h1 className="text-3xl font-bold text-gray-800">Módulo de Reportes</h1>
-                <p className="mt-2 text-gray-600">Visualice y exporte informes clave para el seguimiento de los proyectos de grado.</p>
+                <h1 className="text-3xl font-bold text-gray-800">
+                    {isPublicView ? 'Reportes Públicos de Proyectos' : 'Módulo de Reportes'}
+                </h1>
+                <p className="mt-2 text-gray-600">Visualice informes clave para el seguimiento de los proyectos de grado.</p>
             </div>
 
             {/* --- Filter Panel --- */}
@@ -400,10 +405,11 @@ export const ReportsPage: React.FC = () => {
                         description="Vista completa de todos los proyectos con sus detalles y personas asignadas."
                         onExport={() => handleExport(projectStatus, 'estado_general_proyectos')}
                         hasData={projectStatus.length > 0}
+                        showExport={!isPublicView}
                     >
-                        <table className="w-full text-left">
-                            <thead className="bg-gray-50"><tr>{projectStatus.length > 0 && Object.keys(projectStatus[0]).map(key => (<th key={key} className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
-                            <tbody className="divide-y divide-gray-200">{projectStatus.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{projectStatus.length === 0 && (<tr><td colSpan={7} className="text-center py-10 text-gray-500">No hay proyectos que coincidan con los filtros.</td></tr>)}</tbody>
+                        <table className="w-full text-left text-xs md:text-sm">
+                            <thead className="bg-gray-50"><tr>{projectStatus.length > 0 && Object.keys(projectStatus[0]).map(key => (<th key={key} className="px-6 py-3 font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
+                            <tbody className="divide-y divide-gray-200">{projectStatus.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-gray-700">{String(val)}</td>))}</tr>))}{projectStatus.length === 0 && (<tr><td colSpan={7} className="text-center py-10 text-gray-500">No hay proyectos que coincidan con los filtros.</td></tr>)}</tbody>
                         </table>
                     </ReportTableCard>
                     
@@ -412,10 +418,11 @@ export const ReportsPage: React.FC = () => {
                         description="Análisis de la cantidad de proyectos y roles asignados a cada docente."
                         onExport={() => handleExport(teacherWorkload, 'carga_trabajo_docentes')}
                         hasData={teacherWorkload.length > 0}
+                        showExport={!isPublicView}
                     >
-                        <table className="w-full text-left">
-                            <thead className="bg-gray-50"><tr>{teacherWorkload.length > 0 && Object.keys(teacherWorkload[0]).map(key => (<th key={key} className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
-                            <tbody className="divide-y divide-gray-200">{teacherWorkload.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{teacherWorkload.length === 0 && (<tr><td colSpan={6} className="text-center py-10 text-gray-500">No hay docentes que coincidan con los filtros.</td></tr>)}</tbody>
+                        <table className="w-full text-left text-xs md:text-sm">
+                            <thead className="bg-gray-50"><tr>{teacherWorkload.length > 0 && Object.keys(teacherWorkload[0]).map(key => (<th key={key} className="px-6 py-3 font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
+                            <tbody className="divide-y divide-gray-200">{teacherWorkload.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-gray-700">{String(val)}</td>))}</tr>))}{teacherWorkload.length === 0 && (<tr><td colSpan={6} className="text-center py-10 text-gray-500">No hay docentes que coincidan con los filtros.</td></tr>)}</tbody>
                         </table>
                     </ReportTableCard>
                     
@@ -424,10 +431,11 @@ export const ReportsPage: React.FC = () => {
                         description="Lista de todos los estudiantes que no están vinculados a ningún proyecto."
                         onExport={() => handleExport(unassignedStudents, 'estudiantes_sin_asignar')}
                         hasData={unassignedStudents.length > 0}
+                        showExport={!isPublicView}
                     >
-                        <table className="w-full text-left">
-                            <thead className="bg-gray-50"><tr>{unassignedStudents.length > 0 && Object.keys(unassignedStudents[0]).map(key => (<th key={key} className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
-                            <tbody className="divide-y divide-gray-200">{unassignedStudents.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{String(val)}</td>))}</tr>))}{unassignedStudents.length === 0 && (<tr><td colSpan={3} className="text-center py-10 text-gray-500">No hay estudiantes sin asignar que coincidan con los filtros.</td></tr>)}</tbody>
+                        <table className="w-full text-left text-xs md:text-sm">
+                            <thead className="bg-gray-50"><tr>{unassignedStudents.length > 0 && Object.keys(unassignedStudents[0]).map(key => (<th key={key} className="px-6 py-3 font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
+                            <tbody className="divide-y divide-gray-200">{unassignedStudents.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-gray-700">{String(val)}</td>))}</tr>))}{unassignedStudents.length === 0 && (<tr><td colSpan={3} className="text-center py-10 text-gray-500">No hay estudiantes sin asignar que coincidan con los filtros.</td></tr>)}</tbody>
                         </table>
                     </ReportTableCard>
                 </div>
