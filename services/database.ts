@@ -2,8 +2,22 @@
 import { createClient } from '@supabase/supabase-js';
 import { Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status, Program, User } from '../types';
 
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
+// Intentamos obtener las variables de múltiples fuentes comunes en entornos de desarrollo y producción
+const getEnv = (key: string): string => {
+    // Fix: Accessing import.meta.env through a type assertion to bypass TypeScript check
+    const meta = import.meta as any;
+    if (meta && meta.env && meta.env[`VITE_${key}`]) {
+        return meta.env[`VITE_${key}`];
+    }
+    // @ts-ignore - Intentar obtener de process.env (estándar en Node/Polyfills)
+    if (typeof process !== 'undefined' && process.env) {
+        return process.env[`VITE_${key}`] || process.env[key] || '';
+    }
+    return '';
+};
+
+const supabaseUrl = getEnv('SUPABASE_URL');
+const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http'));
 
@@ -15,7 +29,7 @@ const generateId = (): string => Date.now().toString(36) + Math.random().toStrin
 
 export const initializeDB = () => { 
     if (!isSupabaseConfigured) {
-        console.error('CRÍTICO: Supabase no está configurado. Verifica las variables de entorno SUPABASE_URL y SUPABASE_ANON_KEY.');
+        console.warn('Configuración de Supabase incompleta.');
     }
 };
 
@@ -42,7 +56,7 @@ const mapProjectToDB = (p: Partial<Project>) => ({
     written_grade_reviewer1: p.writtenGradeReviewer1,
     presentation_grade_reviewer1: p.presentationGradeReviewer1,
     written_grade_reviewer2: p.writtenGradeReviewer2,
-    presentation_grade_reviewer2: p.presentationGradeReviewer2
+    presentation_grade_reviewer2: p.presentation_grade_reviewer2
 });
 
 const mapProjectFromDB = (p: any): Project => ({
@@ -62,8 +76,12 @@ const mapProjectFromDB = (p: any): Project => ({
 export const db = {
     checkConnection: async () => {
         if (!supabase) return false;
-        const { error } = await supabase.from('users').select('id').limit(1);
-        return !error;
+        try {
+            const { error } = await supabase.from('users').select('id').limit(1);
+            return !error;
+        } catch {
+            return false;
+        }
     },
 
     getUsers: async () => {
@@ -83,7 +101,6 @@ export const db = {
             studentId: data.student_id
         };
     },
-    // ... resto del objeto db igual que antes pero manteniendo la consistencia de snake_case
     deleteUser: async (id: string) => {
         await safeQuery(supabase?.from('users').delete().eq('id', id) || Promise.resolve({}));
     },

@@ -21,7 +21,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
     useEffect(() => {
         const init = async () => {
             if (!isSupabaseConfigured) {
-                setError('Error: Variables SUPABASE_URL o SUPABASE_ANON_KEY no configuradas en el entorno.');
+                setError('⚠️ Variables no detectadas. En Vercel, asegúrate de usar los nombres VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY. Luego, haz un RE-DEPLOY del proyecto.');
                 setIsFetching(false);
                 setDbConnected(false);
                 return;
@@ -34,10 +34,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                     const data = await db.getTeachers();
                     setTeachers(data);
                 } else {
-                    setError('No se pudo conectar a la base de datos de Supabase. Verifica tus credenciales.');
+                    setError('❌ Error de Conexión: Las variables existen pero Supabase rechaza la conexión. Verifica que los valores sean correctos.');
                 }
             } catch (err) {
-                setError('Error al conectar con el servidor.');
+                setError('Error crítico al conectar con el servidor.');
                 setDbConnected(false);
             } finally {
                 setIsFetching(false);
@@ -55,20 +55,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
         setError('');
         setIsLoading(true);
         try {
-            // Verificamos si el usuario existe antes de intentar login para dar mejor feedback
             const userExists = await db.getUserByUsername(selectedUsername);
             
             if (!userExists) {
                 if (selectedUsername === 'admin') {
-                    setError('El usuario administrador no existe en la DB. ¿Ejecutaste el script SQL en Supabase?');
+                    setError('El usuario administrador no existe. Asegúrate de haber ejecutado el SQL en Supabase.');
                 } else {
-                    setError('Usuario no encontrado en el sistema.');
+                    setError('Usuario no encontrado.');
                 }
             } else {
                 const success = await login(selectedUsername, password);
                 if (!success) {
                     setError(selectedUsername === 'admin' 
-                        ? 'Clave de administrador incorrecta (Usa la definida en el script SQL).' 
+                        ? 'Clave de administrador incorrecta (Usa la del script SQL).' 
                         : 'Contraseña incorrecta (Usa tu número de cédula).');
                 }
             }
@@ -82,10 +81,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
     return (
         <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
             <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-xl shadow-2xl relative overflow-hidden">
-                {/* Status Badge */}
                 <div className="absolute top-0 right-0 p-2">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${dbConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {dbConnected === null ? 'Conectando...' : dbConnected ? 'Base de Datos Conectada' : 'Error de Conexión'}
+                        {dbConnected === null ? 'Conectando...' : dbConnected ? 'Conectado a Supabase' : 'Error de Conexión'}
                     </span>
                 </div>
 
@@ -112,29 +110,33 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                                     <option key={t.id} value={t.name}>{t.name}</option>
                                 ))}
                             </select>
-                            {isFetching && <p className="text-xs text-gray-500 mt-1 animate-pulse">Cargando lista de docentes...</p>}
+                            {isFetching && !error && <p className="text-xs text-gray-500 mt-1 animate-pulse">Cargando docentes...</p>}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                {selectedUsername === 'admin' ? 'Contraseña de Administrador' : 'Contraseña (Número de Cédula)'}
+                                {selectedUsername === 'admin' ? 'Contraseña Maestra' : 'Contraseña (Cédula)'}
                             </label>
                             <input
                                 type="password"
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                disabled={dbConnected === false}
+                                disabled={dbConnected === false && !error.includes('Variables')}
                                 className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-50"
-                                placeholder={selectedUsername === 'admin' ? "Ingrese clave maestra" : "Ingrese su cédula"}
+                                placeholder={selectedUsername === 'admin' ? "admin123" : "Tu cédula"}
                             />
                         </div>
                     </div>
 
                     {error && (
-                        <div className="bg-red-50 p-3 rounded border border-red-200">
-                            <p className="text-xs text-center text-red-600 font-medium">{error}</p>
-                            {selectedUsername === 'admin' && !error.includes('incorrecta') && (
-                                <p className="text-[10px] text-center text-red-400 mt-1">Asegúrate de haber ejecutado el script SQL en Supabase.</p>
+                        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                            <p className="text-xs text-red-600 font-semibold leading-relaxed">{error}</p>
+                            {error.includes('VITE_') && (
+                                <div className="mt-2 text-[10px] text-red-500 space-y-1">
+                                    <p>1. Ve a Vercel -> Settings -> Environment Variables.</p>
+                                    <p>2. Renombra tus variables agregando <strong>VITE_</strong> al inicio.</p>
+                                    <p>3. Ve a la pestaña <strong>Deployments</strong>, haz clic en los 3 puntos del último despliegue y selecciona <strong>Redeploy</strong>.</p>
+                                </div>
                             )}
                         </div>
                     )}
@@ -142,10 +144,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                     <div className="space-y-3">
                         <button
                             type="submit"
-                            disabled={isLoading || isFetching || dbConnected === false}
-                            className={`w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-bold rounded-md text-white shadow-sm transition-all ${isLoading || !dbConnected ? 'bg-gray-400' : 'bg-primary-600 hover:bg-primary-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 uppercase`}
+                            disabled={isLoading || isFetching || (dbConnected === false && !error.includes('incorrecta'))}
+                            className={`w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-bold rounded-md text-white shadow-sm transition-all ${isLoading || (dbConnected === false && !error.includes('incorrecta')) ? 'bg-gray-400' : 'bg-primary-600 hover:bg-primary-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 uppercase`}
                         >
-                            {isLoading ? 'Verificando...' : 'Entrar al Gestor'}
+                            {isLoading ? 'Conectando...' : 'Entrar al Gestor'}
                         </button>
 
                         <div className="relative py-2">
