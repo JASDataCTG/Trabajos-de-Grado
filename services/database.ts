@@ -16,7 +16,7 @@ export const supabase = isSupabaseConfigured
 const generateId = (): string => Date.now().toString(36) + Math.random().toString(36).substring(2);
 
 const initialSeeds = {
-    programs: [{ id: '1', name: 'Ingeniería de Sistemas' }, { id: '2', name: 'Derecho' }, { id: '3', name: 'Medicina' }],
+    programs: [{ id: '1', name: 'Tecnología en Sistemas' }, { id: '2', name: 'Ingeniería de Sistemas' }, { id: '3', name: 'Derecho' }],
     formats: [{ id: '1', name: 'Anteproyecto' }, { id: '2', name: 'Proyecto Final' }],
     teacherRoles: [{ id: '1', name: 'Director' }, { id: '2', name: 'Co-Director' }, { id: '3', name: 'Evaluador 1' }, { id: '4', name: 'Evaluador 2' }],
     statuses: [{ id: '1', name: 'En Proceso' }, { id: '2', name: 'Aprobado' }, { id: '3', name: 'Sustentado' }, { id: '4', name: 'Rechazado' }]
@@ -55,12 +55,13 @@ const mapProjectToDB = (p: Partial<Project>) => ({
     files_url: p.filesUrl || '',
     status_id: p.statusId || null,
     format_id: p.formatId || null,
+    program_id: p.programId || null, // Nuevo campo
     is_approved_by_director: !!p.isApprovedByDirector,
     written_grade_reviewer1: p.writtenGradeReviewer1,
     presentation_grade_reviewer1: p.presentationGradeReviewer1,
     written_grade_reviewer2: p.writtenGradeReviewer2,
     presentation_grade_reviewer2: p.presentationGradeReviewer2,
-    final_grade: p.finalGrade // Ahora se envía para persistencia
+    final_grade: p.finalGrade
 });
 
 const mapProjectFromDB = (p: any): Project => ({
@@ -70,12 +71,13 @@ const mapProjectFromDB = (p: any): Project => ({
     filesUrl: p.files_url || '',
     statusId: p.status_id || '',
     formatId: p.format_id || '',
+    programId: p.program_id || '',
     isApprovedByDirector: !!p.is_approved_by_director,
     writtenGradeReviewer1: p.written_grade_reviewer1 ?? null,
     presentationGradeReviewer1: p.presentation_grade_reviewer1 ?? null,
     writtenGradeReviewer2: p.written_grade_reviewer2 ?? null,
     presentationGradeReviewer2: p.presentation_grade_reviewer2 ?? null,
-    finalGrade: p.final_grade ?? calculateAverage(p) // Prioriza el guardado, si no existe lo calcula
+    finalGrade: p.final_grade ?? calculateAverage(p)
 });
 
 export const db = {
@@ -170,14 +172,14 @@ export const db = {
         if (!supabase) throw new Error("Supabase no configurado");
         const id = generateId();
         const userId = generateId();
-        await supabase.from('students').insert([{ id, name: student.name, email: student.email, cedula: student.cedula, project_id: student.projectId, program_id: student.programId }]);
+        await supabase.from('students').insert([{ id, name: student.name, email: student.email, cedula: student.cedula, project_id: student.projectId }]);
         await supabase.from('users').insert([{ id: userId, username: student.name, password: student.cedula, role: 'student', student_id: id }]);
         return { ...student, id } as Student;
     },
 
     updateStudent: async (student: Student) => {
         if (!supabase) return student;
-        await supabase.from('students').update({ name: student.name, email: student.email, cedula: student.cedula, project_id: student.projectId, program_id: student.programId }).eq('id', student.id);
+        await supabase.from('students').update({ name: student.name, email: student.email, cedula: student.cedula, project_id: student.projectId }).eq('id', student.id);
         return student;
     },
 

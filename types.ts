@@ -15,6 +15,7 @@ export interface Project {
   filesUrl: string;
   statusId: string;
   formatId: string;
+  programId: string; // Movido de Student a Project
   isApprovedByDirector: boolean;
   writtenGradeReviewer1: number | null;
   presentationGradeReviewer1: number | null;
@@ -33,8 +34,8 @@ export interface Student {
   name: string;
   email: string;
   cedula: string;
-  projectId: string | null;
-  programId: string;
+  projectId: string | null; // Mantenido por compatibilidad, pero la lógica ahora es múltiple
+  programId?: string; // Opcional ahora que reside en Project
 }
 
 export interface Teacher {

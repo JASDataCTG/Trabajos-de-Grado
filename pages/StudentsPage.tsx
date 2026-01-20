@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/database';
 import { Student, Project, Program } from '../types';
@@ -9,17 +10,16 @@ import { useAuth } from '../contexts/AuthContext';
 export const StudentsPage: React.FC = () => {
     const { isAdmin } = useAuth();
     const [students, setStudents] = useState<Student[]>([]);
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [programs, setPrograms] = useState<Program[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
     const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
 
     const loadData = useCallback(async () => {
-        const [s, p, pr] = await Promise.all([db.getStudents(), db.getProjects(), db.getPrograms()]);
+        setIsLoading(true);
+        const s = await db.getStudents();
         setStudents(s);
-        setProjects(p);
-        setPrograms(pr);
+        setIsLoading(false);
     }, []);
 
     useEffect(() => { loadData(); }, [loadData]);
@@ -45,40 +45,64 @@ export const StudentsPage: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold">Estudiantes</h1>
-                {isAdmin && <button onClick={() => { setEditingStudent(null); setIsModalOpen(true); }} className="bg-primary-600 text-white px-4 py-2 rounded flex items-center"><PlusIcon className="h-5 w-5 mr-1"/> Nuevo</button>}
+                <div>
+                    <h1 className="text-3xl font-black text-uninunez-onix uppercase tracking-tight">Estudiantes</h1>
+                    <p className="text-uninunez-ash text-sm font-medium">Gestión de autores académicos.</p>
+                </div>
+                {isAdmin && <button onClick={() => { setEditingStudent(null); setIsModalOpen(true); }} className="bg-uninunez-teal text-white px-6 py-3 rounded-xl flex items-center text-[10px] font-black uppercase tracking-widest shadow-xl"><PlusIcon className="h-5 w-5 mr-1"/> Nuevo Estudiante</button>}
             </div>
-            <div className="bg-white shadow rounded-lg">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b">
-                        <tr><th className="px-6 py-3">Nombre</th><th className="px-6 py-3">Cédula</th><th className="px-6 py-3">Acciones</th></tr>
-                    </thead>
-                    <tbody className="divide-y">
-                        {students.map(s => (
-                            <tr key={s.id}>
-                                <td className="px-6 py-4">{s.name}</td>
-                                <td className="px-6 py-4">{s.cedula}</td>
-                                <td className="px-6 py-4 flex gap-2">
-                                    {isAdmin && <button onClick={() => { setEditingStudent(s); setIsModalOpen(true); }} className="text-primary-600"><EditIcon className="h-5 w-5"/></button>}
-                                    {isAdmin && <button onClick={() => setDeletingStudent(s)} className="text-red-600"><TrashIcon className="h-5 w-5"/></button>}
-                                </td>
+            
+            <div className="bg-white shadow rounded-3xl overflow-hidden border border-gray-100">
+                {isLoading ? (
+                    <div className="flex justify-center py-20"><div className="w-10 h-10 border-4 border-uninunez-teal border-t-transparent rounded-full animate-spin"></div></div>
+                ) : (
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50 border-b">
+                            <tr>
+                                <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Nombre del Estudiante</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Cédula / Documento</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Acciones</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {students.map(s => (
+                                <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-8 py-5 text-sm font-bold text-uninunez-onix">{s.name}</td>
+                                    <td className="px-8 py-5 text-sm text-uninunez-ash">{s.cedula}</td>
+                                    <td className="px-8 py-5 text-right flex justify-end gap-2">
+                                        {isAdmin && <button onClick={() => { setEditingStudent(s); setIsModalOpen(true); }} className="p-2 text-uninunez-teal hover:bg-uninunez-teal hover:text-white rounded-lg transition-colors"><EditIcon className="h-5 w-5"/></button>}
+                                        {isAdmin && <button onClick={() => setDeletingStudent(s)} className="p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors"><TrashIcon className="h-5 w-5"/></button>}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
             </div>
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Gestionar Estudiante">
+
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Datos del Estudiante">
                 <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); handleSave(Object.fromEntries(fd)); }} className="space-y-4">
-                    <input name="name" defaultValue={editingStudent?.name} placeholder="Nombre" className="w-full border p-2 rounded" required />
-                    <input name="email" defaultValue={editingStudent?.email} placeholder="Email" className="w-full border p-2 rounded" required />
-                    <input name="cedula" defaultValue={editingStudent?.cedula} placeholder="Cédula" className="w-full border p-2 rounded" required />
-                    <select name="programId" defaultValue={editingStudent?.programId} className="w-full border p-2 rounded">
-                        {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                    <div className="flex justify-end gap-2 pt-4"><button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded">Cancelar</button><button className="px-4 py-2 bg-primary-600 text-white rounded">Guardar</button></div>
+                    <div>
+                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Nombre Completo</label>
+                        <input name="name" defaultValue={editingStudent?.name} placeholder="Ej: Juan Pérez" className="w-full border border-gray-200 p-3 rounded-xl font-bold focus:ring-uninunez-orange focus:border-uninunez-orange outline-none" required />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Cédula</label>
+                            <input name="cedula" defaultValue={editingStudent?.cedula} placeholder="Documento" className="w-full border border-gray-200 p-3 rounded-xl focus:ring-uninunez-orange focus:border-uninunez-orange outline-none" required />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Correo Institucional</label>
+                            <input name="email" defaultValue={editingStudent?.email} placeholder="email@uninunez.edu.co" className="w-full border border-gray-200 p-3 rounded-xl focus:ring-uninunez-orange focus:border-uninunez-orange outline-none" required />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-6 border-t mt-4">
+                        <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3 border rounded-xl text-[10px] font-black uppercase text-gray-400">Cancelar</button>
+                        <button className="px-8 py-3 bg-uninunez-orange text-white rounded-xl text-[10px] font-black uppercase shadow-lg">Guardar Estudiante</button>
+                    </div>
                 </form>
             </Modal>
-            <ConfirmationDialog isOpen={!!deletingStudent} onClose={() => setDeletingStudent(null)} onConfirm={handleDelete} title="Eliminar" message="¿Confirmas?" />
+            <ConfirmationDialog isOpen={!!deletingStudent} onClose={() => setDeletingStudent(null)} onConfirm={handleDelete} title="Eliminar Estudiante" message="¿Confirmas la eliminación del registro en Supabase?" />
         </div>
     );
 };

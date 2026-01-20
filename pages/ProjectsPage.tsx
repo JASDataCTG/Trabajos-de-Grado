@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/database';
-import { Project, Student, Teacher, TeacherRole, Status, Format, ProjectTeacher } from '../types';
+import { Project, Student, Teacher, TeacherRole, Status, Format, ProjectTeacher, Program } from '../types';
 import { Modal } from '../components/Modal';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { PlusIcon, EditIcon, TrashIcon } from '../components/Icons';
@@ -13,6 +13,7 @@ const ProjectForm: React.FC<{
     onClose: () => void;
     statuses: Status[];
     formats: Format[];
+    programs: Program[];
     teachers: Teacher[];
     allStudents: Student[];
     roles: TeacherRole[];
@@ -20,7 +21,7 @@ const ProjectForm: React.FC<{
     initialStudentIds: string[];
     canEditDetails: boolean;
     gradeInfo: { canGrade: boolean, reviewerRole: string | null };
-}> = ({ project, onSave, onClose, statuses, formats, teachers, allStudents, roles, initialAssignments, initialStudentIds, canEditDetails, gradeInfo }) => {
+}> = ({ project, onSave, onClose, statuses, formats, programs, teachers, allStudents, roles, initialAssignments, initialStudentIds, canEditDetails, gradeInfo }) => {
     const { isAdmin } = useAuth();
     const [formData, setFormData] = useState<Partial<Project>>({});
     const [assignments, setAssignments] = useState<Array<{teacherId: string, roleId: string, tempId: number}>>([]);
@@ -29,7 +30,6 @@ const ProjectForm: React.FC<{
     const [selectedStudentId, setSelectedStudentId] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
-    // Estados para búsqueda/filtrado
     const [studentSearch, setStudentSearch] = useState('');
     const [teacherSearch, setTeacherSearch] = useState('');
 
@@ -37,6 +37,7 @@ const ProjectForm: React.FC<{
         const initialData: Partial<Project> = {
             title: '', presentationDate: '', filesUrl: '',
             statusId: statuses[0]?.id || '', formatId: formats[0]?.id || '',
+            programId: programs[0]?.id || '',
             isApprovedByDirector: false, writtenGradeReviewer1: null,
             presentationGradeReviewer1: null, writtenGradeReviewer2: null,
             presentationGradeReviewer2: null, finalGrade: null, ...project
@@ -46,7 +47,7 @@ const ProjectForm: React.FC<{
         setAssignedStudentIds(initialStudentIds);
         setNewAssignment({ teacherId: '', roleId: '' });
         setSelectedStudentId('');
-    }, [project, initialAssignments, initialStudentIds, statuses]);
+    }, [project, initialAssignments, initialStudentIds, statuses, formats, programs]);
 
     const calculateFinalAverage = (data: Partial<Project>) => {
         const g1w = data.writtenGradeReviewer1;
@@ -135,15 +136,12 @@ const ProjectForm: React.FC<{
     const canGradeReviewer1 = isAdmin || (gradeInfo.canGrade && gradeInfo.reviewerRole?.toLowerCase().includes('1'));
     const canGradeReviewer2 = isAdmin || (gradeInfo.canGrade && gradeInfo.reviewerRole?.toLowerCase().includes('2'));
 
-    // Filtrado de estudiantes para el buscador
     const filteredStudentsList = allStudents.filter(s => {
-        const isNotAssigned = (!s.projectId || assignedStudentIds.includes(s.id)) && !assignedStudentIds.includes(s.id);
         const matchesSearch = s.name.toLowerCase().includes(studentSearch.toLowerCase()) || 
                              s.cedula.includes(studentSearch);
-        return isNotAssigned && matchesSearch;
+        return !assignedStudentIds.includes(s.id) && matchesSearch;
     });
 
-    // Filtrado de docentes para el buscador
     const filteredTeachersList = teachers.filter(t => {
         return t.name.toLowerCase().includes(teacherSearch.toLowerCase()) || 
                t.cedula.includes(teacherSearch);
@@ -162,9 +160,23 @@ const ProjectForm: React.FC<{
                         <input type="date" name="presentationDate" value={formData.presentationDate || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50" disabled={!canEditDetails}/>
                     </div>
                     <div>
+                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Programa Académico</label>
+                        <select name="programId" value={formData.programId || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50 font-bold text-uninunez-teal" disabled={!canEditDetails}>
+                            {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
                         <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Estado del Proyecto</label>
                         <select name="statusId" value={formData.statusId || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50" disabled={!canEditDetails && !gradeInfo.canGrade}>
                             {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Formato</label>
+                        <select name="formatId" value={formData.formatId || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50" disabled={!canEditDetails}>
+                            {formats.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                         </select>
                     </div>
                 </div>
@@ -224,7 +236,6 @@ const ProjectForm: React.FC<{
                             </select>
                             <button type="button" onClick={handleAddStudent} className="bg-uninunez-orange text-white px-5 rounded-xl text-[10px] font-black uppercase hover:bg-uninunez-orangeLight">Vincular</button>
                         </div>
-                        {studentSearch && filteredStudentsList.length === 0 && <p className="text-[9px] text-red-400 font-bold ml-1">No se encontraron estudiantes con ese criterio.</p>}
                     </div>
                 )}
             </div>
@@ -281,6 +292,7 @@ export const ProjectsPage: React.FC = () => {
     const [roles, setRoles] = useState<TeacherRole[]>([]);
     const [statuses, setStatuses] = useState<Status[]>([]);
     const [formats, setFormats] = useState<Format[]>([]);
+    const [programs, setPrograms] = useState<Program[]>([]);
     const [projectTeachers, setProjectTeachers] = useState<ProjectTeacher[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -292,14 +304,15 @@ export const ProjectsPage: React.FC = () => {
     const loadData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [p, s, t, r, st, f, pt] = await Promise.all([
+            const [p, s, t, r, st, f, pt, pr] = await Promise.all([
                 db.getProjects(), 
                 db.getStudents(), 
                 db.getTeachers(),
                 db.getTeacherRoles(), 
                 db.getStatuses(), 
                 db.getFormats(),
-                db.getProjectTeachers()
+                db.getProjectTeachers(),
+                db.getPrograms()
             ]);
             
             const perms: any = {};
@@ -316,6 +329,7 @@ export const ProjectsPage: React.FC = () => {
             setRoles([...r]); 
             setStatuses([...st]); 
             setFormats([...f]); 
+            setPrograms([...pr]);
             setProjectTeachers([...pt]); 
             setUserPerms(perms);
         } catch (error) { 
@@ -330,7 +344,6 @@ export const ProjectsPage: React.FC = () => {
     const handleSave = async (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>, studentIds: string[]) => {
         try {
             let savedProject: Project;
-            
             if (editingProject) {
                 savedProject = await db.updateProject({ ...editingProject, ...projectData } as Project);
             } else {
@@ -344,17 +357,12 @@ export const ProjectsPage: React.FC = () => {
                 }
                 
                 const sts = await db.getStudents();
-                const currentlyLinked = sts.filter(s => s.projectId === savedProject.id);
-                for (const s of currentlyLinked) {
-                    if (!studentIds.includes(s.id)) {
-                        await db.updateStudent({ ...s, projectId: null });
-                    }
-                }
-                for (const sid of studentIds) {
-                    const s = sts.find(st => st.id === sid);
-                    if (s) {
-                        await db.updateStudent({ ...s, projectId: savedProject.id });
-                    }
+                for (const s of sts) {
+                   if (s.projectId === savedProject.id && !studentIds.includes(s.id)) {
+                       await db.updateStudent({ ...s, projectId: null });
+                   } else if (studentIds.includes(s.id)) {
+                       await db.updateStudent({ ...s, projectId: savedProject.id });
+                   }
                 }
             }
             
@@ -363,7 +371,7 @@ export const ProjectsPage: React.FC = () => {
             setEditingProject(null);
         } catch (err: any) { 
             console.error("Fallo crítico en handleSave:", err); 
-            alert("No se pudo completar el guardado en Supabase: " + err.message + ". Verifica que la columna 'final_grade' exista en tu tabla 'projects'.");
+            alert("Error al guardar: " + err.message);
         }
     };
 
@@ -380,12 +388,12 @@ export const ProjectsPage: React.FC = () => {
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-black text-uninunez-onix font-display uppercase tracking-tight">Banco de Proyectos</h1>
-                    <p className="text-uninunez-ash text-sm font-medium">Gestión integral de expedientes académicos vinculados a Supabase.</p>
+                    <p className="text-uninunez-ash text-sm font-medium">Gestión por programas de Tecnología e Ingeniería.</p>
                 </div>
                 {isAdmin && (
                     <button 
                         onClick={() => { setEditingProject(null); setIsModalOpen(true); }} 
-                        className="bg-uninunez-orange text-white px-6 py-3 rounded-xl flex items-center text-[10px] font-black uppercase tracking-widest shadow-xl hover:bg-uninunez-orangeLight transition-all active:scale-95"
+                        className="bg-uninunez-orange text-white px-6 py-3 rounded-xl flex items-center text-[10px] font-black uppercase tracking-widest shadow-xl hover:bg-uninunez-orangeLight transition-all"
                     >
                         <PlusIcon className="h-5 w-5 mr-2"/> Nuevo Proyecto
                     </button>
@@ -394,9 +402,8 @@ export const ProjectsPage: React.FC = () => {
 
             <div className="bg-white shadow-sm border border-gray-100 rounded-3xl overflow-hidden min-h-[400px]">
                 {isLoading ? (
-                    <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                    <div className="flex flex-col items-center justify-center py-20">
                         <div className="w-12 h-12 border-4 border-uninunez-orange border-t-transparent rounded-full animate-spin"></div>
-                        <p className="text-xs font-black text-uninunez-ash uppercase tracking-widest">Consultando Supabase...</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -404,8 +411,8 @@ export const ProjectsPage: React.FC = () => {
                             <thead className="bg-gray-50/50 border-b border-gray-100">
                                 <tr>
                                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Proyecto</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Autores (Estudiantes)</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Estado</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Programa</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Autores</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Nota Final</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Acciones</th>
                                 </tr>
@@ -416,21 +423,21 @@ export const ProjectsPage: React.FC = () => {
                                     return (
                                         <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
                                             <td className="px-8 py-6">
-                                                <div className="text-sm font-bold text-uninunez-onix group-hover:text-uninunez-orange transition-colors">{p.title}</div>
+                                                <div className="text-sm font-bold text-uninunez-onix">{p.title}</div>
                                                 <div className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tight">Radicación: {p.presentationDate}</div>
                                             </td>
                                             <td className="px-8 py-6">
-                                                <div className="flex flex-wrap gap-1">
-                                                    {linkedStudents.length > 0 ? linkedStudents.map(s => (
-                                                        <span key={s.id} className="inline-block px-2 py-0.5 bg-jade-50 text-[10px] font-bold text-jade-700 rounded uppercase border border-jade-100 shadow-sm">{s.name}</span>
-                                                    )) : <span className="text-[10px] text-gray-300 italic">Sin estudiantes vinculados</span>}
-                                                </div>
+                                                <span className="text-[10px] font-black text-uninunez-teal uppercase">{programs.find(pr => pr.id === p.programId)?.name || 'Sin Programa'}</span>
                                             </td>
                                             <td className="px-8 py-6">
-                                                <span className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg bg-uninunez-teal/10 text-uninunez-teal">{statuses.find(s => s.id === p.statusId)?.name || 'PENDIENTE'}</span>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {linkedStudents.map(s => (
+                                                        <span key={s.id} className="inline-block px-2 py-0.5 bg-gray-100 text-[10px] font-bold text-gray-700 rounded uppercase">{s.name}</span>
+                                                    ))}
+                                                </div>
                                             </td>
                                             <td className="px-8 py-6 text-center">
-                                                <span className={`px-3 py-1 text-sm font-black rounded-lg ${p.finalGrade && p.finalGrade > 0 ? (p.finalGrade >= 3.0 ? 'bg-jade-100 text-jade-700' : 'bg-red-100 text-red-600') : 'bg-gray-100 text-gray-400'}`}>{p.finalGrade ? p.finalGrade.toFixed(2) : '---'}</span>
+                                                <span className={`px-3 py-1 text-sm font-black rounded-lg ${p.finalGrade && p.finalGrade >= 3.0 ? 'bg-jade/10 text-uninunez-jade' : 'bg-red-50 text-red-600'}`}>{p.finalGrade ? p.finalGrade.toFixed(2) : '---'}</span>
                                             </td>
                                             <td className="px-8 py-6 text-right">
                                                 <div className="flex justify-end gap-2">
@@ -443,13 +450,6 @@ export const ProjectsPage: React.FC = () => {
                                         </tr>
                                     );
                                 })}
-                                {!isLoading && projects.length === 0 && (
-                                    <tr>
-                                        <td colSpan={5} className="text-center py-20">
-                                            <p className="text-uninunez-ash italic text-sm">No hay registros en Supabase.</p>
-                                        </td>
-                                    </tr>
-                                )}
                             </tbody>
                         </table>
                     </div>
@@ -464,6 +464,7 @@ export const ProjectsPage: React.FC = () => {
                         onClose={() => setIsModalOpen(false)} 
                         statuses={statuses} 
                         formats={formats} 
+                        programs={programs}
                         teachers={teachers} 
                         allStudents={students} 
                         roles={roles} 
@@ -474,7 +475,7 @@ export const ProjectsPage: React.FC = () => {
                     />
                 )}
             </Modal>
-            <ConfirmationDialog isOpen={!!deletingProject} onClose={() => setDeletingProject(null)} onConfirm={handleDelete} title="Confirmar Eliminación" message="¿Desea eliminar permanentemente este expediente? Esta acción borrará todas las notas y vínculos en Supabase." />
+            <ConfirmationDialog isOpen={!!deletingProject} onClose={() => setDeletingProject(null)} onConfirm={handleDelete} title="Confirmar Eliminación" message="¿Desea eliminar permanentemente este proyecto?" />
         </div>
     );
 };
