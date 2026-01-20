@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../services/database';
-import { Project, Student, Teacher, TeacherRole, Status, Format, ProjectTeacher, Program } from '../types';
+import { Project, Student, Teacher, TeacherRole, Status, Format, Program } from '../types';
 import { arrayToCsv } from '../utils/csv';
 
 // Informa a TypeScript sobre la variable global Chart de la CDN
@@ -40,20 +40,21 @@ interface ReportsPageProps {
 // --- Componentes Reutilizables ---
 
 const ReportTableCard: React.FC<{ title: string; description: string; children: React.ReactNode; onExport: () => void; hasData: boolean; showExport?: boolean }> = ({ title, description, children, onExport, hasData, showExport = true }) => (
-    <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b">
-            <div className="flex justify-between items-start">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="p-6 border-b bg-gray-50/50">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h3 className="text-xl font-semibold text-gray-800">{title}</h3>
-                    <p className="text-sm text-gray-600 mt-1">{description}</p>
+                    <h3 className="text-xl font-bold text-gray-800">{title}</h3>
+                    <p className="text-sm text-gray-500 mt-1">{description}</p>
                 </div>
                 {showExport && (
                     <button
                         onClick={onExport}
                         disabled={!hasData}
-                        className="bg-primary-100 text-primary-700 px-4 py-2 rounded-md hover:bg-primary-200 text-sm font-medium disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 bg-primary-600 text-white px-5 py-2.5 rounded-lg hover:bg-primary-700 text-sm font-bold shadow-sm transition-all disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed uppercase tracking-wider"
                     >
-                        Exportar a CSV
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        Exportar CSV
                     </button>
                 )}
             </div>
@@ -84,6 +85,10 @@ const ChartCard: React.FC<{ title: string; type: 'pie' | 'doughnut' | 'bar'; dat
                     plugins: {
                         legend: {
                             position: type === 'bar' ? 'top' : 'right',
+                            labels: {
+                                font: { size: 10, weight: '600' },
+                                boxWidth: 12
+                            }
                         },
                     },
                     ...options,
@@ -98,8 +103,8 @@ const ChartCard: React.FC<{ title: string; type: 'pie' | 'doughnut' | 'bar'; dat
     }, [data, type, options]);
 
     return (
-        <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4 text-center">{title}</h3>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">{title}</h3>
             <div className={`relative ${heightClass}`}>
                 <canvas ref={chartRef}></canvas>
             </div>
@@ -233,7 +238,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         })));
 
         // --- Chart data generation ---
-        const chartColors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#6366f1', '#ec4899'];
+        const chartColors = ['#ff9500', '#e68600', '#bf7000', '#995a00', '#7d4900', '#422600', '#f59e0b'];
         
         const statusCounts = statuses.map(status => ({ name: status.name, count: filteredProjects.filter(p => p.statusId === status.id).length }));
         setProjectStatusChartData({
@@ -247,7 +252,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
 
         setStudentAssignmentChartData({
             labels: ['Asignados', 'Sin Asignar'],
-            datasets: [{ data: [assignedCount, unassignedCount], backgroundColor: ['#3b82f6', '#f59e0b'], borderColor: '#ffffff', borderWidth: 2 }]
+            datasets: [{ data: [assignedCount, unassignedCount], backgroundColor: ['#ff9500', '#cbd5e1'], borderColor: '#ffffff', borderWidth: 2 }]
         });
 
         const studentsPerProgramCounts = programs.map(program => ({
@@ -256,15 +261,15 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         }));
         setStudentsPerProgramChartData({
             labels: studentsPerProgramCounts.map(p => p.name),
-            datasets: [{ label: 'Estudiantes', data: studentsPerProgramCounts.map(p => p.count), backgroundColor: ['#1d4ed8', '#9333ea'], borderColor: '#ffffff', borderWidth: 2 }]
+            datasets: [{ label: 'Estudiantes', data: studentsPerProgramCounts.map(p => p.count), backgroundColor: chartColors, borderColor: '#ffffff', borderWidth: 2 }]
         });
 
         setTeacherWorkloadChartData({
             labels: workloadData.map(w => w['Nombre del Docente']),
             datasets: [
-                { label: 'Director', data: workloadData.map(w => w['Proyectos como Director']), backgroundColor: '#1d4ed8' },
-                { label: 'Co-Director', data: workloadData.map(w => w['Proyectos como Co-Director']), backgroundColor: '#3b82f6' },
-                { label: 'Evaluador', data: workloadData.map(w => w['Proyectos como Evaluador']), backgroundColor: '#93c5fd' },
+                { label: 'Director', data: workloadData.map(w => w['Proyectos como Director']), backgroundColor: '#ff9500' },
+                { label: 'Co-Director', data: workloadData.map(w => w['Proyectos como Co-Director']), backgroundColor: '#e68600' },
+                { label: 'Evaluador', data: workloadData.map(w => w['Proyectos como Evaluador']), backgroundColor: '#ffd399' },
             ]
         });
 
@@ -293,7 +298,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.setAttribute("href", URL.createObjectURL(blob));
-        link.setAttribute("download", `${filename}.csv`);
+        link.setAttribute("download", `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -318,127 +323,153 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
     };
 
     return (
-        <div className="space-y-10">
-            <div>
-                <h1 className="text-3xl font-bold text-gray-800">
-                    {isPublicView ? 'Reportes Públicos de Proyectos' : 'Módulo de Reportes'}
+        <div className="space-y-8 max-w-7xl mx-auto">
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
+                <h1 className="text-3xl font-bold text-gray-900 uppercase tracking-tight">
+                    {isPublicView ? 'Reportes Públicos' : 'Módulo de Analítica'}
                 </h1>
-                <p className="mt-2 text-gray-600">Visualice informes clave para el seguimiento de los proyectos de grado.</p>
+                <p className="mt-2 text-gray-500 font-medium">Información consolidada para el seguimiento de trabajos de grado.</p>
             </div>
 
             {/* --- Filter Panel --- */}
-            <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-4">Filtros de Reportes</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center gap-2 mb-6 text-primary-600">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                    <h3 className="text-lg font-bold uppercase tracking-wider">Filtros Inteligentes</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div>
-                        <label htmlFor="title" className="block text-sm font-medium text-gray-700">Buscar por Título</label>
-                        <input type="text" name="title" id="title" value={filters.title} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                        <label htmlFor="title" className="block text-xs font-bold text-gray-500 uppercase mb-2">Título / Palabra Clave</label>
+                        <input type="text" name="title" id="title" value={filters.title} onChange={handleFilterChange} placeholder="Buscar..." className="block w-full border border-gray-200 rounded-lg py-2.5 px-3 text-sm focus:ring-primary-500 focus:border-primary-500" />
                     </div>
                      <div>
-                        <label htmlFor="programId" className="block text-sm font-medium text-gray-700">Programa Académico</label>
-                        <select name="programId" id="programId" value={filters.programId} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
-                            <option value="">Todos</option>
+                        <label htmlFor="programId" className="block text-xs font-bold text-gray-500 uppercase mb-2">Programa</label>
+                        <select name="programId" id="programId" value={filters.programId} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-lg py-2.5 px-3 text-sm">
+                            <option value="">Todos los programas</option>
                             {allPrograms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                     </div>
                     <div>
-                        <label htmlFor="statusId" className="block text-sm font-medium text-gray-700">Estado del Proyecto</label>
-                        <select name="statusId" id="statusId" value={filters.statusId} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
-                            <option value="">Todos</option>
+                        <label htmlFor="statusId" className="block text-xs font-bold text-gray-500 uppercase mb-2">Estado</label>
+                        <select name="statusId" id="statusId" value={filters.statusId} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-lg py-2.5 px-3 text-sm">
+                            <option value="">Cualquier estado</option>
                             {allStatuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                     </div>
-                    <div>
-                        <label htmlFor="formatId" className="block text-sm font-medium text-gray-700">Formato del Proyecto</label>
-                        <select name="formatId" id="formatId" value={filters.formatId} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
-                            <option value="">Todos</option>
-                            {allFormats.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                        </select>
-                    </div>
                      <div>
-                        <label htmlFor="teacherId" className="block text-sm font-medium text-gray-700">Docente</label>
-                        <select name="teacherId" id="teacherId" value={filters.teacherId} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
-                            <option value="">Todos</option>
+                        <label htmlFor="teacherId" className="block text-xs font-bold text-gray-500 uppercase mb-2">Docente Responsable</label>
+                        <select name="teacherId" id="teacherId" value={filters.teacherId} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-lg py-2.5 px-3 text-sm">
+                            <option value="">Todos los docentes</option>
                             {allTeachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700">Fecha Desde</label>
-                            <input type="date" name="startDate" id="startDate" value={filters.startDate} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
-                        </div>
-                        <div>
-                            <label htmlFor="endDate" className="block text-sm font-medium text-gray-700">Fecha Hasta</label>
-                            <input type="date" name="endDate" id="endDate" value={filters.endDate} onChange={handleFilterChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
-                        </div>
+                </div>
+                <div className="flex justify-end items-center gap-3 mt-8 border-t pt-6">
+                    <button onClick={handleClearFilters} className="text-sm font-bold text-gray-400 hover:text-gray-600 px-4 uppercase tracking-widest">Reiniciar</button>
+                    <button onClick={handleApplyFilters} className="bg-gray-900 text-white px-8 py-2.5 rounded-lg hover:bg-black text-sm font-bold shadow-md transition-all uppercase tracking-widest">Filtrar Reportes</button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {projectStatusChartData && <ChartCard title="Distribución por Estado" type="pie" data={projectStatusChartData} />}
+                {studentAssignmentChartData && <ChartCard title="Estatus Estudiantes" type="doughnut" data={studentAssignmentChartData} />}
+                {studentsPerProgramChartData && <ChartCard title="Estudiantes por Programa" type="pie" data={studentsPerProgramChartData} />}
+            </div>
+            
+            {teacherWorkloadChartData && (
+                <ChartCard 
+                    title="Asignaciones por Docente (Carga de Trabajo)" 
+                    type="bar" 
+                    data={teacherWorkloadChartData} 
+                    heightClass="h-96"
+                    options={{ scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }}
+                />
+            )}
+
+            <div className="space-y-10 pt-4">
+                <ReportTableCard 
+                    title="Detalle Maestro de Proyectos" 
+                    description="Reporte consolidado con metadatos de proyectos, estudiantes y evaluadores."
+                    onExport={() => handleExport(projectStatus, 'maestro_proyectos')}
+                    hasData={projectStatus.length > 0}
+                    showExport={!isPublicView}
+                >
+                    <table className="w-full text-left text-xs">
+                        <thead className="bg-gray-100/80 border-b">
+                            <tr>
+                                {projectStatus.length > 0 && Object.keys(projectStatus[0]).map(key => (
+                                    <th key={key} className="px-6 py-4 font-bold text-gray-600 uppercase tracking-tighter">{key}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {projectStatus.map((row, index) => (
+                                <tr key={index} className="hover:bg-primary-50/30 transition-colors">
+                                    {Object.values(row).map((val, i) => (
+                                        <td key={i} className="px-6 py-4 text-gray-700 font-medium leading-tight">{String(val)}</td>
+                                    ))}
+                                </tr>
+                            ))}
+                            {projectStatus.length === 0 && (
+                                <tr>
+                                    <td colSpan={7} className="text-center py-16 text-gray-400 italic font-medium">No se encontraron proyectos con los criterios seleccionados.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </ReportTableCard>
+                
+                {!isPublicView && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <ReportTableCard
+                            title="Desempeño Docente"
+                            description="Conteo de roles asignados por docente."
+                            onExport={() => handleExport(teacherWorkload, 'desempeno_docente')}
+                            hasData={teacherWorkload.length > 0}
+                        >
+                            <table className="w-full text-left text-[10px]">
+                                <thead className="bg-gray-50 border-b">
+                                    <tr>
+                                        <th className="px-4 py-3 font-bold text-gray-600 uppercase">Docente</th>
+                                        <th className="px-4 py-3 font-bold text-gray-600 uppercase text-center">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {teacherWorkload.slice(0, 10).map((row, index) => (
+                                        <tr key={index}>
+                                            <td className="px-4 py-3 text-gray-700 font-bold">{row['Nombre del Docente']}</td>
+                                            <td className="px-4 py-3 text-center font-black text-primary-700">{row['Total de Proyectos']}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </ReportTableCard>
+
+                        <ReportTableCard
+                            title="Estudiantes sin Asignar"
+                            description="Lista de estudiantes pendientes por vinculación."
+                            onExport={() => handleExport(unassignedStudents, 'estudiantes_pendientes')}
+                            hasData={unassignedStudents.length > 0}
+                        >
+                            <table className="w-full text-left text-[10px]">
+                                <thead className="bg-gray-50 border-b">
+                                    <tr>
+                                        <th className="px-4 py-3 font-bold text-gray-600 uppercase">Estudiante</th>
+                                        <th className="px-4 py-3 font-bold text-gray-600 uppercase">Programa</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {unassignedStudents.slice(0, 10).map((row, index) => (
+                                        <tr key={index}>
+                                            <td className="px-4 py-3 text-gray-700 font-bold">{row['Nombre del Estudiante']}</td>
+                                            <td className="px-4 py-3 text-gray-500">{row['Programa']}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </ReportTableCard>
                     </div>
-                </div>
-                <div className="flex justify-end space-x-3 mt-6 border-t pt-4">
-                    <button onClick={handleClearFilters} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-sm font-medium">Limpiar Filtros</button>
-                    <button onClick={handleApplyFilters} className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 text-sm font-medium">Aplicar Filtros</button>
-                </div>
-            </div>
-
-            <div>
-                <h2 className="text-2xl font-bold text-gray-700 mb-6">Visualizaciones Gráficas</h2>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-                    {projectStatusChartData && <ChartCard title="Distribución de Proyectos por Estado" type="pie" data={projectStatusChartData} />}
-                    {studentAssignmentChartData && <ChartCard title="Distribución de Estudiantes" type="doughnut" data={studentAssignmentChartData} />}
-                    {studentsPerProgramChartData && <ChartCard title="Estudiantes por Programa" type="pie" data={studentsPerProgramChartData} />}
-                </div>
-                {teacherWorkloadChartData && (
-                    <ChartCard 
-                        title="Carga de Trabajo por Docente" 
-                        type="bar" 
-                        data={teacherWorkloadChartData} 
-                        heightClass="h-96"
-                        options={{ scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }}
-                    />
                 )}
-            </div>
-
-            <div>
-                <h2 className="text-2xl font-bold text-gray-700 mb-6">Reportes Detallados</h2>
-                <div className="space-y-8">
-                    <ReportTableCard 
-                        title="Estado General de Proyectos" 
-                        description="Vista completa de todos los proyectos con sus detalles y personas asignadas."
-                        onExport={() => handleExport(projectStatus, 'estado_general_proyectos')}
-                        hasData={projectStatus.length > 0}
-                        showExport={!isPublicView}
-                    >
-                        <table className="w-full text-left text-xs md:text-sm">
-                            <thead className="bg-gray-50"><tr>{projectStatus.length > 0 && Object.keys(projectStatus[0]).map(key => (<th key={key} className="px-6 py-3 font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
-                            <tbody className="divide-y divide-gray-200">{projectStatus.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-gray-700">{String(val)}</td>))}</tr>))}{projectStatus.length === 0 && (<tr><td colSpan={7} className="text-center py-10 text-gray-500">No hay proyectos que coincidan con los filtros.</td></tr>)}</tbody>
-                        </table>
-                    </ReportTableCard>
-                    
-                    <ReportTableCard
-                        title="Carga de Trabajo de Docentes"
-                        description="Análisis de la cantidad de proyectos y roles asignados a cada docente."
-                        onExport={() => handleExport(teacherWorkload, 'carga_trabajo_docentes')}
-                        hasData={teacherWorkload.length > 0}
-                        showExport={!isPublicView}
-                    >
-                        <table className="w-full text-left text-xs md:text-sm">
-                            <thead className="bg-gray-50"><tr>{teacherWorkload.length > 0 && Object.keys(teacherWorkload[0]).map(key => (<th key={key} className="px-6 py-3 font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
-                            <tbody className="divide-y divide-gray-200">{teacherWorkload.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-gray-700">{String(val)}</td>))}</tr>))}{teacherWorkload.length === 0 && (<tr><td colSpan={6} className="text-center py-10 text-gray-500">No hay docentes que coincidan con los filtros.</td></tr>)}</tbody>
-                        </table>
-                    </ReportTableCard>
-                    
-                    <ReportTableCard
-                        title="Estudiantes sin Asignar"
-                        description="Lista de todos los estudiantes que no están vinculados a ningún proyecto."
-                        onExport={() => handleExport(unassignedStudents, 'estudiantes_sin_asignar')}
-                        hasData={unassignedStudents.length > 0}
-                        showExport={!isPublicView}
-                    >
-                        <table className="w-full text-left text-xs md:text-sm">
-                            <thead className="bg-gray-50"><tr>{unassignedStudents.length > 0 && Object.keys(unassignedStudents[0]).map(key => (<th key={key} className="px-6 py-3 font-medium text-gray-500 uppercase tracking-wider">{key}</th>))}</tr></thead>
-                            <tbody className="divide-y divide-gray-200">{unassignedStudents.map((row, index) => (<tr key={index}>{Object.values(row).map((val, i) => (<td key={i} className="px-6 py-4 whitespace-nowrap text-gray-700">{String(val)}</td>))}</tr>))}{unassignedStudents.length === 0 && (<tr><td colSpan={3} className="text-center py-10 text-gray-500">No hay estudiantes sin asignar que coincidan con los filtros.</td></tr>)}</tbody>
-                        </table>
-                    </ReportTableCard>
-                </div>
             </div>
         </div>
     );

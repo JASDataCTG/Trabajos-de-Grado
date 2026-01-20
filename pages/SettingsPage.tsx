@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/database';
-import { Status, Format, TeacherRole, AppDatabase, Program, Student } from '../types';
+import { Status, Format, TeacherRole, Program, Student } from '../types';
 import { EditIcon, TrashIcon, PlusIcon } from '../components/Icons';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,8 +38,8 @@ const SettingsList = <T extends {id: string; name: string}>({ title, items, plac
     }
 
     return (
-        <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">{title}</h2>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">{title}</h2>
             {isAdmin && (
                 <div className="flex space-x-2 mb-4">
                     <input
@@ -47,116 +47,42 @@ const SettingsList = <T extends {id: string; name: string}>({ title, items, plac
                         value={newItemName}
                         onChange={(e) => setNewItemName(e.target.value)}
                         placeholder={placeholder}
-                        className="flex-grow border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        className="flex-grow border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
                     />
-                    <button onClick={handleAdd} className="flex-shrink-0 bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 flex items-center">
+                    <button onClick={handleAdd} className="flex-shrink-0 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center shadow-sm">
                         <PlusIcon className="h-5 w-5"/>
                     </button>
                 </div>
             )}
-            <ul className="divide-y divide-gray-200">
-                {items.map(item => (
-                    <li key={item.id} className="py-3 flex justify-between items-center">
-                        {editingItem?.id === item.id && isAdmin ? (
-                           <input 
-                            type="text"
-                            value={editingItem.name}
-                            onChange={(e) => setEditingItem({...editingItem, name: e.target.value})}
-                            onBlur={handleUpdate}
-                            onKeyDown={(e) => e.key === 'Enter' && handleUpdate()}
-                            autoFocus
-                            className="text-sm text-gray-800 border-b border-primary-500 focus:outline-none"
-                           />
-                        ) : (
-                            <span className="text-sm text-gray-800">{item.name}</span>
-                        )}
-                        {isAdmin && (
-                            <div className="space-x-2">
-                                <button onClick={() => setEditingItem(item)} className="text-primary-600 hover:text-primary-900"><EditIcon className="h-5 w-5" /></button>
-                                <button onClick={() => onDelete(item)} className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5" /></button>
-                            </div>
-                        )}
-                    </li>
-                ))}
+            <ul className="divide-y divide-gray-100">
+                {items.length === 0 ? (
+                    <li className="py-4 text-center text-xs text-gray-400 italic">No hay registros</li>
+                ) : (
+                    items.map(item => (
+                        <li key={item.id} className="py-3 flex justify-between items-center group">
+                            {editingItem?.id === item.id && isAdmin ? (
+                            <input 
+                                type="text"
+                                value={editingItem.name}
+                                onChange={(e) => setEditingItem({...editingItem, name: e.target.value})}
+                                onBlur={handleUpdate}
+                                onKeyDown={(e) => e.key === 'Enter' && handleUpdate()}
+                                autoFocus
+                                className="text-sm text-gray-800 border-b-2 border-primary-500 focus:outline-none bg-primary-50 px-1"
+                            />
+                            ) : (
+                                <span className="text-sm text-gray-700 font-medium">{item.name}</span>
+                            )}
+                            {isAdmin && (
+                                <div className="space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => setEditingItem(item)} className="p-1.5 text-primary-600 hover:bg-primary-50 rounded-md"><EditIcon className="h-4 w-4" /></button>
+                                    <button onClick={() => onDelete(item)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md"><TrashIcon className="h-4 w-4" /></button>
+                                </div>
+                            )}
+                        </li>
+                    ))
+                )}
             </ul>
-        </div>
-    );
-};
-
-const DataManagement: React.FC = () => {
-    const { isAdmin } = useAuth();
-    const [seedCode, setSeedCode] = useState<string | null>(null);
-    const [copySuccess, setCopySuccess] = useState(false);
-
-    // Fix: Make handleGenerateSeedCode async to handle the Promise returned by db.getCurrentDB()
-    const handleGenerateSeedCode = async () => {
-        const currentDb = await db.getCurrentDB();
-        // Remove IDs to allow regeneration on import, except for specific seed users/entities
-        const dbForExport = JSON.parse(JSON.stringify(currentDb));
-        const codeString = `const getSeedData = (): AppDatabase => {\n  // Código generado el ${new Date().toLocaleString()}\n  return ${JSON.stringify(dbForExport, null, 2)};\n};`;
-        setSeedCode(`// Para actualizar los datos de inicio, reemplace el contenido de la función getSeedData() en services/database.ts con el siguiente código:\n\n${codeString}`);
-        setCopySuccess(false);
-    };
-    
-    const handleCopyToClipboard = () => {
-        if (seedCode) {
-            navigator.clipboard.writeText(seedCode).then(() => {
-                setCopySuccess(true);
-                setTimeout(() => setCopySuccess(false), 2000);
-            }, (err) => {
-                console.error('Error al copiar al portapapeles: ', err);
-                alert('No se pudo copiar el código.');
-            });
-        }
-    };
-
-
-    if (!isAdmin) {
-        return null;
-    }
-
-    return (
-        <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">Gestión de Datos de Inicio</h2>
-            <p className="text-sm text-gray-600 mb-6">
-                Para actualizar los datos iniciales para todos los usuarios (ej. añadir nuevos usuarios por defecto), sigue estos pasos. 
-                Esto es útil para preparar la aplicación antes de un despliegue en Vercel.
-            </p>
-            
-            <div className="p-4 border-l-4 border-primary-500 bg-primary-50 rounded-md">
-                <h3 className="text-lg font-medium text-primary-800">Generar Código de Datos de Inicio</h3>
-                <p className="text-sm text-primary-700 mt-1 mb-3">
-                    1. Realiza todos los cambios que desees en la aplicación (añadir usuarios, proyectos, etc.).<br/>
-                    2. Haz clic en el botón de abajo para generar el código que representa el estado actual.<br/>
-                    3. Copia el código generado y reemplaza el contenido de la función `getSeedData` en el archivo `services/database.ts`.<br/>
-                    4. Despliega tu aplicación en Vercel. Los nuevos datos de inicio se cargarán para todos los nuevos visitantes.
-                </p>
-                <button 
-                    onClick={handleGenerateSeedCode}
-                    className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 text-sm font-medium"
-                >
-                    Generar Código
-                </button>
-            </div>
-
-            {seedCode && (
-                <div className="mt-6">
-                     <h3 className="text-lg font-medium text-gray-700 mb-2">Código Generado</h3>
-                    <div className="relative">
-                        <textarea
-                            readOnly
-                            value={seedCode}
-                            className="w-full h-64 p-4 font-mono text-xs bg-gray-900 text-gray-100 rounded-md border border-gray-700 focus:ring-primary-500 focus:border-primary-500"
-                        />
-                         <button 
-                            onClick={handleCopyToClipboard}
-                            className="absolute top-3 right-3 bg-gray-700 text-white px-3 py-1 rounded-md text-xs hover:bg-gray-600"
-                        >
-                            {copySuccess ? '¡Copiado!' : 'Copiar'}
-                        </button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
@@ -170,7 +96,6 @@ export const SettingsPage: React.FC = () => {
     const [students, setStudents] = useState<Student[]>([]);
     const [deletingItem, setDeletingItem] = useState<{item: Entity, type: EntityType} | null>(null);
 
-    // Fix: Made loadData async to properly await and resolve database promises
     const loadData = useCallback(async () => {
         const [s, f, r, p, st] = await Promise.all([
             db.getStatuses(), db.getFormats(), db.getTeacherRoles(), db.getPrograms(), db.getStudents()
@@ -230,20 +155,24 @@ export const SettingsPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-gray-800">Configuración</h1>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h1 className="text-3xl font-bold text-gray-900 uppercase tracking-tight">Configuración del Sistema</h1>
+                <p className="text-sm text-gray-500 mt-1">Gestión de parámetros globales y catálogos de la institución.</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                 <SettingsList
                     title="Estados de Proyecto"
                     items={statuses}
-                    placeholder="Nuevo nombre de estado"
+                    placeholder="Ej: Aprobado"
                     onAdd={(name) => handleAdd('status', name)}
                     onUpdate={(item) => handleUpdate('status', item)}
                     onDelete={(item) => setDeletingItem({item, type: 'status'})}
                 />
                 <SettingsList
-                    title="Formatos de Proyecto"
+                    title="Formatos"
                     items={formats}
-                    placeholder="Nuevo nombre de formato"
+                    placeholder="Ej: Anteproyecto"
                     onAdd={(name) => handleAdd('format', name)}
                     onUpdate={(item) => handleUpdate('format', item)}
                     onDelete={(item) => setDeletingItem({item, type: 'format'})}
@@ -251,36 +180,43 @@ export const SettingsPage: React.FC = () => {
                 <SettingsList
                     title="Roles de Docente"
                     items={roles}
-                    placeholder="Nuevo nombre de rol"
+                    placeholder="Ej: Director"
                     onAdd={(name) => handleAdd('role', name)}
                     onUpdate={(item) => handleUpdate('role', item)}
                     onDelete={(item) => setDeletingItem({item, type: 'role'})}
                 />
                 <SettingsList
-                    title="Programas Académicos"
+                    title="Programas"
                     items={programs}
-                    placeholder="Nuevo programa académico"
+                    placeholder="Ej: Ing. de Sistemas"
                     onAdd={(name) => handleAdd('program', name)}
                     onUpdate={(item) => handleUpdate('program', item)}
                     onDelete={(item) => {
                         const isProgramInUse = students.some(s => s.programId === item.id);
                         if (isProgramInUse) {
-                            alert('No se puede eliminar este programa académico porque está asignado a uno o más estudiantes.');
+                            alert('No se puede eliminar este programa porque tiene estudiantes asignados.');
                             return;
                         }
                         setDeletingItem({item, type: 'program'});
                     }}
                 />
             </div>
-            <div className="mt-6">
-                <DataManagement />
+
+            <div className="bg-primary-50 border border-primary-100 p-4 rounded-xl flex items-center gap-4">
+                <div className="bg-primary-500 p-2 rounded-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+                <p className="text-sm text-primary-800 font-medium">
+                    Los cambios realizados aquí se reflejan instantáneamente en toda la plataforma y base de datos central.
+                </p>
             </div>
+
             <ConfirmationDialog
                 isOpen={!!deletingItem}
                 onClose={() => setDeletingItem(null)}
                 onConfirm={handleDelete}
                 title={`Eliminar ${getEntityTypeSpanish(deletingItem?.type)}`}
-                message={`¿Estás seguro de que quieres eliminar "${deletingItem?.item.name}"? Esto podría afectar a los proyectos y estudiantes existentes.`}
+                message={`¿Estás seguro de que quieres eliminar "${deletingItem?.item.name}"? Esta acción no se puede deshacer y puede afectar la integridad de los reportes.`}
             />
         </div>
     );
