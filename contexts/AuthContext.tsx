@@ -10,7 +10,7 @@ interface AuthContextType {
   isTeacher: boolean;
   isStudent: boolean;
   canEditProject: (projectId: string) => Promise<boolean>;
-  canGradeProject: (projectId: string) => Promise<{ canGrade: boolean, reviewerRole: string | null, reviewerSlot: 1 | 2 | 'admin' | null }>;
+  canGradeProject: (projectId: string) => Promise<{ canGrade: boolean, reviewerRole: string | null }>;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
@@ -30,6 +30,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
         const foundUser = await db.getUserByUsername(username.trim());
+        
+        // Comparación robusta: convertir a string y quitar espacios
         if (foundUser && String(foundUser.password).trim() === String(password).trim()) {
           setUser(foundUser);
           localStorage.setItem('degreeProjectManagerUser', JSON.stringify(foundUser));
@@ -46,45 +48,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('degreeProjectManagerUser');
   };
 
-  const getProjectAssignmentsForCurrentUser = async (projectId: string) => {
+  const getProjectRolesForCurrentUser = async (projectId: string): Promise<string[]> => {
     if (!user || !user.teacherId) return [];
     const projectTeachers = await db.getProjectTeachers();
     const roles = await db.getTeacherRoles();
-    return projectTeachers
-      .filter(pt => pt.projectId === projectId && pt.teacherId === user.teacherId)
-      .map(pt => ({
-        roleName: roles.find(r => r.id === pt.roleId)?.name || '',
-        roleId: pt.roleId
-      }));
+    const userAssignments = projectTeachers.filter(
+      pt => pt.projectId === projectId && pt.teacherId === user.teacherId
+    );
+    return userAssignments.map(assignment => {
+      return roles.find(r => r.id === assignment.roleId)?.name || '';
+    }).filter(Boolean);
   };
 
   const canEditProject = async (projectId: string): Promise<boolean> => {
     if (!user) return false;
     if (user.role === 'admin') return true;
     if (user.role !== 'teacher') return false;
-    const assignments = await getProjectAssignmentsForCurrentUser(projectId);
-    // Un docente puede editar detalles si es Director o Co-Director
-    return assignments.some(a => 
-      a.roleName.toLowerCase().includes('director') || 
-      a.roleName.toLowerCase().includes('co-director')
-    );
+    const userRoles = await getProjectRolesForCurrentUser(projectId);
+    return userRoles.some(role => role.toLowerCase().includes('director'));
   };
 
-  const canGradeProject = async (projectId: string): Promise<{ canGrade: boolean, reviewerRole: string | null, reviewerSlot: 1 | 2 | 'admin' | null }> => {
-      if (!user) return { canGrade: false, reviewerRole: null, reviewerSlot: null };
-      if (user.role === 'admin') return { canGrade: true, reviewerRole: 'Administrador', reviewerSlot: 'admin' };
-      if (user.role !== 'teacher') return { canGrade: false, reviewerRole: null, reviewerSlot: null };
+  const canGradeProject = async (projectId: string): Promise<{ canGrade: boolean, reviewerRole: string | null }> => {
+      if (!user) return { canGrade: false, reviewerRole: null };
+      if (user.role === 'admin') return { canGrade: true, reviewerRole: 'admin' };
+      if (user.role !== 'teacher') return { canGrade: false, reviewerRole: null };
       
-      const assignments = await getProjectAssignmentsForCurrentUser(projectId);
+      const userRoles = await getProjectRolesForCurrentUser(projectId);
+      const reviewerRole = userRoles.find(role => role.toLowerCase().includes('evaluador'));
       
-      // Verificación estricta: Solo Evaluador 1 y Evaluador 2 pueden calificar
-      const isEval1 = assignments.some(a => a.roleName.toLowerCase() === 'evaluador 1');
-      if (isEval1) return { canGrade: true, reviewerRole: 'Evaluador 1', reviewerSlot: 1 };
-      
-      const isEval2 = assignments.some(a => a.roleName.toLowerCase() === 'evaluador 2');
-      if (isEval2) return { canGrade: true, reviewerRole: 'Evaluador 2', reviewerSlot: 2 };
-      
-      return { canGrade: false, reviewerRole: null, reviewerSlot: null };
+      return {
+          canGrade: !!reviewerRole,
+          reviewerRole: reviewerRole || null
+      };
   };
 
   const isAuthenticated = !!user;
