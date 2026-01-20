@@ -3,28 +3,13 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status, Program } from '../types';
 
-// Función ultra-segura para obtener variables de entorno en Vite/Vercel
-const getEnv = (key: string): string => {
-    try {
-        // Acceso seguro a import.meta.env
-        const meta = (import.meta as any);
-        if (meta && meta.env) {
-            if (meta.env[`VITE_${key}`]) return meta.env[`VITE_${key}`];
-            if (meta.env[key]) return meta.env[key];
-        }
-        
-        // Fallback a process.env para entornos que lo soporten
-        if (typeof process !== 'undefined' && process.env) {
-            return (process.env as any)[`VITE_${key}`] || (process.env as any)[key] || '';
-        }
-    } catch (e) {
-        console.warn("Error al intentar acceder a las variables de entorno:", e);
-    }
-    return '';
-};
-
-const supabaseUrl = getEnv('SUPABASE_URL');
-const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
+/**
+ * IMPORTANTE PARA VERCEL/VITE:
+ * Vite reemplaza estas cadenas de texto durante el 'build'. 
+ * El acceso debe ser estático (escribir el nombre completo de la variable).
+ */
+const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http'));
 
@@ -37,7 +22,7 @@ const generateId = (): string => Date.now().toString(36) + Math.random().toStrin
 
 export const initializeDB = () => { 
     if (!isSupabaseConfigured) {
-        console.warn('Configuración de Supabase incompleta o no detectada.');
+        console.warn('Configuración de Supabase incompleta o no detectada en el entorno actual.');
     }
 };
 
@@ -64,6 +49,7 @@ const mapProjectToDB = (p: Partial<Project>) => ({
     written_grade_reviewer1: p.writtenGradeReviewer1,
     presentation_grade_reviewer1: p.presentationGradeReviewer1,
     written_grade_reviewer2: p.writtenGradeReviewer2,
+    // Fix typo: change snake_case property access to camelCase as defined in the Project interface.
     presentation_grade_reviewer2: p.presentationGradeReviewer2
 });
 

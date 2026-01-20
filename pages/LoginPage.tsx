@@ -23,7 +23,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
         setError('');
         
         if (!isSupabaseConfigured) {
-            setError('⚠️ Configuración incompleta. En Vercel: usa VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY. Luego haz RE-DEPLOY.');
+            setError('⚠️ Error Crítico: Las variables de entorno no están llegando a la aplicación. Asegúrate de haber hecho RE-DEPLOY en Vercel después de guardarlas.');
             setIsFetching(false);
             setDbConnected(false);
             return;
@@ -36,10 +36,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                 const data = await db.getTeachers();
                 setTeachers(data);
             } else {
-                setError('❌ Supabase detectado pero la conexión falló. Verifica que tus llaves sean válidas y que el proyecto en Supabase esté activo.');
+                setError('❌ Configuración detectada pero falló la conexión. Verifica que las credenciales en Vercel coincidan exactamente con tu proyecto en Supabase.');
             }
         } catch (err) {
-            setError('Error crítico de red al intentar conectar.');
+            setError('Error de red al intentar contactar con Supabase.');
             setDbConnected(false);
         } finally {
             setIsFetching(false);
@@ -63,20 +63,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
             
             if (!userExists) {
                 if (selectedUsername === 'admin') {
-                    setError('El usuario administrador no existe. ¿Ya ejecutaste el SQL de creación de tablas en Supabase?');
+                    setError('El usuario administrador no existe. ¿Ejecutaste el script SQL en Supabase?');
                 } else {
-                    setError('Este usuario no está registrado en el sistema.');
+                    setError('Este usuario no está registrado.');
                 }
             } else {
                 const success = await login(selectedUsername, password);
                 if (!success) {
                     setError(selectedUsername === 'admin' 
-                        ? 'Clave de administrador incorrecta (Recuerda que es admin123 por defecto).' 
-                        : 'Contraseña incorrecta (Usa tu número de cédula).');
+                        ? 'Clave de administrador incorrecta.' 
+                        : 'Contraseña incorrecta (Recuerda que es tu cédula).');
                 }
             }
         } catch (err) {
-            setError('Ocurrió un error inesperado al intentar iniciar sesión.');
+            setError('Ocurrió un error al validar tus datos.');
         } finally {
             setIsLoading(false);
         }
@@ -88,40 +88,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                 <div className="absolute top-0 right-0 p-2">
                     <div className="flex flex-col items-end gap-1">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${dbConnected ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
-                            {dbConnected === null ? '⏳ Verificando...' : dbConnected ? '🟢 Base de Datos OK' : '🔴 Sin Conexión'}
+                            {dbConnected === null ? '⏳ Verificando...' : dbConnected ? '🟢 Conectado' : '🔴 Sin Conexión'}
                         </span>
-                        {!dbConnected && !isFetching && (
-                            <button 
-                                onClick={checkConnection}
-                                className="text-[9px] text-primary-600 hover:underline font-bold"
-                            >
-                                Re-intentar conexión
-                            </button>
-                        )}
                     </div>
                 </div>
 
                 <div className="text-center">
-                    <img 
-                        src="https://i.ibb.co/L8yFz9p/logo.png" 
-                        alt="Logo CURN" 
-                        className="h-24 mx-auto mb-4 object-contain" 
-                        onError={(e) => (e.currentTarget.src = "https://via.placeholder.com/200x100?text=CURN")}
-                    />
+                    <div className="bg-primary-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-primary-200 shadow-inner">
+                        <img 
+                            src="https://www.curn.edu.co/images/logo_curn_social.png" 
+                            alt="Logo CURN" 
+                            className="h-16 w-16 object-contain"
+                            onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.parentElement!.innerHTML = '<span class="text-primary-600 font-bold text-2xl">CURN</span>';
+                            }}
+                        />
+                    </div>
                     <h1 className="text-2xl font-bold text-gray-900 uppercase tracking-tight">Gestor de Proyectos</h1>
-                    <p className="mt-2 text-sm text-gray-600 font-medium">Corporación Universitaria Rafael Núñez</p>
+                    <p className="mt-2 text-sm text-gray-600 font-medium italic">Corporación Universitaria Rafael Núñez</p>
                 </div>
 
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Nombre de Usuario / Docente</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Usuario / Docente</label>
                             <select
                                 required
                                 value={selectedUsername}
                                 onChange={(e) => setSelectedUsername(e.target.value)}
                                 disabled={isFetching || dbConnected === false}
-                                className="block w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-50 transition-colors"
+                                className="block w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-50"
                             >
                                 <option value="">-- Seleccione su nombre --</option>
                                 <option value="admin">ADMINISTRADOR DEL SISTEMA</option>
@@ -129,36 +126,32 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                                     <option key={t.id} value={t.name}>{t.name}</option>
                                 ))}
                             </select>
-                            {isFetching && !error && <p className="text-[10px] text-gray-500 mt-1 animate-pulse">Sincronizando lista de docentes...</p>}
                         </div>
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">
-                                {selectedUsername === 'admin' ? 'Contraseña Maestra' : 'Contraseña (Cédula)'}
-                            </label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Contraseña</label>
                             <input
                                 type="password"
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                disabled={dbConnected === false && !error.includes('VITE_')}
-                                className="block w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-50 transition-colors"
-                                placeholder={selectedUsername === 'admin' ? "admin123" : "Ingrese su identificación"}
+                                disabled={dbConnected === false && !error.includes('RE-DEPLOY')}
+                                className="block w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                                placeholder="Cédula o Clave Admin"
                             />
                         </div>
                     </div>
 
                     {error && (
-                        <div className="bg-red-50 p-4 rounded-lg border border-red-200 shadow-sm">
+                        <div className="bg-red-50 p-4 rounded-lg border border-red-200">
                             <p className="text-xs text-red-700 font-semibold leading-relaxed">{error}</p>
-                            {error.includes('VITE_') && (
-                                <div className="mt-3 text-[10px] text-red-500 space-y-2 border-t border-red-100 pt-2">
-                                    <p>💡 <strong>Solución:</strong></p>
-                                    <ul className="list-disc pl-3 space-y-1">
-                                        <li>Renombra las variables en Vercel Settings.</li>
-                                        <li>Asegúrate de que tengan el prefijo <strong>VITE_</strong>.</li>
-                                        <li>Haz clic en <strong>Deployments &rarr; Redeploy</strong>.</li>
-                                    </ul>
-                                </div>
+                            {error.includes('RE-DEPLOY') && (
+                                <button 
+                                    type="button"
+                                    onClick={() => window.location.reload()}
+                                    className="mt-2 text-[10px] text-red-600 underline font-bold uppercase"
+                                >
+                                    Refrescar página después de hacer redeploy
+                                </button>
                             )}
                         </div>
                     )}
@@ -167,25 +160,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                         <button
                             type="submit"
                             disabled={isLoading || isFetching || (dbConnected === false && !error.includes('incorrecta'))}
-                            className={`w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-lg text-white shadow-lg transition-all transform active:scale-95 ${isLoading || (dbConnected === false && !error.includes('incorrecta')) ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700'} uppercase tracking-wider`}
+                            className={`w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-lg text-white shadow-lg transition-all ${isLoading || (dbConnected === false && !error.includes('incorrecta')) ? 'bg-gray-400' : 'bg-primary-600 hover:bg-primary-700'} uppercase`}
                         >
-                            {isLoading ? (
-                                <span className="flex items-center gap-2">
-                                    <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                    Procesando...
-                                </span>
-                            ) : 'Entrar al Gestor'}
+                            {isLoading ? 'Accediendo...' : 'Iniciar Sesión'}
                         </button>
-
-                        <div className="relative py-2">
-                            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
-                            <div className="relative flex justify-center text-[10px] uppercase font-bold"><span className="bg-white px-2 text-gray-400">Acceso Alternativo</span></div>
-                        </div>
 
                         <button
                             type="button"
                             onClick={onOpenPublicReports}
-                            className="w-full flex justify-center py-2.5 px-4 border-2 border-gray-200 text-xs font-bold rounded-lg text-gray-600 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all uppercase tracking-wide"
+                            className="w-full flex justify-center py-2.5 px-4 border-2 border-gray-200 text-xs font-bold rounded-lg text-gray-600 bg-white hover:bg-gray-50 transition-all uppercase"
                         >
                             Ver Reportes Públicos
                         </button>
@@ -193,7 +176,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                 </form>
 
                 <p className="text-center text-[10px] text-gray-400 font-medium">
-                    © {new Date().getFullYear()} CURN - Sistema de Gestión Institucional
+                    © {new Date().getFullYear()} CURN - Control de Trabajos de Grado
                 </p>
             </div>
         </div>
