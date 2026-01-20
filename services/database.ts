@@ -78,6 +78,21 @@ export const db = {
     initializeDB: async () => {
         const current = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (!current) setLocalDB(initialDB);
+        
+        // Sincronizar catálogos si Supabase está vacío
+        if (supabase) {
+            try {
+                const db_l = getLocalDB();
+                const checkTable = async (name: string, data: any[]) => {
+                    const { count } = await supabase.from(name).select('*', { count: 'exact', head: true });
+                    if (count === 0) await supabase.from(name).insert(data);
+                };
+                await checkTable('statuses', db_l.statuses);
+                await checkTable('formats', db_l.formats);
+                await checkTable('programs', db_l.programs);
+                await checkTable('teacher_roles', db_l.teacherRoles);
+            } catch (e) { console.error("Error en sync inicial:", e); }
+        }
     },
 
     checkConnection: async () => {
@@ -93,12 +108,12 @@ export const db = {
     getProjects: async () => {
         const db_l = getLocalDB();
         const localProjects = db_l.projects || [];
-        
         if (supabase) {
             try {
-                const { data, error } = await supabase.from('projects').select('*');
+                const { data, error } = await supabase.from('projects').select('*').order('presentation_date', { ascending: false });
                 if (!error && data) {
                     const cloudProjects = data.map(mapProjectFromDB);
+                    // Mergear local y nube (Nube manda)
                     const merged = [...cloudProjects];
                     localProjects.forEach((lp: Project) => {
                         if (!merged.find(cp => cp.id === lp.id)) merged.push(lp);
@@ -107,7 +122,7 @@ export const db = {
                     setLocalDB(db_l);
                     return merged;
                 }
-            } catch (e) { console.error("Error sync projects:", e); }
+            } catch (e) { console.error("Error getProjects:", e); }
         }
         return localProjects;
     },
@@ -135,7 +150,6 @@ export const db = {
     getStudents: async () => {
         const db_l = getLocalDB();
         const localStudents = db_l.students || [];
-
         if (supabase) {
             try {
                 const { data, error } = await supabase.from('students').select('*');
@@ -148,15 +162,11 @@ export const db = {
                         projectId: s.project_id || null, 
                         programId: s.program_id || null 
                     }));
-                    const merged = [...cloudStudents];
-                    localStudents.forEach((ls: Student) => {
-                        if (!merged.find(cs => cs.id === ls.id)) merged.push(ls);
-                    });
-                    db_l.students = merged;
+                    db_l.students = cloudStudents;
                     setLocalDB(db_l);
-                    return merged;
+                    return cloudStudents;
                 }
-            } catch (e) { console.error("Error sync students:", e); }
+            } catch (e) { console.error("Error getStudents:", e); }
         }
         return localStudents;
     },
@@ -197,13 +207,16 @@ export const db = {
 
     addProject: async (project: Omit<Project, 'id'>) => {
         const id = generateId();
-        const newProject = { ...project, id, finalGrade: null } as Project;
+        const newProject = { ...project, id } as Project;
         const db_l = getLocalDB();
         db_l.projects.unshift(newProject);
         setLocalDB(db_l);
         if (supabase) {
             const { error } = await supabase.from('projects').insert([mapProjectToDB(newProject)]);
-            if (error) console.error("Error saving to Supabase:", error.message);
+            if (error) {
+                console.error("ERROR SUPABASE INSERT PROJECT:", error.message, error.details);
+                throw new Error("Supabase rechazó el proyecto: " + error.message);
+            }
         }
         return newProject;
     },
@@ -214,7 +227,10 @@ export const db = {
         if (idx !== -1) { db_l.projects[idx] = project; setLocalDB(db_l); }
         if (supabase) {
             const { error } = await supabase.from('projects').update(mapProjectToDB(project)).eq('id', project.id);
-            if (error) console.error("Error updating Supabase:", error.message);
+            if (error) {
+                console.error("ERROR SUPABASE UPDATE PROJECT:", error.message);
+                throw new Error("Supabase rechazó la actualización: " + error.message);
+            }
         }
         return project;
     },
@@ -249,7 +265,7 @@ export const db = {
                 project_id: student.projectId, 
                 program_id: student.programId 
             }).eq('id', student.id);
-            if (error) console.error("Error linking student in Supabase:", error.message);
+            if (error) console.error("Error sync student:", error.message);
         }
         const db_l = getLocalDB();
         const idx = db_l.students.findIndex((s: any) => s.id === student.id);

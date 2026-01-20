@@ -114,7 +114,7 @@ const ProjectForm: React.FC<{
             await onSave(formData, assignments, assignedStudentIds); 
             onClose(); 
         }
-        catch (error) { console.error(error); alert("Error al guardar."); }
+        catch (error: any) { console.error(error); alert("Error crítico al guardar: " + error.message); }
         finally { setIsSaving(false); }
     };
     
@@ -290,29 +290,34 @@ export const ProjectsPage: React.FC = () => {
     const handleSave = async (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>, studentIds: string[]) => {
         try {
             let savedProject: Project;
+            
+            // 1. Guardar/Actualizar Proyecto principal primero
             if (editingProject) {
                 savedProject = await db.updateProject({ ...editingProject, ...projectData } as Project);
             } else {
                 savedProject = await db.addProject(projectData as Omit<Project, 'id'>);
             }
 
+            // Si el proyecto se guardó con éxito (en local o nube), actualizamos relaciones
             if (!editingProject || isAdmin || userPerms[savedProject.id]?.canEdit) {
-                // 1. Docentes - Eliminar y re-añadir secuencialmente para evitar colisiones en localStorage
+                // 2. Docentes - Eliminar antiguos y re-añadir
                 await db.deleteProjectTeachersByProject(savedProject.id);
                 for (const a of assignments) {
                     await db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId });
                 }
                 
-                // 2. Estudiantes - Secuencialmente para evitar pérdida de datos en el archivo local
+                // 3. Estudiantes - Sincronización robusta
                 const sts = await db.getStudents();
                 
-                // Desvincular antiguos
-                const studentsToUnlink = sts.filter(s => s.projectId === savedProject.id && !studentIds.includes(s.id));
-                for (const s of studentsToUnlink) {
-                    await db.updateStudent({ ...s, projectId: null });
+                // Desvincular todos los estudiantes que estaban en este proyecto pero ya no están en studentIds
+                const currentLinked = sts.filter(s => s.projectId === savedProject.id);
+                for (const s of currentLinked) {
+                    if (!studentIds.includes(s.id)) {
+                        await db.updateStudent({ ...s, projectId: null });
+                    }
                 }
                 
-                // Vincular actuales (Incluso si ya estaban, para asegurar sincronía con Supabase)
+                // Vincular los nuevos integrantes
                 for (const sid of studentIds) {
                     const s = sts.find(st => st.id === sid);
                     if (s) {
@@ -321,12 +326,13 @@ export const ProjectsPage: React.FC = () => {
                 }
             }
             
+            // Recarga completa para asegurar visibilidad
             await loadData(); 
             setIsModalOpen(false);
             setEditingProject(null);
-        } catch (err) { 
-            console.error("Error guardando proyecto:", err); 
-            alert("No se pudo completar el guardado. Verifica la conexión.");
+        } catch (err: any) { 
+            console.error("Fallo crítico en handleSave:", err); 
+            alert("No se pudo completar el guardado en Supabase: " + err.message + ". Asegúrate de que las tablas de catálogos no estén vacías.");
         }
     };
 
