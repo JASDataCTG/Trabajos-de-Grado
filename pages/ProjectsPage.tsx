@@ -114,7 +114,7 @@ const ProjectForm: React.FC<{
             await onSave(formData, assignments, assignedStudentIds); 
             onClose(); 
         }
-        catch (error: any) { console.error(error); alert("Error crítico al guardar: " + error.message); }
+        catch (error: any) { console.error(error); alert("Fallo al guardar: " + error.message); }
         finally { setIsSaving(false); }
     };
     
@@ -291,33 +291,33 @@ export const ProjectsPage: React.FC = () => {
         try {
             let savedProject: Project;
             
-            // 1. Guardar/Actualizar Proyecto principal primero
+            // 1. Guardar/Actualizar Proyecto principal en Supabase
             if (editingProject) {
                 savedProject = await db.updateProject({ ...editingProject, ...projectData } as Project);
             } else {
                 savedProject = await db.addProject(projectData as Omit<Project, 'id'>);
             }
 
-            // Si el proyecto se guardó con éxito (en local o nube), actualizamos relaciones
+            // Si el proyecto se guardó con éxito, actualizamos relaciones secundarias
             if (!editingProject || isAdmin || userPerms[savedProject.id]?.canEdit) {
-                // 2. Docentes - Eliminar antiguos y re-añadir
+                // 2. Docentes - Eliminar antiguos y re-añadir en la tabla puente
                 await db.deleteProjectTeachersByProject(savedProject.id);
                 for (const a of assignments) {
                     await db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId });
                 }
                 
-                // 3. Estudiantes - Sincronización robusta
+                // 3. Estudiantes - Sincronizar columna project_id en la tabla students
                 const sts = await db.getStudents();
                 
-                // Desvincular todos los estudiantes que estaban en este proyecto pero ya no están en studentIds
-                const currentLinked = sts.filter(s => s.projectId === savedProject.id);
-                for (const s of currentLinked) {
+                // Desvincular antiguos: a los que estaban vinculados pero ya no están en la lista actual
+                const currentlyLinked = sts.filter(s => s.projectId === savedProject.id);
+                for (const s of currentlyLinked) {
                     if (!studentIds.includes(s.id)) {
                         await db.updateStudent({ ...s, projectId: null });
                     }
                 }
                 
-                // Vincular los nuevos integrantes
+                // Vincular actuales: establecer el project_id a los seleccionados
                 for (const sid of studentIds) {
                     const s = sts.find(st => st.id === sid);
                     if (s) {
@@ -326,13 +326,13 @@ export const ProjectsPage: React.FC = () => {
                 }
             }
             
-            // Recarga completa para asegurar visibilidad
+            // Recarga completa de Supabase para confirmar visibilidad de nombres y datos
             await loadData(); 
             setIsModalOpen(false);
             setEditingProject(null);
         } catch (err: any) { 
             console.error("Fallo crítico en handleSave:", err); 
-            alert("No se pudo completar el guardado en Supabase: " + err.message + ". Asegúrate de que las tablas de catálogos no estén vacías.");
+            alert("No se pudo completar el guardado en Supabase: " + err.message);
         }
     };
 
@@ -349,7 +349,7 @@ export const ProjectsPage: React.FC = () => {
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-black text-uninunez-onix font-display uppercase tracking-tight">Banco de Proyectos</h1>
-                    <p className="text-uninunez-ash text-sm font-medium">Gestión integral de expedientes académicos.</p>
+                    <p className="text-uninunez-ash text-sm font-medium">Gestión integral de expedientes académicos vinculados a Supabase.</p>
                 </div>
                 {isAdmin && (
                     <button 
@@ -365,7 +365,7 @@ export const ProjectsPage: React.FC = () => {
                 {isLoading ? (
                     <div className="flex flex-col items-center justify-center py-20 space-y-4">
                         <div className="w-12 h-12 border-4 border-uninunez-orange border-t-transparent rounded-full animate-spin"></div>
-                        <p className="text-xs font-black text-uninunez-ash uppercase tracking-widest">Sincronizando expedientes...</p>
+                        <p className="text-xs font-black text-uninunez-ash uppercase tracking-widest">Consultando Supabase...</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -381,6 +381,7 @@ export const ProjectsPage: React.FC = () => {
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {projects.map(p => {
+                                    // Filtramos los estudiantes cuyo projectId coincida con el de este proyecto
                                     const linkedStudents = students.filter(s => s.projectId === p.id);
                                     return (
                                         <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
@@ -415,8 +416,7 @@ export const ProjectsPage: React.FC = () => {
                                 {!isLoading && projects.length === 0 && (
                                     <tr>
                                         <td colSpan={5} className="text-center py-20">
-                                            <p className="text-uninunez-ash italic text-sm">No se han encontrado proyectos registrados.</p>
-                                            {isAdmin && <p className="text-xs text-gray-400 mt-2">Haz clic en "Nuevo Proyecto" para comenzar.</p>}
+                                            <p className="text-uninunez-ash italic text-sm">No hay registros en Supabase.</p>
                                         </td>
                                     </tr>
                                 )}
@@ -444,7 +444,7 @@ export const ProjectsPage: React.FC = () => {
                     />
                 )}
             </Modal>
-            <ConfirmationDialog isOpen={!!deletingProject} onClose={() => setDeletingProject(null)} onConfirm={handleDelete} title="Confirmar Eliminación" message="¿Desea eliminar permanentemente este expediente del banco institucional? Esta acción borrará todas las notas asociadas." />
+            <ConfirmationDialog isOpen={!!deletingProject} onClose={() => setDeletingProject(null)} onConfirm={handleDelete} title="Confirmar Eliminación" message="¿Desea eliminar permanentemente este expediente? Esta acción borrará todas las notas y vínculos en Supabase." />
         </div>
     );
 };
