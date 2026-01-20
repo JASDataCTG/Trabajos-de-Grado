@@ -297,31 +297,28 @@ export const ProjectsPage: React.FC = () => {
             }
 
             if (!editingProject || isAdmin || userPerms[savedProject.id]?.canEdit) {
-                // 1. Limpiar docentes asignados
+                // 1. Docentes - Eliminar y re-añadir secuencialmente para evitar colisiones en localStorage
                 await db.deleteProjectTeachersByProject(savedProject.id);
                 for (const a of assignments) {
                     await db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId });
                 }
                 
-                // 2. Vincular estudiantes (Espera a que todos terminen para evitar desajustes)
+                // 2. Estudiantes - Secuencialmente para evitar pérdida de datos en el archivo local
                 const sts = await db.getStudents();
-                const studentUpdatePromises = [];
                 
-                // Desvincular los que ya no están
+                // Desvincular antiguos
                 const studentsToUnlink = sts.filter(s => s.projectId === savedProject.id && !studentIds.includes(s.id));
                 for (const s of studentsToUnlink) {
-                    studentUpdatePromises.push(db.updateStudent({ ...s, projectId: null }));
+                    await db.updateStudent({ ...s, projectId: null });
                 }
                 
-                // Vincular nuevos
+                // Vincular actuales (Incluso si ya estaban, para asegurar sincronía con Supabase)
                 for (const sid of studentIds) {
                     const s = sts.find(st => st.id === sid);
-                    if (s && s.projectId !== savedProject.id) {
-                        studentUpdatePromises.push(db.updateStudent({ ...s, projectId: savedProject.id }));
+                    if (s) {
+                        await db.updateStudent({ ...s, projectId: savedProject.id });
                     }
                 }
-                
-                await Promise.all(studentUpdatePromises);
             }
             
             await loadData(); 
@@ -329,7 +326,7 @@ export const ProjectsPage: React.FC = () => {
             setEditingProject(null);
         } catch (err) { 
             console.error("Error guardando proyecto:", err); 
-            alert("No se pudo guardar el proyecto. Revisa la consola (F12) para ver el error de Supabase.");
+            alert("No se pudo completar el guardado. Verifica la conexión.");
         }
     };
 

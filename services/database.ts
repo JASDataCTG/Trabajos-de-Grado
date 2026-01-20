@@ -51,7 +51,12 @@ const mapProjectToDB = (p: Partial<Project>) => ({
     files_url: p.filesUrl || '',
     status_id: p.statusId || null,
     format_id: p.formatId || null,
-    is_approved_by_director: !!p.isApprovedByDirector
+    is_approved_by_director: !!p.isApprovedByDirector,
+    written_grade_reviewer1: p.writtenGradeReviewer1,
+    presentation_grade_reviewer1: p.presentationGradeReviewer1,
+    written_grade_reviewer2: p.writtenGradeReviewer2,
+    presentation_grade_reviewer2: p.presentationGradeReviewer2,
+    final_grade: p.finalGrade
 });
 
 const mapProjectFromDB = (p: any): Project => ({
