@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/database';
 import { User, Teacher, Student } from '../types';
@@ -11,20 +12,33 @@ export const UsersPage: React.FC = () => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     const [deletingUser, setDeletingUser] = useState<User | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const loadData = useCallback(() => {
-        setUsers(db.getUsers());
-        setTeachers(db.getTeachers());
-        setStudents(db.getStudents());
+    const loadData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const [u, t, s] = await Promise.all([
+                db.getUsers(),
+                db.getTeachers(),
+                db.getStudents()
+            ]);
+            setUsers(u);
+            setTeachers(t);
+            setStudents(s);
+        } catch (error) {
+            console.error("Error cargando usuarios:", error);
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (deletingUser) {
-            db.deleteUser(deletingUser.id);
+            await db.deleteUser(deletingUser.id);
             loadData();
             setDeletingUser(null);
         }
@@ -69,19 +83,25 @@ export const UsersPage: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {users.map(user => (
-                                <tr key={user.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.username}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getRoleName(user.role)}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getLinkedEntityName(user)}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                        {user.id !== currentUser?.id && user.role !== 'admin' && (
-                                            <button onClick={() => setDeletingUser(user)} className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5" /></button>
-                                        )}
-                                    </td>
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan={4} className="text-center py-10 text-gray-500">Cargando usuarios...</td>
                                 </tr>
-                            ))}
-                             {users.length === 0 && (
+                            ) : (
+                                users.map(user => (
+                                    <tr key={user.id}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.username}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getRoleName(user.role)}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getLinkedEntityName(user)}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                            {user.id !== currentUser?.id && user.role !== 'admin' && (
+                                                <button onClick={() => setDeletingUser(user)} className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5" /></button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                             {!isLoading && users.length === 0 && (
                                 <tr>
                                     <td colSpan={4} className="text-center py-10 text-gray-500">No se encontraron usuarios.</td>
                                 </tr>

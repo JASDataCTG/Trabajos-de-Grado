@@ -1,18 +1,28 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 export const LoginPage: React.FC = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const { login } = useAuth();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        const success = login(username, password);
-        if (!success) {
-            setError('Usuario o contraseña incorrectos.');
+        setIsLoading(true);
+        try {
+            const success = await login(username, password);
+            if (!success) {
+                setError('Usuario o contraseña incorrectos.');
+            }
+        } catch (err) {
+            setError('Error de conexión con el servidor.');
+            console.error(err);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -60,9 +70,10 @@ export const LoginPage: React.FC = () => {
                     <div>
                         <button
                             type="submit"
-                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                            disabled={isLoading}
+                            className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${isLoading ? 'bg-primary-400' : 'bg-primary-600 hover:bg-primary-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500`}
                         >
-                            Iniciar Sesión
+                            {isLoading ? 'Cargando...' : 'Iniciar Sesión'}
                         </button>
                     </div>
                 </form>

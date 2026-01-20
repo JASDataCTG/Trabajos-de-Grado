@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { db } from '../services/database';
 import { User } from '../types';
 
@@ -8,9 +8,9 @@ interface AuthContextType {
   isAdmin: boolean;
   isTeacher: boolean;
   isStudent: boolean;
-  canEditProject: (projectId: string) => boolean;
-  canGradeProject: (projectId: string) => { canGrade: boolean, reviewerRole: string | null };
-  login: (username: string, password: string) => boolean;
+  canEditProject: (projectId: string) => Promise<boolean>;
+  canGradeProject: (projectId: string) => Promise<{ canGrade: boolean, reviewerRole: string | null }>;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -26,10 +26,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const login = (username: string, password: string): boolean => {
-    const users = db.getUsers();
-    const foundUser = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
-    if (foundUser) {
+  const login = async (username: string, password: string): Promise<boolean> => {
+    const foundUser = await db.getUserByUsername(username);
+    if (foundUser && foundUser.password === password) {
       setUser(foundUser);
       localStorage.setItem('degreeProjectManagerUser', JSON.stringify(foundUser));
       return true;
@@ -42,10 +41,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('degreeProjectManagerUser');
   };
 
-  const getProjectRolesForCurrentUser = (projectId: string): string[] => {
+  const getProjectRolesForCurrentUser = async (projectId: string): Promise<string[]> => {
     if (!user || !user.teacherId) return [];
-    const projectTeachers = db.getProjectTeachers();
-    const roles = db.getTeacherRoles();
+    const projectTeachers = await db.getProjectTeachers();
+    const roles = await db.getTeacherRoles();
     const userAssignments = projectTeachers.filter(
       pt => pt.projectId === projectId && pt.teacherId === user.teacherId
     );
@@ -54,20 +53,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).filter(Boolean);
   };
 
-  const canEditProject = (projectId: string): boolean => {
+  const canEditProject = async (projectId: string): Promise<boolean> => {
     if (!user) return false;
     if (user.role === 'admin') return true;
     if (user.role !== 'teacher') return false;
-    const userRoles = getProjectRolesForCurrentUser(projectId);
+    const userRoles = await getProjectRolesForCurrentUser(projectId);
     return userRoles.some(role => role.toLowerCase().includes('director'));
   };
 
-  const canGradeProject = (projectId: string): { canGrade: boolean, reviewerRole: string | null } => {
+  const canGradeProject = async (projectId: string): Promise<{ canGrade: boolean, reviewerRole: string | null }> => {
       if (!user) return { canGrade: false, reviewerRole: null };
       if (user.role === 'admin') return { canGrade: true, reviewerRole: 'admin' };
       if (user.role !== 'teacher') return { canGrade: false, reviewerRole: null };
       
-      const userRoles = getProjectRolesForCurrentUser(projectId);
+      const userRoles = await getProjectRolesForCurrentUser(projectId);
       const reviewerRole = userRoles.find(role => role.toLowerCase().includes('evaluador'));
       
       return {
@@ -80,7 +79,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdmin = user?.role === 'admin';
   const isTeacher = user?.role === 'teacher';
   const isStudent = user?.role === 'student';
-
 
   return (
     <AuthContext.Provider value={{ user, isAuthenticated, isAdmin, isTeacher, isStudent, login, logout, canEditProject, canGradeProject }}>

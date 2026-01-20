@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/database';
 import { Status, Format, TeacherRole, AppDatabase, Program, Student } from '../types';
@@ -87,8 +88,9 @@ const DataManagement: React.FC = () => {
     const [seedCode, setSeedCode] = useState<string | null>(null);
     const [copySuccess, setCopySuccess] = useState(false);
 
-    const handleGenerateSeedCode = () => {
-        const currentDb = db.getCurrentDB();
+    // Fix: Make handleGenerateSeedCode async to handle the Promise returned by db.getCurrentDB()
+    const handleGenerateSeedCode = async () => {
+        const currentDb = await db.getCurrentDB();
         // Remove IDs to allow regeneration on import, except for specific seed users/entities
         const dbForExport = JSON.parse(JSON.stringify(currentDb));
         const codeString = `const getSeedData = (): AppDatabase => {\n  // Código generado el ${new Date().toLocaleString()}\n  return ${JSON.stringify(dbForExport, null, 2)};\n};`;
@@ -168,44 +170,48 @@ export const SettingsPage: React.FC = () => {
     const [students, setStudents] = useState<Student[]>([]);
     const [deletingItem, setDeletingItem] = useState<{item: Entity, type: EntityType} | null>(null);
 
-    const loadData = useCallback(() => {
-        setStatuses(db.getStatuses());
-        setFormats(db.getFormats());
-        setRoles(db.getTeacherRoles());
-        setPrograms(db.getPrograms());
-        setStudents(db.getStudents());
+    // Fix: Made loadData async to properly await and resolve database promises
+    const loadData = useCallback(async () => {
+        const [s, f, r, p, st] = await Promise.all([
+            db.getStatuses(), db.getFormats(), db.getTeacherRoles(), db.getPrograms(), db.getStudents()
+        ]);
+        setStatuses(s);
+        setFormats(f);
+        setRoles(r);
+        setPrograms(p);
+        setStudents(st);
     }, []);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
     
-    const handleAdd = (type: EntityType, name: string) => {
+    const handleAdd = async (type: EntityType, name: string) => {
         if (!isAdmin) return;
-        if(type === 'status') db.addStatus({ name });
-        if(type === 'format') db.addFormat({ name });
-        if(type === 'role') db.addTeacherRole({ name });
-        if(type === 'program') db.addProgram({ name });
+        if(type === 'status') await db.addStatus({ name });
+        if(type === 'format') await db.addFormat({ name });
+        if(type === 'role') await db.addTeacherRole({ name });
+        if(type === 'program') await db.addProgram({ name });
         loadData();
     };
     
-    const handleUpdate = (type: EntityType, item: Entity) => {
+    const handleUpdate = async (type: EntityType, item: Entity) => {
         if (!isAdmin) return;
-        if(type === 'status') db.updateStatus(item as Status);
-        if(type === 'format') db.updateFormat(item as Format);
-        if(type === 'role') db.updateTeacherRole(item as TeacherRole);
-        if(type === 'program') db.updateProgram(item as Program);
+        if(type === 'status') await db.updateStatus(item as Status);
+        if(type === 'format') await db.updateFormat(item as Format);
+        if(type === 'role') await db.updateTeacherRole(item as TeacherRole);
+        if(type === 'program') await db.updateProgram(item as Program);
         loadData();
     };
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (!deletingItem || !isAdmin) return;
         const { item, type } = deletingItem;
 
-        if(type === 'status') db.deleteStatus(item.id);
-        if(type === 'format') db.deleteFormat(item.id);
-        if(type === 'role') db.deleteTeacherRole(item.id);
-        if(type === 'program') db.deleteProgram(item.id);
+        if(type === 'status') await db.deleteStatus(item.id);
+        if(type === 'format') await db.deleteFormat(item.id);
+        if(type === 'role') await db.deleteTeacherRole(item.id);
+        if(type === 'program') await db.deleteProgram(item.id);
 
         loadData();
         setDeletingItem(null);

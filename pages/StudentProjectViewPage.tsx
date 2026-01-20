@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../services/database';
@@ -12,32 +13,39 @@ export const StudentProjectViewPage: React.FC = () => {
     const [directors, setDirectors] = useState<Teacher[]>([]);
 
     useEffect(() => {
-        if (user?.studentId) {
-            const studentData = db.getStudentById(user.studentId);
-            setStudent(studentData || null);
+        // Fix: Created an async wrapper function within useEffect to handle asynchronous database calls and resolve Promise<any> errors
+        const loadViewData = async () => {
+            if (user?.studentId) {
+                const studentData = await db.getStudentById(user.studentId);
+                setStudent(studentData || null);
 
-            if (studentData?.projectId) {
-                const projectData = db.getProjectById(studentData.projectId);
-                setProject(projectData || null);
+                if (studentData?.projectId) {
+                    const projectData = await db.getProjectById(studentData.projectId);
+                    setProject(projectData || null);
 
-                if (projectData) {
-                    const statusData = db.getStatuses().find(s => s.id === projectData.statusId);
-                    setStatus(statusData || null);
+                    if (projectData) {
+                        const allStatuses = await db.getStatuses();
+                        const statusData = allStatuses.find(s => s.id === projectData.statusId);
+                        setStatus(statusData || null);
 
-                    const projectTeachers = db.getProjectTeachers().filter(pt => pt.projectId === projectData.id);
-                    const allTeachers = db.getTeachers();
-                    const allRoles = db.getTeacherRoles();
-                    const directorRoles = allRoles.filter(r => r.name.toLowerCase().includes('director')).map(r => r.id);
-                    
-                    const assignedDirectors = projectTeachers
-                        .filter(pt => directorRoles.includes(pt.roleId))
-                        .map(pt => allTeachers.find(t => t.id === pt.teacherId))
-                        .filter((t): t is Teacher => !!t);
+                        const allProjectTeachers = await db.getProjectTeachers();
+                        const projectTeachers = allProjectTeachers.filter(pt => pt.projectId === projectData.id);
+                        const allTeachers = await db.getTeachers();
+                        const allRoles = await db.getTeacherRoles();
+                        const directorRoles = allRoles.filter(r => r.name.toLowerCase().includes('director')).map(r => r.id);
+                        
+                        const assignedDirectors = projectTeachers
+                            .filter(pt => directorRoles.includes(pt.roleId))
+                            .map(pt => allTeachers.find(t => t.id === pt.teacherId))
+                            .filter((t): t is Teacher => !!t);
 
-                    setDirectors(assignedDirectors);
+                        setDirectors(assignedDirectors);
+                    }
                 }
             }
-        }
+        };
+        
+        loadViewData();
     }, [user]);
 
     return (

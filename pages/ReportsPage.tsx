@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../services/database';
 import { Project, Student, Teacher, TeacherRole, Status, Format, ProjectTeacher, Program } from '../types';
@@ -131,16 +132,18 @@ export const ReportsPage: React.FC = () => {
     const [allFormats, setAllFormats] = useState<Format[]>([]);
     const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
 
-
-    const loadReportData = useCallback((currentFilters) => {
-        const allProjects = db.getProjects();
-        const allStudents = db.getStudents();
-        const allTeachers = db.getTeachers();
-        const roles = db.getTeacherRoles();
-        const statuses = db.getStatuses();
-        const formats = db.getFormats();
-        const projectTeachers = db.getProjectTeachers();
-        const programs = db.getPrograms();
+    // Fix: Made loadReportData async and use Promise.all to await all database results to resolve type Promise<any> errors
+    const loadReportData = useCallback(async (currentFilters: any) => {
+        const [allProjects, allStudents, allTeachers, roles, statuses, formats, projectTeachers, programs] = await Promise.all([
+            db.getProjects(),
+            db.getStudents(),
+            db.getTeachers(),
+            db.getTeacherRoles(),
+            db.getStatuses(),
+            db.getFormats(),
+            db.getProjectTeachers(),
+            db.getPrograms()
+        ]);
 
         // --- Filtering Logic ---
         let filteredProjects = allProjects;
@@ -264,14 +267,18 @@ export const ReportsPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        setAllPrograms(db.getPrograms());
-        setAllStatuses(db.getStatuses());
-        setAllFormats(db.getFormats());
-        setAllTeachers(db.getTeachers());
-        loadReportData({
-            title: '', programId: '', statusId: '',
-            formatId: '', teacherId: '', startDate: '', endDate: '',
-        });
+        // Fix: Use an async function within useEffect to resolve the async loadReportData
+        const initData = async () => {
+            setAllPrograms(await db.getPrograms());
+            setAllStatuses(await db.getStatuses());
+            setAllFormats(await db.getFormats());
+            setAllTeachers(await db.getTeachers());
+            loadReportData({
+                title: '', programId: '', statusId: '',
+                formatId: '', teacherId: '', startDate: '', endDate: '',
+            });
+        };
+        initData();
     }, [loadReportData]);
 
     const handleExport = (data: any[], filename: string) => {

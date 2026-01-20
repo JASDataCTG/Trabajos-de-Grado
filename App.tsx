@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { initializeDB } from './services/database';
+import { db } from './services/database';
 import { Sidebar } from './components/Sidebar';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProjectsPage } from './pages/ProjectsPage';
@@ -31,7 +32,8 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
-    initializeDB();
+    // Fix: Used db.initializeDB() instead of an unexported direct function to properly initialize with Supabase
+    db.initializeDB();
   }, []);
 
   if (!isAuthenticated) {

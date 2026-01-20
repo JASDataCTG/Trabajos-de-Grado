@@ -22,7 +22,6 @@ const StatCard: React.FC<StatCardProps> = ({ icon, title, value, color }) => (
     </div>
 );
 
-
 export const DashboardPage: React.FC = () => {
     const [stats, setStats] = useState({
         projects: 0,
@@ -34,25 +33,29 @@ export const DashboardPage: React.FC = () => {
     const [statuses, setStatuses] = useState<Status[]>([]);
 
     useEffect(() => {
-        const projects = db.getProjects();
-        const students = db.getStudents();
-        const teachers = db.getTeachers();
-        const allStatuses = db.getStatuses();
+        const loadData = async () => {
+            const [projects, students, teachers, allStatuses] = await Promise.all([
+                db.getProjects(),
+                db.getStudents(),
+                db.getTeachers(),
+                db.getStatuses()
+            ]);
 
-        setStatuses(allStatuses);
-
-        setStats({
-            projects: projects.length,
-            students: students.length,
-            teachers: teachers.length,
-            unassignedStudents: students.filter(s => !s.projectId).length
-        });
-        
-        setRecentProjects(
-            [...projects]
-                .sort((a, b) => new Date(b.presentationDate).getTime() - new Date(a.presentationDate).getTime())
-                .slice(0, 5)
-        );
+            setStatuses(allStatuses);
+            setStats({
+                projects: projects.length,
+                students: students.length,
+                teachers: teachers.length,
+                unassignedStudents: students.filter(s => !s.projectId).length
+            });
+            
+            setRecentProjects(
+                [...projects]
+                    .sort((a, b) => new Date(b.presentationDate).getTime() - new Date(a.presentationDate).getTime())
+                    .slice(0, 5)
+            );
+        };
+        loadData();
     }, []);
 
     const getStatusName = (id: string) => statuses.find(s => s.id === id)?.name || 'Desconocido';
