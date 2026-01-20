@@ -22,24 +22,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
         setIsFetching(true);
         setError('');
         
-        if (!isSupabaseConfigured) {
-            setError('⚠️ Error: Variables institucionales no detectadas. Verifique la configuración en Vercel.');
-            setIsFetching(false);
-            setDbConnected(false);
-            return;
-        }
-
+        // Verificamos conexión (Supabase o LocalStorage)
         try {
             const connected = await db.checkConnection();
             setDbConnected(connected);
-            if (connected) {
-                const data = await db.getTeachers();
-                setTeachers(data);
-            } else {
-                setError('❌ Falló la conexión institucional. Revisa tus credenciales.');
-            }
+            const data = await db.getTeachers();
+            setTeachers(data);
         } catch (err) {
-            setError('Error de infraestructura al conectar con la base de datos.');
+            setError('Error al conectar con la base de datos institucional.');
             setDbConnected(false);
         } finally {
             setIsFetching(false);
@@ -84,14 +74,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
             <div className="w-full max-w-md space-y-6 bg-white p-10 rounded-2xl shadow-2xl relative z-10 border border-gray-100">
                 <div className="absolute top-4 right-6">
                     <span className={`inline-flex items-center px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider ${dbConnected ? 'bg-uninunez-teal text-white' : 'bg-red-500 text-white'}`}>
-                        {dbConnected === null ? 'Verificando...' : dbConnected ? 'SISTEMA ONLINE' : 'OFFLINE'}
+                        {dbConnected === null ? 'Verificando...' : dbConnected ? (isSupabaseConfigured ? 'CLOUD SYNC' : 'LOCAL DB') : 'OFFLINE'}
                     </span>
                 </div>
 
                 <div className="text-center">
                     <img 
-                        src="https://www.curn.edu.co/images/logo_curn_social.png" 
-                        alt="Logo CURN" 
+                        src="https://axis.uninunez.edu.co/images/uninunez/vm/logoqteal.svg" 
+                        alt="Logo Uninúñez" 
                         className="h-24 mx-auto mb-6 object-contain"
                     />
                     <h1 className="text-2xl font-extrabold text-uninunez-onix font-display uppercase tracking-tight">Gestor de Proyectos</h1>
@@ -106,7 +96,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                                 required
                                 value={selectedUsername}
                                 onChange={(e) => setSelectedUsername(e.target.value)}
-                                disabled={isFetching || dbConnected === false}
+                                disabled={isFetching}
                                 className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-uninunez-orange focus:border-uninunez-orange sm:text-sm bg-gray-50 transition-all font-medium"
                             >
                                 <option value="">-- Seleccione su nombre --</option>
@@ -123,7 +113,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                disabled={dbConnected === false && !error.includes('incorrecta')}
                                 className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-uninunez-orange focus:border-uninunez-orange sm:text-sm bg-gray-50 transition-all font-medium"
                                 placeholder="Cédula"
                             />
@@ -139,8 +128,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                     <div className="space-y-4 pt-4">
                         <button
                             type="submit"
-                            disabled={isLoading || isFetching || (dbConnected === false && !error.includes('incorrecta'))}
-                            className={`w-full flex justify-center py-4 px-4 border border-transparent text-xs font-extrabold rounded-xl text-white shadow-xl transition-all transform hover:-translate-y-1 active:scale-95 ${isLoading || (dbConnected === false && !error.includes('incorrecta')) ? 'bg-gray-400' : 'bg-uninunez-orange hover:bg-uninunez-orangeLight'} uppercase tracking-widest font-display`}
+                            disabled={isLoading || isFetching}
+                            className={`w-full flex justify-center py-4 px-4 border border-transparent text-xs font-extrabold rounded-xl text-white shadow-xl transition-all transform hover:-translate-y-1 active:scale-95 ${isLoading ? 'bg-gray-400' : 'bg-uninunez-orange hover:bg-uninunez-orangeLight'} uppercase tracking-widest font-display`}
                         >
                             {isLoading ? 'AUTENTICANDO...' : 'INGRESAR AL SISTEMA'}
                         </button>

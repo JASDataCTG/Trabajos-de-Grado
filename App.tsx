@@ -42,10 +42,10 @@ const App: React.FC = () => {
           <div className="min-h-screen bg-gray-100 p-4 md:p-8">
               <div className="max-w-7xl mx-auto">
                 <header className="mb-6 flex justify-between items-center bg-white p-4 rounded-lg shadow-sm">
-                    <img src="https://i.ibb.co/L8yFz9p/logo.png" alt="Logo" className="h-12 object-contain"/>
+                    <img src="https://axis.uninunez.edu.co/images/uninunez/vm/logoqteal.svg" alt="Logo Uninúñez" className="h-12 object-contain"/>
                     <button 
                         onClick={() => setIsPublicReportsView(false)}
-                        className="text-primary-600 font-bold hover:underline"
+                        className="text-uninunez-teal font-bold hover:underline"
                     >
                         &larr; Volver al Inicio de Sesión
                     </button>

@@ -58,8 +58,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         <div className="flex flex-col h-full w-full">
            <div className="flex flex-col items-center justify-center p-6 bg-white border-b-4 border-uninunez-orange">
             <img 
-              src="https://www.curn.edu.co/images/logo_curn_social.png" 
-              alt="Logo CURN" 
+              src="https://axis.uninunez.edu.co/images/uninunez/vm/logoqteal.svg" 
+              alt="Logo Uninúñez" 
               className="h-20 object-contain"
             />
           </div>
