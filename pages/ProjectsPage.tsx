@@ -51,13 +51,13 @@ const ProjectForm: React.FC<{
         const g2p = data.presentationGradeReviewer2;
 
         let avg1 = 0; let count1 = 0;
-        if (g1w !== null) { avg1 += g1w; count1++; }
-        if (g1p !== null) { avg1 += g1p; count1++; }
+        if (g1w !== null && g1w !== undefined) { avg1 += Number(g1w); count1++; }
+        if (g1p !== null && g1p !== undefined) { avg1 += Number(g1p); count1++; }
         const finalAvg1 = count1 > 0 ? avg1 / count1 : null;
 
         let avg2 = 0; let count2 = 0;
-        if (g2w !== null) { avg2 += g2w; count2++; }
-        if (g2p !== null) { avg2 += g2p; count2++; }
+        if (g2w !== null && g2w !== undefined) { avg2 += Number(g2w); count2++; }
+        if (g2p !== null && g2p !== undefined) { avg2 += Number(g2p); count2++; }
         const finalAvg2 = count2 > 0 ? avg2 / count2 : null;
 
         if (finalAvg1 !== null && finalAvg2 !== null) {
@@ -83,6 +83,7 @@ const ProjectForm: React.FC<{
         }
         setFormData(prev => {
             const nextData = { ...prev, [name]: finalValue };
+            // Actualizar promedio final en cada cambio de nota
             if (name.includes('Grade')) nextData.finalGrade = calculateFinalAverage(nextData);
             return nextData;
         });
@@ -109,9 +110,13 @@ const ProjectForm: React.FC<{
         e.preventDefault();
         if (isSaving) return;
         if (!formData.title?.trim() || !formData.presentationDate) { alert("Título y Fecha obligatorios."); return; }
+        
+        // Asegurar que el promedio esté calculado antes de enviar
+        const dataToSave = { ...formData, finalGrade: calculateFinalAverage(formData) };
+        
         setIsSaving(true);
         try { 
-            await onSave(formData, assignments, assignedStudentIds); 
+            await onSave(dataToSave, assignments, assignedStudentIds); 
             onClose(); 
         }
         catch (error: any) { console.error(error); alert("Fallo al guardar: " + error.message); }
@@ -291,33 +296,25 @@ export const ProjectsPage: React.FC = () => {
         try {
             let savedProject: Project;
             
-            // 1. Guardar/Actualizar Proyecto principal en Supabase
             if (editingProject) {
                 savedProject = await db.updateProject({ ...editingProject, ...projectData } as Project);
             } else {
                 savedProject = await db.addProject(projectData as Omit<Project, 'id'>);
             }
 
-            // Si el proyecto se guardó con éxito, actualizamos relaciones secundarias
             if (!editingProject || isAdmin || userPerms[savedProject.id]?.canEdit) {
-                // 2. Docentes - Eliminar antiguos y re-añadir en la tabla puente
                 await db.deleteProjectTeachersByProject(savedProject.id);
                 for (const a of assignments) {
                     await db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId });
                 }
                 
-                // 3. Estudiantes - Sincronizar columna project_id en la tabla students
                 const sts = await db.getStudents();
-                
-                // Desvincular antiguos: a los que estaban vinculados pero ya no están en la lista actual
                 const currentlyLinked = sts.filter(s => s.projectId === savedProject.id);
                 for (const s of currentlyLinked) {
                     if (!studentIds.includes(s.id)) {
                         await db.updateStudent({ ...s, projectId: null });
                     }
                 }
-                
-                // Vincular actuales: establecer el project_id a los seleccionados
                 for (const sid of studentIds) {
                     const s = sts.find(st => st.id === sid);
                     if (s) {
@@ -326,13 +323,12 @@ export const ProjectsPage: React.FC = () => {
                 }
             }
             
-            // Recarga completa de Supabase para confirmar visibilidad de nombres y datos
             await loadData(); 
             setIsModalOpen(false);
             setEditingProject(null);
         } catch (err: any) { 
             console.error("Fallo crítico en handleSave:", err); 
-            alert("No se pudo completar el guardado en Supabase: " + err.message);
+            alert("No se pudo completar el guardado en Supabase: " + err.message + ". Verifica que la columna 'final_grade' exista en tu tabla 'projects'.");
         }
     };
 
@@ -381,7 +377,6 @@ export const ProjectsPage: React.FC = () => {
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {projects.map(p => {
-                                    // Filtramos los estudiantes cuyo projectId coincida con el de este proyecto
                                     const linkedStudents = students.filter(s => s.projectId === p.id);
                                     return (
                                         <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
@@ -400,7 +395,7 @@ export const ProjectsPage: React.FC = () => {
                                                 <span className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg bg-uninunez-teal/10 text-uninunez-teal">{statuses.find(s => s.id === p.statusId)?.name || 'PENDIENTE'}</span>
                                             </td>
                                             <td className="px-8 py-6 text-center">
-                                                <span className={`px-3 py-1 text-sm font-black rounded-lg ${p.finalGrade ? (p.finalGrade >= 3.0 ? 'bg-jade-100 text-jade-700' : 'bg-red-100 text-red-600') : 'bg-gray-100 text-gray-400'}`}>{p.finalGrade?.toFixed(2) || '---'}</span>
+                                                <span className={`px-3 py-1 text-sm font-black rounded-lg ${p.finalGrade && p.finalGrade > 0 ? (p.finalGrade >= 3.0 ? 'bg-jade-100 text-jade-700' : 'bg-red-100 text-red-600') : 'bg-gray-100 text-gray-400'}`}>{p.finalGrade ? p.finalGrade.toFixed(2) : '---'}</span>
                                             </td>
                                             <td className="px-8 py-6 text-right">
                                                 <div className="flex justify-end gap-2">
