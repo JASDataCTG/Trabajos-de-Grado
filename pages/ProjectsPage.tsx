@@ -29,6 +29,10 @@ const ProjectForm: React.FC<{
     const [selectedStudentId, setSelectedStudentId] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
+    // Estados para búsqueda/filtrado
+    const [studentSearch, setStudentSearch] = useState('');
+    const [teacherSearch, setTeacherSearch] = useState('');
+
     useEffect(() => {
         const initialData: Partial<Project> = {
             title: '', presentationDate: '', filesUrl: '',
@@ -83,7 +87,6 @@ const ProjectForm: React.FC<{
         }
         setFormData(prev => {
             const nextData = { ...prev, [name]: finalValue };
-            // Actualizar promedio final en cada cambio de nota
             if (name.includes('Grade')) nextData.finalGrade = calculateFinalAverage(nextData);
             return nextData;
         });
@@ -94,6 +97,7 @@ const ProjectForm: React.FC<{
             if (assignments.some(a => a.teacherId === newAssignment.teacherId)) { alert('Docente ya asignado.'); return; }
             setAssignments(prev => [...prev, {...newAssignment, tempId: Math.random()}]);
             setNewAssignment({ teacherId: '', roleId: '' });
+            setTeacherSearch('');
         }
     };
 
@@ -101,6 +105,7 @@ const ProjectForm: React.FC<{
         if (selectedStudentId && !assignedStudentIds.includes(selectedStudentId)) {
             setAssignedStudentIds(prev => [...prev, selectedStudentId]);
             setSelectedStudentId('');
+            setStudentSearch('');
         }
     };
 
@@ -110,10 +115,7 @@ const ProjectForm: React.FC<{
         e.preventDefault();
         if (isSaving) return;
         if (!formData.title?.trim() || !formData.presentationDate) { alert("Título y Fecha obligatorios."); return; }
-        
-        // Asegurar que el promedio esté calculado antes de enviar
         const dataToSave = { ...formData, finalGrade: calculateFinalAverage(formData) };
-        
         setIsSaving(true);
         try { 
             await onSave(dataToSave, assignments, assignedStudentIds); 
@@ -132,6 +134,20 @@ const ProjectForm: React.FC<{
 
     const canGradeReviewer1 = isAdmin || (gradeInfo.canGrade && gradeInfo.reviewerRole?.toLowerCase().includes('1'));
     const canGradeReviewer2 = isAdmin || (gradeInfo.canGrade && gradeInfo.reviewerRole?.toLowerCase().includes('2'));
+
+    // Filtrado de estudiantes para el buscador
+    const filteredStudentsList = allStudents.filter(s => {
+        const isNotAssigned = (!s.projectId || assignedStudentIds.includes(s.id)) && !assignedStudentIds.includes(s.id);
+        const matchesSearch = s.name.toLowerCase().includes(studentSearch.toLowerCase()) || 
+                             s.cedula.includes(studentSearch);
+        return isNotAssigned && matchesSearch;
+    });
+
+    // Filtrado de docentes para el buscador
+    const filteredTeachersList = teachers.filter(t => {
+        return t.name.toLowerCase().includes(teacherSearch.toLowerCase()) || 
+               t.cedula.includes(teacherSearch);
+    });
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6 max-h-[75vh] overflow-y-auto pr-2 scrollbar-thin">
@@ -191,14 +207,24 @@ const ProjectForm: React.FC<{
                     )) : <p className="text-[10px] text-gray-400 italic py-2">No hay estudiantes vinculados todavía.</p>}
                 </div>
                 {canEditDetails && (
-                    <div className="flex gap-2">
-                        <select value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} className="flex-grow border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50">
-                            <option value="">Vincular estudiante...</option>
-                            {allStudents.filter(s => (!s.projectId || assignedStudentIds.includes(s.id)) && !assignedStudentIds.includes(s.id)).map(s => (
-                                <option key={s.id} value={s.id}>{s.name} ({s.cedula})</option>
-                            ))}
-                        </select>
-                        <button type="button" onClick={handleAddStudent} className="bg-uninunez-orange text-white px-5 rounded-xl text-[10px] font-black uppercase hover:bg-uninunez-orangeLight">Añadir</button>
+                    <div className="space-y-2 bg-gray-50/50 p-4 rounded-2xl border border-dashed border-gray-200">
+                        <input 
+                            type="text" 
+                            placeholder="Escribe nombre o cédula para buscar..." 
+                            value={studentSearch}
+                            onChange={(e) => setStudentSearch(e.target.value)}
+                            className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-uninunez-orange focus:outline-none mb-1"
+                        />
+                        <div className="flex gap-2">
+                            <select value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} className="flex-grow border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+                                <option value="">Selecciona el resultado...</option>
+                                {filteredStudentsList.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name} ({s.cedula})</option>
+                                ))}
+                            </select>
+                            <button type="button" onClick={handleAddStudent} className="bg-uninunez-orange text-white px-5 rounded-xl text-[10px] font-black uppercase hover:bg-uninunez-orangeLight">Vincular</button>
+                        </div>
+                        {studentSearch && filteredStudentsList.length === 0 && <p className="text-[9px] text-red-400 font-bold ml-1">No se encontraron estudiantes con ese criterio.</p>}
                     </div>
                 )}
             </div>
@@ -214,16 +240,25 @@ const ProjectForm: React.FC<{
                     ))}
                 </div>
                 {canEditDetails && (
-                    <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
-                        <select value={newAssignment.teacherId} onChange={(e) => setNewAssignment(p => ({...p, teacherId: e.target.value}))} className="sm:col-span-3 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50">
-                            <option value="">Seleccionar Docente...</option>
-                            {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </select>
-                        <select value={newAssignment.roleId} onChange={(e) => setNewAssignment(p => ({...p, roleId: e.target.value}))} className="sm:col-span-3 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50">
-                            <option value="">Rol...</option>
-                            {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                        </select>
-                        <button type="button" onClick={handleAddAssignment} className="sm:col-span-1 bg-uninunez-orange text-white rounded-xl text-[10px] font-black uppercase">OK</button>
+                    <div className="space-y-2 bg-gray-50/50 p-4 rounded-2xl border border-dashed border-gray-200">
+                        <input 
+                            type="text" 
+                            placeholder="Buscar docente por nombre..." 
+                            value={teacherSearch}
+                            onChange={(e) => setTeacherSearch(e.target.value)}
+                            className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-uninunez-orange focus:outline-none mb-1"
+                        />
+                        <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
+                            <select value={newAssignment.teacherId} onChange={(e) => setNewAssignment(p => ({...p, teacherId: e.target.value}))} className="sm:col-span-3 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+                                <option value="">Selecciona Docente...</option>
+                                {filteredTeachersList.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                            <select value={newAssignment.roleId} onChange={(e) => setNewAssignment(p => ({...p, roleId: e.target.value}))} className="sm:col-span-3 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+                                <option value="">Rol...</option>
+                                {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                            </select>
+                            <button type="button" onClick={handleAddAssignment} className="sm:col-span-1 bg-uninunez-orange text-white rounded-xl text-[10px] font-black uppercase">OK</button>
+                        </div>
                     </div>
                 )}
             </div>
