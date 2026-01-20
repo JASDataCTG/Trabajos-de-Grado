@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   username: string;
@@ -19,6 +20,7 @@ export interface Project {
   presentationGradeReviewer1: number | null;
   writtenGradeReviewer2: number | null;
   presentationGradeReviewer2: number | null;
+  finalGrade: number | null;
 }
 
 export interface Program {

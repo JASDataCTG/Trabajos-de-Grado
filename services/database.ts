@@ -56,7 +56,8 @@ const mapProjectToDB = (p: Partial<Project>) => ({
     written_grade_reviewer1: p.writtenGradeReviewer1,
     presentation_grade_reviewer1: p.presentationGradeReviewer1,
     written_grade_reviewer2: p.writtenGradeReviewer2,
-    presentation_grade_reviewer2: p.presentationGradeReviewer2
+    presentation_grade_reviewer2: p.presentationGradeReviewer2,
+    final_grade: p.finalGrade
 });
 
 const mapProjectFromDB = (p: any): Project => ({
@@ -70,7 +71,8 @@ const mapProjectFromDB = (p: any): Project => ({
     writtenGradeReviewer1: p.written_grade_reviewer1 ?? p.writtenGradeReviewer1 ?? null,
     presentationGradeReviewer1: p.presentation_grade_reviewer1 ?? p.presentationGradeReviewer1 ?? null,
     writtenGradeReviewer2: p.written_grade_reviewer2 ?? p.writtenGradeReviewer2 ?? null,
-    presentationGradeReviewer2: p.presentation_grade_reviewer2 ?? p.presentationGradeReviewer2 ?? null
+    presentationGradeReviewer2: p.presentation_grade_reviewer2 ?? p.presentationGradeReviewer2 ?? null,
+    finalGrade: p.final_grade ?? p.finalGrade ?? null
 });
 
 export const db = {
@@ -94,7 +96,6 @@ export const db = {
         const local = getLocalDB().projects;
         if (supabase) {
             try {
-                // Eliminado .order('created_at') porque no existe en el esquema del usuario
                 const { data, error } = await supabase.from('projects').select('*');
                 if (!error && data && data.length > 0) {
                     const cloudProjects = data.map(mapProjectFromDB);
