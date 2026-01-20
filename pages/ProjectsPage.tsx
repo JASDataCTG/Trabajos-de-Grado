@@ -46,9 +46,15 @@ const ProjectForm: React.FC<{
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
         let val: any = value;
+        
         if (type === 'number') {
-            val = value === '' ? null : parseFloat(value);
-            if (val !== null && (val < 1 || val > 5)) return; // Validación de rango 1-5
+            if (value === '') {
+                val = null;
+            } else {
+                const num = parseFloat(value);
+                if (num < 1.0 || num > 5.0) return;
+                val = num;
+            }
         }
         setFormData(prev => ({ ...prev, [name]: val }));
     };
@@ -75,24 +81,26 @@ const ProjectForm: React.FC<{
     };
 
     const calculateFinalGrade = () => {
-        const g1w = formData.writtenGradeReviewer1 || 0;
-        const g1p = formData.presentationGradeReviewer1 || 0;
-        const g2w = formData.writtenGradeReviewer2 || 0;
-        const g2p = formData.presentationGradeReviewer2 || 0;
+        const g1w = formData.writtenGradeReviewer1 ?? 0;
+        const g1p = formData.presentationGradeReviewer1 ?? 0;
+        const g2w = formData.writtenGradeReviewer2 ?? 0;
+        const g2p = formData.presentationGradeReviewer2 ?? 0;
 
-        let total = 0;
-        let count = 0;
+        let ev1Avg = 0;
+        let ev2Avg = 0;
+        let activeEvaluators = 0;
 
         if (g1w > 0 || g1p > 0) {
-            total += (g1w + g1p) / (g1w > 0 && g1p > 0 ? 2 : 1);
-            count++;
+            ev1Avg = (g1w + g1p) / ((g1w > 0 ? 1 : 0) + (g1p > 0 ? 1 : 0));
+            activeEvaluators++;
         }
         if (g2w > 0 || g2p > 0) {
-            total += (g2w + g2p) / (g2w > 0 && g2p > 0 ? 2 : 1);
-            count++;
+            ev2Avg = (g2w + g2p) / ((g2w > 0 ? 1 : 0) + (g2p > 0 ? 1 : 0));
+            activeEvaluators++;
         }
 
-        return count > 0 ? (total / count).toFixed(2) : '0.00';
+        if (activeEvaluators === 0) return "0.00";
+        return ((ev1Avg + ev2Avg) / activeEvaluators).toFixed(2);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -104,23 +112,24 @@ const ProjectForm: React.FC<{
     const getRoleName = (id: string) => roles.find(r => r.id === id)?.name || 'Desconocido';
     const getStudentName = (id: string) => allStudents.find(s => s.id === id)?.name || 'Estudiante';
 
-    const canGrade1 = isAdmin || gradeInfo.reviewerSlot === 1;
-    const canGrade2 = isAdmin || gradeInfo.reviewerSlot === 2;
+    // Validación estricta de digitación de notas
+    const isGradingDisabled1 = !(isAdmin || gradeInfo.reviewerSlot === 1);
+    const isGradingDisabled2 = !(isAdmin || gradeInfo.reviewerSlot === 2);
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-4">
                 <div>
-                    <label className="block text-[10px] font-bold text-uninunez-ash uppercase tracking-widest mb-1.5 ml-1">Título del Proyecto</label>
+                    <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-[0.1em] mb-1.5 ml-1">Título del Proyecto</label>
                     <input type="text" name="title" value={formData.title || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50" disabled={!canEditDetails} />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-[10px] font-bold text-uninunez-ash uppercase tracking-widest mb-1.5 ml-1">Fecha de Radicación</label>
+                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-[0.1em] mb-1.5 ml-1">Fecha de Radicación</label>
                         <input type="date" name="presentationDate" value={formData.presentationDate || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50" disabled={!canEditDetails}/>
                     </div>
                     <div>
-                        <label className="block text-[10px] font-bold text-uninunez-ash uppercase tracking-widest mb-1.5 ml-1">Estado del Proceso</label>
+                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-[0.1em] mb-1.5 ml-1">Estado Institucional</label>
                         <select name="statusId" value={formData.statusId || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50" disabled={!canEditDetails && !gradeInfo.canGrade}>
                             {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
@@ -128,46 +137,65 @@ const ProjectForm: React.FC<{
                 </div>
             </div>
 
-            {/* SECCIÓN DE CALIFICACIONES */}
-            <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 space-y-4">
-                <div className="flex justify-between items-center mb-2">
-                    <h4 className="text-xs font-black text-uninunez-onix uppercase tracking-widest">Calificaciones Académicas (1.0 - 5.0)</h4>
-                    <div className="bg-uninunez-orange text-white px-3 py-1 rounded-lg text-sm font-black">
-                        NOTA FINAL: {calculateFinalGrade()}
+            {/* SECCIÓN DE CALIFICACIONES - SOLO EVALUADORES */}
+            <div className="bg-uninunez-onix/5 p-6 rounded-2xl border border-uninunez-onix/10 space-y-4">
+                <div className="flex justify-between items-center border-b border-uninunez-onix/10 pb-4">
+                    <div>
+                        <h4 className="text-[11px] font-black text-uninunez-onix uppercase tracking-[0.2em]">Evaluación Académica (Evaluadores)</h4>
+                        <p className="text-[9px] text-uninunez-ash font-bold uppercase mt-1">Escala Institucional 1.0 - 5.0</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-bold text-uninunez-ash uppercase">Nota Final:</span>
+                        <div className="bg-uninunez-orange text-white px-4 py-1.5 rounded-lg text-sm font-black shadow-md min-w-[60px] text-center">
+                            {calculateFinalGrade()}
+                        </div>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Evaluador 1 */}
-                    <div className={`p-4 rounded-xl border-2 ${canGrade1 ? 'bg-white border-uninunez-teal/20' : 'bg-gray-100 border-transparent opacity-60'}`}>
-                        <p className="text-[10px] font-black text-uninunez-teal uppercase tracking-widest mb-3">Evaluador 1</p>
+                    {/* Panel Evaluador 1 */}
+                    <div className={`p-4 rounded-xl border-2 transition-all ${!isGradingDisabled1 ? 'bg-white border-uninunez-teal shadow-md' : 'bg-gray-50 border-transparent opacity-60'}`}>
+                        <div className="flex items-center justify-between mb-4">
+                            <p className="text-[10px] font-black text-uninunez-teal uppercase tracking-widest">Docente Evaluador 1</p>
+                            {!isGradingDisabled1 && <span className="bg-uninunez-teal text-white text-[8px] px-2 py-0.5 rounded uppercase font-bold animate-pulse">Habilitado</span>}
+                        </div>
                         <div className="space-y-3">
                             <div>
-                                <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Trabajo Escrito</label>
-                                <input type="number" step="0.1" min="1" max="5" name="writtenGradeReviewer1" value={formData.writtenGradeReviewer1 ?? ''} onChange={handleChange} disabled={!canGrade1} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-uninunez-teal" placeholder="0.0" />
+                                <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Nota Escrita</label>
+                                <input type="number" step="0.1" min="1" max="5" name="writtenGradeReviewer1" value={formData.writtenGradeReviewer1 ?? ''} onChange={handleChange} disabled={isGradingDisabled1} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-uninunez-teal font-bold text-uninunez-onix" placeholder="0.0" />
                             </div>
                             <div>
-                                <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Sustentación</label>
-                                <input type="number" step="0.1" min="1" max="5" name="presentationGradeReviewer1" value={formData.presentationGradeReviewer1 ?? ''} onChange={handleChange} disabled={!canGrade1} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-uninunez-teal" placeholder="0.0" />
+                                <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Nota Sustentación</label>
+                                <input type="number" step="0.1" min="1" max="5" name="presentationGradeReviewer1" value={formData.presentationGradeReviewer1 ?? ''} onChange={handleChange} disabled={isGradingDisabled1} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-uninunez-teal font-bold text-uninunez-onix" placeholder="0.0" />
                             </div>
                         </div>
                     </div>
 
-                    {/* Evaluador 2 */}
-                    <div className={`p-4 rounded-xl border-2 ${canGrade2 ? 'bg-white border-uninunez-teal/20' : 'bg-gray-100 border-transparent opacity-60'}`}>
-                        <p className="text-[10px] font-black text-uninunez-teal uppercase tracking-widest mb-3">Evaluador 2</p>
+                    {/* Panel Evaluador 2 */}
+                    <div className={`p-4 rounded-xl border-2 transition-all ${!isGradingDisabled2 ? 'bg-white border-uninunez-teal shadow-md' : 'bg-gray-50 border-transparent opacity-60'}`}>
+                        <div className="flex items-center justify-between mb-4">
+                            <p className="text-[10px] font-black text-uninunez-teal uppercase tracking-widest">Docente Evaluador 2</p>
+                            {!isGradingDisabled2 && <span className="bg-uninunez-teal text-white text-[8px] px-2 py-0.5 rounded uppercase font-bold animate-pulse">Habilitado</span>}
+                        </div>
                         <div className="space-y-3">
                             <div>
-                                <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Trabajo Escrito</label>
-                                <input type="number" step="0.1" min="1" max="5" name="writtenGradeReviewer2" value={formData.writtenGradeReviewer2 ?? ''} onChange={handleChange} disabled={!canGrade2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-uninunez-teal" placeholder="0.0" />
+                                <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Nota Escrita</label>
+                                <input type="number" step="0.1" min="1" max="5" name="writtenGradeReviewer2" value={formData.writtenGradeReviewer2 ?? ''} onChange={handleChange} disabled={isGradingDisabled2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-uninunez-teal font-bold text-uninunez-onix" placeholder="0.0" />
                             </div>
                             <div>
-                                <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Sustentación</label>
-                                <input type="number" step="0.1" min="1" max="5" name="presentationGradeReviewer2" value={formData.presentationGradeReviewer2 ?? ''} onChange={handleChange} disabled={!canGrade2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-uninunez-teal" placeholder="0.0" />
+                                <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Nota Sustentación</label>
+                                <input type="number" step="0.1" min="1" max="5" name="presentationGradeReviewer2" value={formData.presentationGradeReviewer2 ?? ''} onChange={handleChange} disabled={isGradingDisabled2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-uninunez-teal font-bold text-uninunez-onix" placeholder="0.0" />
                             </div>
                         </div>
                     </div>
                 </div>
+                
+                {gradeInfo.canGrade && !isAdmin && (
+                    <div className="mt-2 text-[9px] font-bold text-uninunez-ash bg-white/50 p-2 rounded-lg border border-uninunez-onix/5 text-center uppercase tracking-tight">
+                        Acceso de Evaluador: <span className="text-uninunez-teal">{gradeInfo.reviewerRole}</span>. 
+                        Los campos de calificación están restringidos a su rol asignado.
+                    </div>
+                )}
             </div>
             
             <div className="pt-4 border-t border-gray-100">
@@ -187,7 +215,7 @@ const ProjectForm: React.FC<{
                 {canEditDetails && (
                     <div className="flex gap-2">
                         <select value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} className="flex-grow border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                            <option value="">Seleccionar Estudiante...</option>
+                            <option value="">Vincular Estudiante...</option>
                             {allStudents.filter(s => (!s.projectId || assignedStudentIds.includes(s.id)) && !assignedStudentIds.includes(s.id)).map(s => (
                                 <option key={s.id} value={s.id}>{s.name}</option>
                             ))}
@@ -198,11 +226,11 @@ const ProjectForm: React.FC<{
             </div>
 
             <div className="pt-4 border-t border-gray-100">
-                <h4 className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-4 ml-1">Docentes Asignados</h4>
+                <h4 className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-4 ml-1">Cuerpo Docente del Proyecto</h4>
                 <div className="space-y-2 mb-4">
                     {assignments.map(a => (
                         <div key={a.tempId} className="flex justify-between items-center bg-white px-4 py-2.5 rounded-xl border border-gray-100 shadow-sm">
-                            <span className="text-sm font-bold text-gray-700">{getTeacherName(a.teacherId)} — <span className="text-uninunez-orange text-[10px] uppercase">{getRoleName(a.roleId)}</span></span>
+                            <span className="text-sm font-bold text-gray-700">{getTeacherName(a.teacherId)} — <span className="text-uninunez-orange text-[10px] uppercase font-black">{getRoleName(a.roleId)}</span></span>
                             {canEditDetails && (
                                 <button type="button" onClick={() => setAssignments(prev => prev.filter(x => x.tempId !== a.tempId))} className="text-red-400 hover:text-red-600 p-1">
                                     <TrashIcon className="h-4 w-4"/>
@@ -227,7 +255,7 @@ const ProjectForm: React.FC<{
             </div>
 
             <div className="flex justify-end gap-3 pt-6 border-t">
-                <button type="button" onClick={onClose} className="px-6 py-3 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-all">Cerrar</button>
+                <button type="button" onClick={onClose} className="px-6 py-3 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-all">Cancelar</button>
                 <button type="submit" className="px-10 py-3 bg-uninunez-orange text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-uninunez-orangeLight shadow-xl transform transition active:scale-95">Guardar Cambios</button>
             </div>
         </form>
@@ -284,14 +312,12 @@ export const ProjectsPage: React.FC = () => {
             savedProject = await db.addProject(projectData as Omit<Project, 'id'>);
         }
 
-        // Sincronizar Docentes (solo si es admin o director)
         if (userPerms[savedProject.id]?.canEdit || isAdmin || !editingProject) {
             await db.deleteProjectTeachersByProject(savedProject.id);
             for (const a of assignments) {
                 await db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId });
             }
 
-            // Sincronizar Estudiantes
             const prevProjectStudents = students.filter(s => s.projectId === savedProject.id);
             for (const s of prevProjectStudents) {
                 if (!studentIds.includes(s.id)) {
@@ -322,7 +348,7 @@ export const ProjectsPage: React.FC = () => {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-black text-uninunez-onix font-display uppercase tracking-tight">Proyectos Académicos</h1>
+                    <h1 className="text-3xl font-black text-uninunez-onix font-display uppercase tracking-tight">Gestión Académica</h1>
                     <p className="text-uninunez-ash text-sm font-medium">Control de trabajos de grado, evaluaciones y seguimiento.</p>
                 </div>
                 {isAdmin && (
@@ -341,8 +367,8 @@ export const ProjectsPage: React.FC = () => {
                         <thead className="bg-gray-50/50 border-b border-gray-100">
                             <tr>
                                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Proyecto</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Etapa Actual</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Gestión</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Estado de Trámite</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -350,11 +376,11 @@ export const ProjectsPage: React.FC = () => {
                                 <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
                                     <td className="px-8 py-6">
                                         <div className="text-sm font-bold text-uninunez-onix group-hover:text-uninunez-orange transition-colors">{p.title}</div>
-                                        <div className="text-[10px] text-gray-400 mt-1 uppercase font-medium">Radicado: {p.presentationDate}</div>
+                                        <div className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tight">Radicado: {p.presentationDate}</div>
                                     </td>
                                     <td className="px-8 py-6">
                                         <span className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg bg-uninunez-teal/10 text-uninunez-teal">
-                                            {statuses.find(s => s.id === p.statusId)?.name || 'POR ASIGNAR'}
+                                            {statuses.find(s => s.id === p.statusId)?.name || 'POR DEFINIR'}
                                         </span>
                                     </td>
                                     <td className="px-8 py-6 text-right">
@@ -378,7 +404,7 @@ export const ProjectsPage: React.FC = () => {
                 </div>
             </div>
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingProject ? 'Expediente de Proyecto' : 'Registro de Nuevo Proyecto'}>
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingProject ? 'Ficha Técnica de Proyecto' : 'Registro de Nuevo Proyecto'}>
                 {isModalOpen && (
                     <ProjectForm 
                         project={editingProject} 
