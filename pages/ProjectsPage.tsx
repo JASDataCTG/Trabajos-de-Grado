@@ -297,22 +297,31 @@ export const ProjectsPage: React.FC = () => {
             }
 
             if (!editingProject || isAdmin || userPerms[savedProject.id]?.canEdit) {
+                // 1. Limpiar docentes asignados
                 await db.deleteProjectTeachersByProject(savedProject.id);
                 for (const a of assignments) {
                     await db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId });
                 }
                 
+                // 2. Vincular estudiantes (Espera a que todos terminen para evitar desajustes)
                 const sts = await db.getStudents();
+                const studentUpdatePromises = [];
+                
+                // Desvincular los que ya no están
                 const studentsToUnlink = sts.filter(s => s.projectId === savedProject.id && !studentIds.includes(s.id));
                 for (const s of studentsToUnlink) {
-                    await db.updateStudent({ ...s, projectId: null });
+                    studentUpdatePromises.push(db.updateStudent({ ...s, projectId: null }));
                 }
+                
+                // Vincular nuevos
                 for (const sid of studentIds) {
                     const s = sts.find(st => st.id === sid);
                     if (s && s.projectId !== savedProject.id) {
-                        await db.updateStudent({ ...s, projectId: savedProject.id });
+                        studentUpdatePromises.push(db.updateStudent({ ...s, projectId: savedProject.id }));
                     }
                 }
+                
+                await Promise.all(studentUpdatePromises);
             }
             
             await loadData(); 
@@ -320,7 +329,7 @@ export const ProjectsPage: React.FC = () => {
             setEditingProject(null);
         } catch (err) { 
             console.error("Error guardando proyecto:", err); 
-            alert("No se pudo guardar el proyecto. Revisa la consola.");
+            alert("No se pudo guardar el proyecto. Revisa la consola (F12) para ver el error de Supabase.");
         }
     };
 
@@ -368,36 +377,38 @@ export const ProjectsPage: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {projects.map(p => (
-                                    <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
-                                        <td className="px-8 py-6">
-                                            <div className="text-sm font-bold text-uninunez-onix group-hover:text-uninunez-orange transition-colors">{p.title}</div>
-                                            <div className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tight">Radicación: {p.presentationDate}</div>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <div className="flex flex-wrap gap-1">
-                                                {students.filter(s => s.projectId === p.id).map(s => (
-                                                    <span key={s.id} className="inline-block px-2 py-0.5 bg-jade-50 text-[10px] font-bold text-jade-700 rounded uppercase border border-jade-100 shadow-sm">{s.name}</span>
-                                                ))}
-                                                {students.filter(s => s.projectId === p.id).length === 0 && <span className="text-[10px] text-gray-300 italic">Sin estudiantes vinculados</span>}
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <span className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg bg-uninunez-teal/10 text-uninunez-teal">{statuses.find(s => s.id === p.statusId)?.name || 'PENDIENTE'}</span>
-                                        </td>
-                                        <td className="px-8 py-6 text-center">
-                                            <span className={`px-3 py-1 text-sm font-black rounded-lg ${p.finalGrade ? (p.finalGrade >= 3.0 ? 'bg-jade-100 text-jade-700' : 'bg-red-100 text-red-600') : 'bg-gray-100 text-gray-400'}`}>{p.finalGrade?.toFixed(2) || '---'}</span>
-                                        </td>
-                                        <td className="px-8 py-6 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                {(isAdmin || userPerms[p.id]?.canEdit || userPerms[p.id]?.grade?.canGrade) && (
-                                                    <button onClick={() => { setEditingProject(p); setIsModalOpen(true); }} className="p-2.5 bg-uninunez-teal/5 text-uninunez-teal hover:bg-uninunez-teal hover:text-white rounded-xl shadow-sm transition-all"><EditIcon className="h-5 w-5"/></button>
-                                                )}
-                                                {(isAdmin || userPerms[p.id]?.canEdit) && <button onClick={() => setDeletingProject(p)} className="p-2.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl shadow-sm transition-all"><TrashIcon className="h-5 w-5"/></button>}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {projects.map(p => {
+                                    const linkedStudents = students.filter(s => s.projectId === p.id);
+                                    return (
+                                        <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
+                                            <td className="px-8 py-6">
+                                                <div className="text-sm font-bold text-uninunez-onix group-hover:text-uninunez-orange transition-colors">{p.title}</div>
+                                                <div className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tight">Radicación: {p.presentationDate}</div>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {linkedStudents.length > 0 ? linkedStudents.map(s => (
+                                                        <span key={s.id} className="inline-block px-2 py-0.5 bg-jade-50 text-[10px] font-bold text-jade-700 rounded uppercase border border-jade-100 shadow-sm">{s.name}</span>
+                                                    )) : <span className="text-[10px] text-gray-300 italic">Sin estudiantes vinculados</span>}
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <span className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg bg-uninunez-teal/10 text-uninunez-teal">{statuses.find(s => s.id === p.statusId)?.name || 'PENDIENTE'}</span>
+                                            </td>
+                                            <td className="px-8 py-6 text-center">
+                                                <span className={`px-3 py-1 text-sm font-black rounded-lg ${p.finalGrade ? (p.finalGrade >= 3.0 ? 'bg-jade-100 text-jade-700' : 'bg-red-100 text-red-600') : 'bg-gray-100 text-gray-400'}`}>{p.finalGrade?.toFixed(2) || '---'}</span>
+                                            </td>
+                                            <td className="px-8 py-6 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    {(isAdmin || userPerms[p.id]?.canEdit || userPerms[p.id]?.grade?.canGrade) && (
+                                                        <button onClick={() => { setEditingProject(p); setIsModalOpen(true); }} className="p-2.5 bg-uninunez-teal/5 text-uninunez-teal hover:bg-uninunez-teal hover:text-white rounded-xl shadow-sm transition-all"><EditIcon className="h-5 w-5"/></button>
+                                                    )}
+                                                    {(isAdmin || userPerms[p.id]?.canEdit) && <button onClick={() => setDeletingProject(p)} className="p-2.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl shadow-sm transition-all"><TrashIcon className="h-5 w-5"/></button>}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                                 {!isLoading && projects.length === 0 && (
                                     <tr>
                                         <td colSpan={5} className="text-center py-20">

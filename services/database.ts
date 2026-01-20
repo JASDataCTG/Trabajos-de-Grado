@@ -51,12 +51,7 @@ const mapProjectToDB = (p: Partial<Project>) => ({
     files_url: p.filesUrl || '',
     status_id: p.statusId || null,
     format_id: p.formatId || null,
-    is_approved_by_director: !!p.isApprovedByDirector,
-    written_grade_reviewer1: p.writtenGradeReviewer1,
-    presentation_grade_reviewer1: p.presentationGradeReviewer1,
-    written_grade_reviewer2: p.writtenGradeReviewer2,
-    presentation_grade_reviewer2: p.presentationGradeReviewer2,
-    final_grade: p.finalGrade
+    is_approved_by_director: !!p.isApprovedByDirector
 });
 
 const mapProjectFromDB = (p: any): Project => ({
@@ -67,11 +62,11 @@ const mapProjectFromDB = (p: any): Project => ({
     statusId: p.status_id || p.statusId || '',
     formatId: p.format_id || p.formatId || '',
     isApprovedByDirector: p.is_approved_by_director ?? p.isApprovedByDirector ?? false,
-    writtenGradeReviewer1: p.written_grade_reviewer1 ?? p.writtenGradeReviewer1 ?? null,
-    presentationGradeReviewer1: p.presentation_grade_reviewer1 ?? p.presentationGradeReviewer1 ?? null,
-    writtenGradeReviewer2: p.written_grade_reviewer2 ?? p.writtenGradeReviewer2 ?? null,
-    presentationGradeReviewer2: p.presentation_grade_reviewer2 ?? p.presentationGradeReviewer2 ?? null,
-    finalGrade: p.final_grade ?? p.finalGrade ?? null
+    writtenGradeReviewer1: p.written_grade_reviewer1 ?? null,
+    presentationGradeReviewer1: p.presentation_grade_reviewer1 ?? null,
+    writtenGradeReviewer2: p.written_grade_reviewer2 ?? null,
+    presentationGradeReviewer2: p.presentation_grade_reviewer2 ?? null,
+    finalGrade: p.final_grade ?? null
 });
 
 export const db = {
@@ -141,9 +136,12 @@ export const db = {
                 const { data, error } = await supabase.from('students').select('*');
                 if (!error && data) {
                     const cloudStudents = data.map((s: any) => ({ 
-                        id: s.id, name: s.name, email: s.email, cedula: s.cedula, 
-                        projectId: s.project_id || s.projectId, 
-                        programId: s.program_id || s.programId 
+                        id: s.id, 
+                        name: s.name, 
+                        email: s.email, 
+                        cedula: s.cedula, 
+                        projectId: s.project_id || null, 
+                        programId: s.program_id || null 
                     }));
                     const merged = [...cloudStudents];
                     localStudents.forEach((ls: Student) => {
@@ -180,9 +178,9 @@ export const db = {
                 if (data) {
                     const pts = data.map((pt: any) => ({ 
                         id: pt.id, 
-                        projectId: pt.project_id || pt.projectId, 
-                        teacherId: pt.teacher_id || pt.teacherId, 
-                        roleId: pt.role_id || pt.roleId 
+                        projectId: pt.project_id, 
+                        teacherId: pt.teacher_id, 
+                        roleId: pt.role_id 
                     }));
                     db_l.projectTeachers = pts; setLocalDB(db_l);
                     return pts;
@@ -198,7 +196,10 @@ export const db = {
         const db_l = getLocalDB();
         db_l.projects.unshift(newProject);
         setLocalDB(db_l);
-        if (supabase) await supabase.from('projects').insert([mapProjectToDB(newProject)]);
+        if (supabase) {
+            const { error } = await supabase.from('projects').insert([mapProjectToDB(newProject)]);
+            if (error) console.error("Error saving to Supabase:", error.message);
+        }
         return newProject;
     },
 
@@ -206,7 +207,10 @@ export const db = {
         const db_l = getLocalDB();
         const idx = db_l.projects.findIndex((p: any) => p.id === project.id);
         if (idx !== -1) { db_l.projects[idx] = project; setLocalDB(db_l); }
-        if (supabase) await supabase.from('projects').update(mapProjectToDB(project)).eq('id', project.id);
+        if (supabase) {
+            const { error } = await supabase.from('projects').update(mapProjectToDB(project)).eq('id', project.id);
+            if (error) console.error("Error updating Supabase:", error.message);
+        }
         return project;
     },
 
@@ -233,8 +237,14 @@ export const db = {
 
     updateStudent: async (student: Student) => {
         if (supabase) {
-            await supabase.from('students').update({ name: student.name, email: student.email, cedula: student.cedula, project_id: student.projectId, program_id: student.programId }).eq('id', student.id);
-            await supabase.from('users').update({ username: student.name, password: student.cedula }).eq('student_id', student.id);
+            const { error } = await supabase.from('students').update({ 
+                name: student.name, 
+                email: student.email, 
+                cedula: student.cedula, 
+                project_id: student.projectId, 
+                program_id: student.programId 
+            }).eq('id', student.id);
+            if (error) console.error("Error linking student in Supabase:", error.message);
         }
         const db_l = getLocalDB();
         const idx = db_l.students.findIndex((s: any) => s.id === student.id);
