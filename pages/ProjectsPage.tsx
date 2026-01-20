@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const ProjectForm: React.FC<{
     project: Partial<Project> | null;
-    onSave: (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>, studentIds: string[]) => void;
+    onSave: (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>, studentIds: string[]) => Promise<void>;
     onClose: () => void;
     statuses: Status[];
     formats: Format[];
@@ -27,6 +27,7 @@ const ProjectForm: React.FC<{
     const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>([]);
     const [newAssignment, setNewAssignment] = useState({ teacherId: '', roleId: '' });
     const [selectedStudentId, setSelectedStudentId] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         const initialData: Partial<Project> = {
@@ -103,16 +104,31 @@ const ProjectForm: React.FC<{
         return ((ev1Avg + ev2Avg) / activeEvaluators).toFixed(2);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(formData, assignments, assignedStudentIds);
+        if (isSaving) return;
+        
+        if (!formData.title?.trim() || !formData.presentationDate) {
+            alert("Título y Fecha son obligatorios.");
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            await onSave(formData, assignments, assignedStudentIds);
+            onClose();
+        } catch (error) {
+            console.error("Error al guardar:", error);
+            alert("Error al guardar los datos. Intente nuevamente.");
+        } finally {
+            setIsSaving(false);
+        }
     };
     
     const getTeacherName = (id: string) => teachers.find(t => t.id === id)?.name || 'Desconocido';
     const getRoleName = (id: string) => roles.find(r => r.id === id)?.name || 'Desconocido';
     const getStudentName = (id: string) => allStudents.find(s => s.id === id)?.name || 'Estudiante';
 
-    // Validación estricta de digitación de notas
     const isGradingDisabled1 = !(isAdmin || gradeInfo.reviewerSlot === 1);
     const isGradingDisabled2 = !(isAdmin || gradeInfo.reviewerSlot === 2);
 
@@ -137,7 +153,6 @@ const ProjectForm: React.FC<{
                 </div>
             </div>
 
-            {/* SECCIÓN DE CALIFICACIONES - SOLO EVALUADORES */}
             <div className="bg-uninunez-onix/5 p-6 rounded-2xl border border-uninunez-onix/10 space-y-4">
                 <div className="flex justify-between items-center border-b border-uninunez-onix/10 pb-4">
                     <div>
@@ -153,7 +168,6 @@ const ProjectForm: React.FC<{
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Panel Evaluador 1 */}
                     <div className={`p-4 rounded-xl border-2 transition-all ${!isGradingDisabled1 ? 'bg-white border-uninunez-teal shadow-md' : 'bg-gray-50 border-transparent opacity-60'}`}>
                         <div className="flex items-center justify-between mb-4">
                             <p className="text-[10px] font-black text-uninunez-teal uppercase tracking-widest">Docente Evaluador 1</p>
@@ -171,7 +185,6 @@ const ProjectForm: React.FC<{
                         </div>
                     </div>
 
-                    {/* Panel Evaluador 2 */}
                     <div className={`p-4 rounded-xl border-2 transition-all ${!isGradingDisabled2 ? 'bg-white border-uninunez-teal shadow-md' : 'bg-gray-50 border-transparent opacity-60'}`}>
                         <div className="flex items-center justify-between mb-4">
                             <p className="text-[10px] font-black text-uninunez-teal uppercase tracking-widest">Docente Evaluador 2</p>
@@ -255,8 +268,10 @@ const ProjectForm: React.FC<{
             </div>
 
             <div className="flex justify-end gap-3 pt-6 border-t">
-                <button type="button" onClick={onClose} className="px-6 py-3 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-all">Cancelar</button>
-                <button type="submit" className="px-10 py-3 bg-uninunez-orange text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-uninunez-orangeLight shadow-xl transform transition active:scale-95">Guardar Cambios</button>
+                <button type="button" onClick={onClose} disabled={isSaving} className="px-6 py-3 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-50 transition-all">Cancelar</button>
+                <button type="submit" disabled={isSaving} className={`px-10 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl transform transition active:scale-95 ${isSaving ? 'bg-gray-400' : 'bg-uninunez-orange hover:bg-uninunez-orangeLight text-white'}`}>
+                    {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
             </div>
         </form>
     );
@@ -279,68 +294,88 @@ export const ProjectsPage: React.FC = () => {
     const [userPerms, setUserPerms] = useState<Record<string, {canEdit: boolean, grade: {canGrade: boolean, reviewerRole: string | null, reviewerSlot: 1 | 2 | 'admin' | null}}>>({});
 
     const loadData = useCallback(async () => {
-        const [p, s, t, r, st, f, pt] = await Promise.all([
-            db.getProjects(), db.getStudents(), db.getTeachers(),
-            db.getTeacherRoles(), db.getStatuses(), db.getFormats(),
-            db.getProjectTeachers()
-        ]);
-        setProjects(p);
-        setStudents(s);
-        setTeachers(t);
-        setRoles(r);
-        setStatuses(st);
-        setFormats(f);
-        setProjectTeachers(pt);
-
-        const perms: any = {};
-        for(const project of p) {
-            perms[project.id] = {
-                canEdit: await canEditProject(project.id),
-                grade: await canGradeProject(project.id)
-            };
+        try {
+            const [p, s, t, r, st, f, pt] = await Promise.all([
+                db.getProjects(), db.getStudents(), db.getTeachers(),
+                db.getTeacherRoles(), db.getStatuses(), db.getFormats(),
+                db.getProjectTeachers()
+            ]);
+            
+            const perms: any = {};
+            for(const project of p) {
+                perms[project.id] = {
+                    canEdit: await canEditProject(project.id),
+                    grade: await canGradeProject(project.id)
+                };
+            }
+            
+            setProjects(p);
+            setStudents(s);
+            setTeachers(t);
+            setRoles(r);
+            setStatuses(st);
+            setFormats(f);
+            setProjectTeachers(pt);
+            setUserPerms(perms);
+        } catch (error) {
+            console.error("Error cargando datos maestros:", error);
         }
-        setUserPerms(perms);
     }, [canEditProject, canGradeProject]);
 
     useEffect(() => { loadData(); }, [loadData]);
 
     const handleSave = async (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>, studentIds: string[]) => {
-        let savedProject: Project;
-        if (editingProject) {
-            savedProject = await db.updateProject({ ...editingProject, ...projectData } as Project);
-        } else {
-            savedProject = await db.addProject(projectData as Omit<Project, 'id'>);
-        }
-
-        if (userPerms[savedProject.id]?.canEdit || isAdmin || !editingProject) {
-            await db.deleteProjectTeachersByProject(savedProject.id);
-            for (const a of assignments) {
-                await db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId });
+        try {
+            let savedProject: Project;
+            const isEditing = !!editingProject;
+            
+            if (isEditing) {
+                savedProject = await db.updateProject({ ...editingProject, ...projectData } as Project);
+            } else {
+                savedProject = await db.addProject(projectData as Omit<Project, 'id'>);
             }
 
-            const prevProjectStudents = students.filter(s => s.projectId === savedProject.id);
-            for (const s of prevProjectStudents) {
-                if (!studentIds.includes(s.id)) {
-                    await db.updateStudent({ ...s, projectId: null });
+            // Solo actualizar vínculos si es administrador o creador (o si es nuevo)
+            if (!isEditing || isAdmin || userPerms[savedProject.id]?.canEdit) {
+                await db.deleteProjectTeachersByProject(savedProject.id);
+                for (const a of assignments) {
+                    await db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId });
+                }
+
+                // Actualizar estudiantes vinculados
+                const studentsData = await db.getStudents();
+                const prevProjectStudents = studentsData.filter(s => s.projectId === savedProject.id);
+                
+                for (const s of prevProjectStudents) {
+                    if (!studentIds.includes(s.id)) {
+                        await db.updateStudent({ ...s, projectId: null });
+                    }
+                }
+                for (const sid of studentIds) {
+                    const s = studentsData.find(x => x.id === sid);
+                    if (s && s.projectId !== savedProject.id) {
+                        await db.updateStudent({ ...s, projectId: savedProject.id });
+                    }
                 }
             }
-            for (const sid of studentIds) {
-                const s = students.find(x => x.id === sid);
-                if (s && s.projectId !== savedProject.id) {
-                    await db.updateStudent({ ...s, projectId: savedProject.id });
-                }
-            }
-        }
 
-        loadData();
-        setIsModalOpen(false);
+            await loadData();
+            setIsModalOpen(false);
+        } catch (err) {
+            console.error("Error en proceso de guardado:", err);
+            throw err;
+        }
     };
 
     const handleDelete = async () => {
         if (deletingProject) {
-            await db.deleteProject(deletingProject.id);
-            loadData();
-            setDeletingProject(null);
+            try {
+                await db.deleteProject(deletingProject.id);
+                await loadData();
+                setDeletingProject(null);
+            } catch (err) {
+                alert("No se pudo eliminar el proyecto.");
+            }
         }
     };
     
@@ -385,12 +420,12 @@ export const ProjectsPage: React.FC = () => {
                                     </td>
                                     <td className="px-8 py-6 text-right">
                                         <div className="flex justify-end gap-2">
-                                            {(userPerms[p.id]?.canEdit || userPerms[p.id]?.grade.canGrade) && (
+                                            {(isAdmin || userPerms[p.id]?.canEdit || userPerms[p.id]?.grade.canGrade) && (
                                                 <button onClick={() => { setEditingProject(p); setIsModalOpen(true); }} className="p-2.5 bg-uninunez-teal/5 text-uninunez-teal hover:bg-uninunez-teal hover:text-white rounded-xl transition-all">
                                                     <EditIcon className="h-5 w-5"/>
                                                 </button>
                                             )}
-                                            {userPerms[p.id]?.canEdit && (
+                                            {(isAdmin || userPerms[p.id]?.canEdit) && (
                                                 <button onClick={() => setDeletingProject(p)} className="p-2.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-all">
                                                     <TrashIcon className="h-5 w-5"/>
                                                 </button>
@@ -399,6 +434,11 @@ export const ProjectsPage: React.FC = () => {
                                     </td>
                                 </tr>
                             ))}
+                            {projects.length === 0 && (
+                                <tr>
+                                    <td colSpan={3} className="text-center py-10 text-gray-400 italic">No hay proyectos registrados.</td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -417,7 +457,7 @@ export const ProjectsPage: React.FC = () => {
                         roles={roles} 
                         initialAssignments={editingProject ? projectTeachers.filter(pt => pt.projectId === editingProject.id) : []} 
                         initialStudentIds={editingProject ? students.filter(s => s.projectId === editingProject.id).map(s => s.id) : []}
-                        canEditDetails={editingProject ? userPerms[editingProject.id]?.canEdit : isAdmin} 
+                        canEditDetails={editingProject ? (isAdmin || userPerms[editingProject.id]?.canEdit) : isAdmin} 
                         gradeInfo={editingProject ? userPerms[editingProject.id]?.grade : {canGrade: false, reviewerRole: null, reviewerSlot: null}} 
                     />
                 )}
