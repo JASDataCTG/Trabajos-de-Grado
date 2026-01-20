@@ -1,4 +1,15 @@
 
+/**
+ * RECUERDA: Si no puedes entrar como admin, ve a Supabase -> SQL Editor y ejecuta:
+ * 
+ * UPDATE users SET password = 'admin123' WHERE username = 'admin';
+ * 
+ * Si el usuario admin no existe, ejecuta:
+ * 
+ * INSERT INTO users (id, username, password, role) 
+ * VALUES ('admin-id', 'admin', 'admin123', 'admin');
+ */
+
 // @ts-ignore - Importación directa desde CDN para asegurar el build exitoso
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status, Program } from '../types';
@@ -49,7 +60,6 @@ const mapProjectToDB = (p: Partial<Project>) => ({
     written_grade_reviewer1: p.writtenGradeReviewer1,
     presentation_grade_reviewer1: p.presentationGradeReviewer1,
     written_grade_reviewer2: p.writtenGradeReviewer2,
-    // Fix typo: change snake_case property access to camelCase as defined in the Project interface.
     presentation_grade_reviewer2: p.presentationGradeReviewer2
 });
 
@@ -87,7 +97,7 @@ export const db = {
         }));
     },
     getUserByUsername: async (username: string) => {
-        const { data, error } = await safeQuery(supabase?.from('users').select('*').ilike('username', username).single() || Promise.resolve({data: null}));
+        const { data, error } = await safeQuery(supabase?.from('users').select('*').ilike('username', username.trim()).single() || Promise.resolve({data: null}));
         if (error || !data) return null;
         return {
             ...data,

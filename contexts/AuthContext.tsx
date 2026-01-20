@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { db } from '../services/database';
 import { User } from '../types';
@@ -27,11 +28,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
-    const foundUser = await db.getUserByUsername(username);
-    if (foundUser && foundUser.password === password) {
-      setUser(foundUser);
-      localStorage.setItem('degreeProjectManagerUser', JSON.stringify(foundUser));
-      return true;
+    try {
+        const foundUser = await db.getUserByUsername(username.trim());
+        
+        // Comparación robusta: convertir a string y quitar espacios
+        if (foundUser && String(foundUser.password).trim() === String(password).trim()) {
+          setUser(foundUser);
+          localStorage.setItem('degreeProjectManagerUser', JSON.stringify(foundUser));
+          return true;
+        }
+    } catch (e) {
+        console.error("Error en proceso de login:", e);
     }
     return false;
   };
