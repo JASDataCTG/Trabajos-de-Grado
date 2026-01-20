@@ -91,32 +91,40 @@ export const db = {
     },
 
     getProjects: async () => {
-        const local = getLocalDB().projects;
+        const db_l = getLocalDB();
+        const localProjects = db_l.projects || [];
+        
         if (supabase) {
             try {
                 const { data, error } = await supabase.from('projects').select('*');
                 if (!error && data) {
                     const cloudProjects = data.map(mapProjectFromDB);
-                    const db_l = getLocalDB();
-                    db_l.projects = cloudProjects;
+                    const merged = [...cloudProjects];
+                    localProjects.forEach((lp: Project) => {
+                        if (!merged.find(cp => cp.id === lp.id)) merged.push(lp);
+                    });
+                    db_l.projects = merged;
                     setLocalDB(db_l);
-                    return cloudProjects;
+                    return merged;
                 }
-            } catch (e) { console.warn(e); }
+            } catch (e) { console.error("Error sync projects:", e); }
         }
-        return local;
+        return localProjects;
     },
 
     getUsers: async () => {
+        const db_l = getLocalDB();
         if (supabase) {
-            const { data } = await supabase.from('users').select('*');
-            if (data) {
-                const users = data.map((u: any) => ({ ...u, teacherId: u.teacher_id, studentId: u.student_id }));
-                const db_l = getLocalDB(); db_l.users = users; setLocalDB(db_l);
-                return users;
-            }
+            try {
+                const { data } = await supabase.from('users').select('*');
+                if (data) {
+                    const users = data.map((u: any) => ({ ...u, teacherId: u.teacher_id, studentId: u.student_id }));
+                    db_l.users = users; setLocalDB(db_l);
+                    return users;
+                }
+            } catch (e) {}
         }
-        return getLocalDB().users;
+        return db_l.users;
     },
 
     getUserByUsername: async (username: string) => {
@@ -125,43 +133,68 @@ export const db = {
     },
 
     getStudents: async () => {
+        const db_l = getLocalDB();
+        const localStudents = db_l.students || [];
+
         if (supabase) {
-            const { data } = await supabase.from('students').select('*');
-            if (data) {
-                const students = data.map((s: any) => ({ ...s, projectId: s.project_id, programId: s.program_id }));
-                const db_l = getLocalDB(); db_l.students = students; setLocalDB(db_l);
-                return students;
-            }
+            try {
+                const { data, error } = await supabase.from('students').select('*');
+                if (!error && data) {
+                    const cloudStudents = data.map((s: any) => ({ 
+                        id: s.id, name: s.name, email: s.email, cedula: s.cedula, 
+                        projectId: s.project_id || s.projectId, 
+                        programId: s.program_id || s.programId 
+                    }));
+                    const merged = [...cloudStudents];
+                    localStudents.forEach((ls: Student) => {
+                        if (!merged.find(cs => cs.id === ls.id)) merged.push(ls);
+                    });
+                    db_l.students = merged;
+                    setLocalDB(db_l);
+                    return merged;
+                }
+            } catch (e) { console.error("Error sync students:", e); }
         }
-        return getLocalDB().students;
+        return localStudents;
     },
 
     getTeachers: async () => {
+        const db_l = getLocalDB();
         if (supabase) {
-            const { data } = await supabase.from('teachers').select('*');
-            if (data) {
-                const db_l = getLocalDB(); db_l.teachers = data; setLocalDB(db_l);
-                return data;
-            }
+            try {
+                const { data } = await supabase.from('teachers').select('*');
+                if (data) {
+                    db_l.teachers = data; setLocalDB(db_l);
+                    return data;
+                }
+            } catch (e) {}
         }
-        return getLocalDB().teachers;
+        return db_l.teachers;
     },
 
     getProjectTeachers: async () => {
+        const db_l = getLocalDB();
         if (supabase) {
-            const { data } = await supabase.from('project_teachers').select('*');
-            if (data) {
-                const pts = data.map((pt: any) => ({ id: pt.id, projectId: pt.project_id, teacherId: pt.teacher_id, roleId: pt.role_id }));
-                const db_l = getLocalDB(); db_l.projectTeachers = pts; setLocalDB(db_l);
-                return pts;
-            }
+            try {
+                const { data } = await supabase.from('project_teachers').select('*');
+                if (data) {
+                    const pts = data.map((pt: any) => ({ 
+                        id: pt.id, 
+                        projectId: pt.project_id || pt.projectId, 
+                        teacherId: pt.teacher_id || pt.teacherId, 
+                        roleId: pt.role_id || pt.roleId 
+                    }));
+                    db_l.projectTeachers = pts; setLocalDB(db_l);
+                    return pts;
+                }
+            } catch (e) {}
         }
-        return getLocalDB().projectTeachers;
+        return db_l.projectTeachers;
     },
 
     addProject: async (project: Omit<Project, 'id'>) => {
         const id = generateId();
-        const newProject = { ...project, id } as Project;
+        const newProject = { ...project, id, finalGrade: null } as Project;
         const db_l = getLocalDB();
         db_l.projects.unshift(newProject);
         setLocalDB(db_l);

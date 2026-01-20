@@ -110,14 +110,20 @@ const ProjectForm: React.FC<{
         if (isSaving) return;
         if (!formData.title?.trim() || !formData.presentationDate) { alert("Título y Fecha obligatorios."); return; }
         setIsSaving(true);
-        try { await onSave(formData, assignments, assignedStudentIds); onClose(); }
+        try { 
+            await onSave(formData, assignments, assignedStudentIds); 
+            onClose(); 
+        }
         catch (error) { console.error(error); alert("Error al guardar."); }
         finally { setIsSaving(false); }
     };
     
     const getTeacherName = (id: string) => teachers.find(t => t.id === id)?.name || 'Desconocido';
     const getRoleName = (id: string) => roles.find(r => r.id === id)?.name || 'Desconocido';
-    const getStudentName = (id: string) => allStudents.find(s => s.id === id)?.name || 'Cargando...';
+    const getStudentName = (id: string) => {
+        const found = allStudents.find(s => s.id === id);
+        return found ? found.name : 'Estudiante no encontrado';
+    };
 
     const canGradeReviewer1 = isAdmin || (gradeInfo.canGrade && gradeInfo.reviewerRole?.toLowerCase().includes('1'));
     const canGradeReviewer2 = isAdmin || (gradeInfo.canGrade && gradeInfo.reviewerRole?.toLowerCase().includes('2'));
@@ -126,7 +132,7 @@ const ProjectForm: React.FC<{
         <form onSubmit={handleSubmit} className="space-y-6 max-h-[75vh] overflow-y-auto pr-2 scrollbar-thin">
             <div className="space-y-4">
                 <div>
-                    <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Título del Proyecto</label>
+                    <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Título Institucional</label>
                     <input type="text" name="title" value={formData.title || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50 font-bold" disabled={!canEditDetails} />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -135,7 +141,7 @@ const ProjectForm: React.FC<{
                         <input type="date" name="presentationDate" value={formData.presentationDate || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50" disabled={!canEditDetails}/>
                     </div>
                     <div>
-                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Estado de Trámite</label>
+                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Estado del Proyecto</label>
                         <select name="statusId" value={formData.statusId || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50" disabled={!canEditDetails && !gradeInfo.canGrade}>
                             {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
@@ -145,9 +151,9 @@ const ProjectForm: React.FC<{
 
             <div className="bg-uninunez-onix/5 p-5 rounded-2xl border border-uninunez-onix/10 space-y-4">
                 <div className="flex justify-between items-center border-b border-uninunez-onix/10 pb-3">
-                    <h4 className="text-[10px] font-black text-uninunez-onix uppercase tracking-widest">Protocolo de Calificación (1.0 - 5.0)</h4>
+                    <h4 className="text-[10px] font-black text-uninunez-onix uppercase tracking-widest">Calificaciones Académicas</h4>
                     <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-bold text-uninunez-ash uppercase">Nota Final:</span>
+                        <span className="text-[9px] font-bold text-uninunez-ash uppercase">Promedio:</span>
                         <div className="bg-uninunez-orange text-white px-3 py-1 rounded-lg text-xs font-black shadow-md min-w-[50px] text-center">{formData.finalGrade?.toFixed(2) || '0.00'}</div>
                     </div>
                 </div>
@@ -156,14 +162,14 @@ const ProjectForm: React.FC<{
                         <p className="text-[10px] font-black text-uninunez-teal uppercase mb-3 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-uninunez-teal"></span> Evaluador 1</p>
                         <div className="grid grid-cols-2 gap-3">
                             <input type="number" step="0.1" name="writtenGradeReviewer1" placeholder="Escrito" value={formData.writtenGradeReviewer1 ?? ''} onChange={handleChange} disabled={!canGradeReviewer1} className="w-full text-xs border rounded-lg p-2 font-bold" />
-                            <input type="number" step="0.1" name="presentationGradeReviewer1" placeholder="Sustentación" value={formData.presentationGradeReviewer1 ?? ''} onChange={handleChange} disabled={!canGradeReviewer1} className="w-full text-xs border rounded-lg p-2 font-bold" />
+                            <input type="number" step="0.1" name="presentationGradeReviewer1" placeholder="Sust." value={formData.presentationGradeReviewer1 ?? ''} onChange={handleChange} disabled={!canGradeReviewer1} className="w-full text-xs border rounded-lg p-2 font-bold" />
                         </div>
                     </div>
                     <div className={`p-4 rounded-xl border-2 transition-all ${canGradeReviewer2 ? 'bg-white border-uninunez-teal/30 shadow-sm' : 'bg-gray-100 border-transparent opacity-60'}`}>
                         <p className="text-[10px] font-black text-uninunez-teal uppercase mb-3 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-uninunez-teal"></span> Evaluador 2</p>
                         <div className="grid grid-cols-2 gap-3">
                             <input type="number" step="0.1" name="writtenGradeReviewer2" placeholder="Escrito" value={formData.writtenGradeReviewer2 ?? ''} onChange={handleChange} disabled={!canGradeReviewer2} className="w-full text-xs border rounded-lg p-2 font-bold" />
-                            <input type="number" step="0.1" name="presentationGradeReviewer2" placeholder="Sustentación" value={formData.presentationGradeReviewer2 ?? ''} onChange={handleChange} disabled={!canGradeReviewer2} className="w-full text-xs border rounded-lg p-2 font-bold" />
+                            <input type="number" step="0.1" name="presentationGradeReviewer2" placeholder="Sust." value={formData.presentationGradeReviewer2 ?? ''} onChange={handleChange} disabled={!canGradeReviewer2} className="w-full text-xs border rounded-lg p-2 font-bold" />
                         </div>
                     </div>
                 </div>
@@ -173,18 +179,18 @@ const ProjectForm: React.FC<{
                 <h4 className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-4 ml-1">Integrantes (Estudiantes)</h4>
                 <div className="flex flex-wrap gap-2 mb-3">
                     {assignedStudentIds.length > 0 ? assignedStudentIds.map(sid => (
-                        <div key={sid} className="flex items-center bg-white px-3 py-1.5 rounded-xl border border-gray-200 shadow-sm">
+                        <div key={sid} className="flex items-center bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm">
                             <span className="text-[10px] font-bold text-gray-700 mr-2">{getStudentName(sid)}</span>
                             {canEditDetails && <button type="button" onClick={() => removeStudent(sid)} className="text-red-400 hover:text-red-600"><TrashIcon className="h-3.5 w-3.5"/></button>}
                         </div>
-                    )) : <p className="text-[10px] text-gray-400 italic">No hay estudiantes vinculados a este expediente.</p>}
+                    )) : <p className="text-[10px] text-gray-400 italic py-2">No hay estudiantes vinculados todavía.</p>}
                 </div>
                 {canEditDetails && (
                     <div className="flex gap-2">
                         <select value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} className="flex-grow border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50">
                             <option value="">Vincular estudiante...</option>
                             {allStudents.filter(s => (!s.projectId || assignedStudentIds.includes(s.id)) && !assignedStudentIds.includes(s.id)).map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
+                                <option key={s.id} value={s.id}>{s.name} ({s.cedula})</option>
                             ))}
                         </select>
                         <button type="button" onClick={handleAddStudent} className="bg-uninunez-orange text-white px-5 rounded-xl text-[10px] font-black uppercase hover:bg-uninunez-orangeLight">Añadir</button>
@@ -193,7 +199,7 @@ const ProjectForm: React.FC<{
             </div>
 
             <div className="pt-4 border-t border-gray-100">
-                <h4 className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-4 ml-1">Directores y Evaluadores</h4>
+                <h4 className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-4 ml-1">Asignaciones (Docentes)</h4>
                 <div className="space-y-2 mb-4">
                     {assignments.map(a => (
                         <div key={a.tempId} className="flex justify-between items-center bg-white px-4 py-2.5 rounded-xl border border-gray-100 shadow-sm">
@@ -205,7 +211,7 @@ const ProjectForm: React.FC<{
                 {canEditDetails && (
                     <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
                         <select value={newAssignment.teacherId} onChange={(e) => setNewAssignment(p => ({...p, teacherId: e.target.value}))} className="sm:col-span-3 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50">
-                            <option value="">Docente...</option>
+                            <option value="">Seleccionar Docente...</option>
                             {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
                         <select value={newAssignment.roleId} onChange={(e) => setNewAssignment(p => ({...p, roleId: e.target.value}))} className="sm:col-span-3 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50">
@@ -217,10 +223,10 @@ const ProjectForm: React.FC<{
                 )}
             </div>
 
-            <div className="flex justify-end gap-3 pt-6 border-t sticky bottom-0 bg-white/95">
-                <button type="button" onClick={onClose} disabled={isSaving} className="px-6 py-3 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase text-gray-400">Cerrar</button>
+            <div className="flex justify-end gap-3 pt-6 border-t sticky bottom-0 bg-white/95 pb-2">
+                <button type="button" onClick={onClose} disabled={isSaving} className="px-6 py-3 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase text-gray-400">Cancelar</button>
                 <button type="submit" disabled={isSaving} className={`px-10 py-3 rounded-xl text-[10px] font-black uppercase shadow-xl transition-all ${isSaving ? 'bg-gray-400' : 'bg-uninunez-orange hover:bg-uninunez-orangeLight text-white'}`}>
-                    {isSaving ? 'Guardando...' : 'Guardar Proyecto'}
+                    {isSaving ? 'Guardando...' : project ? 'Actualizar Proyecto' : 'Guardar Proyecto'}
                 </button>
             </div>
         </form>
@@ -247,16 +253,36 @@ export const ProjectsPage: React.FC = () => {
         setIsLoading(true);
         try {
             const [p, s, t, r, st, f, pt] = await Promise.all([
-                db.getProjects(), db.getStudents(), db.getTeachers(),
-                db.getTeacherRoles(), db.getStatuses(), db.getFormats(),
+                db.getProjects(), 
+                db.getStudents(), 
+                db.getTeachers(),
+                db.getTeacherRoles(), 
+                db.getStatuses(), 
+                db.getFormats(),
                 db.getProjectTeachers()
             ]);
+            
             const perms: any = {};
             for(const project of p) {
-                perms[project.id] = { canEdit: await canEditProject(project.id), grade: await canGradeProject(project.id) };
+                perms[project.id] = { 
+                    canEdit: await canEditProject(project.id), 
+                    grade: await canGradeProject(project.id) 
+                };
             }
-            setProjects([...p]); setStudents(s); setTeachers(t); setRoles(r); setStatuses(st); setFormats(f); setProjectTeachers(pt); setUserPerms(perms);
-        } catch (error) { console.error(error); } finally { setIsLoading(false); }
+            
+            setProjects([...p]); 
+            setStudents([...s]); 
+            setTeachers([...t]); 
+            setRoles([...r]); 
+            setStatuses([...st]); 
+            setFormats([...f]); 
+            setProjectTeachers([...pt]); 
+            setUserPerms(perms);
+        } catch (error) { 
+            console.error("Error al cargar datos:", error); 
+        } finally { 
+            setIsLoading(false); 
+        }
     }, [canEditProject, canGradeProject]);
 
     useEffect(() => { loadData(); }, [loadData]);
@@ -264,21 +290,47 @@ export const ProjectsPage: React.FC = () => {
     const handleSave = async (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>, studentIds: string[]) => {
         try {
             let savedProject: Project;
-            if (editingProject) savedProject = await db.updateProject({ ...editingProject, ...projectData } as Project);
-            else savedProject = await db.addProject(projectData as Omit<Project, 'id'>);
+            if (editingProject) {
+                savedProject = await db.updateProject({ ...editingProject, ...projectData } as Project);
+            } else {
+                savedProject = await db.addProject(projectData as Omit<Project, 'id'>);
+            }
 
             if (!editingProject || isAdmin || userPerms[savedProject.id]?.canEdit) {
                 await db.deleteProjectTeachersByProject(savedProject.id);
-                for (const a of assignments) await db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId });
+                for (const a of assignments) {
+                    await db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId });
+                }
+                
                 const sts = await db.getStudents();
-                for (const s of sts.filter(s => s.projectId === savedProject.id)) { if (!studentIds.includes(s.id)) await db.updateStudent({ ...s, projectId: null }); }
-                for (const sid of studentIds) { const s = sts.find(st => st.id === sid); if (s && s.projectId !== savedProject.id) await db.updateStudent({ ...s, projectId: savedProject.id }); }
+                const studentsToUnlink = sts.filter(s => s.projectId === savedProject.id && !studentIds.includes(s.id));
+                for (const s of studentsToUnlink) {
+                    await db.updateStudent({ ...s, projectId: null });
+                }
+                for (const sid of studentIds) {
+                    const s = sts.find(st => st.id === sid);
+                    if (s && s.projectId !== savedProject.id) {
+                        await db.updateStudent({ ...s, projectId: savedProject.id });
+                    }
+                }
             }
-            await loadData(); setIsModalOpen(false);
-        } catch (err) { console.error(err); throw err; }
+            
+            await loadData(); 
+            setIsModalOpen(false);
+            setEditingProject(null);
+        } catch (err) { 
+            console.error("Error guardando proyecto:", err); 
+            alert("No se pudo guardar el proyecto. Revisa la consola.");
+        }
     };
 
-    const handleDelete = async () => { if (deletingProject) { await db.deleteProject(deletingProject.id); await loadData(); setDeletingProject(null); } };
+    const handleDelete = async () => { 
+        if (deletingProject) { 
+            await db.deleteProject(deletingProject.id); 
+            await loadData(); 
+            setDeletingProject(null); 
+        } 
+    };
     
     return (
         <div className="space-y-6">
@@ -287,11 +339,23 @@ export const ProjectsPage: React.FC = () => {
                     <h1 className="text-3xl font-black text-uninunez-onix font-display uppercase tracking-tight">Banco de Proyectos</h1>
                     <p className="text-uninunez-ash text-sm font-medium">Gestión integral de expedientes académicos.</p>
                 </div>
-                {isAdmin && <button onClick={() => { setEditingProject(null); setIsModalOpen(true); }} className="bg-uninunez-orange text-white px-6 py-3 rounded-xl flex items-center text-[10px] font-black uppercase tracking-widest shadow-xl hover:bg-uninunez-orangeLight"><PlusIcon className="h-5 w-5 mr-2"/> Nuevo Proyecto</button>}
+                {isAdmin && (
+                    <button 
+                        onClick={() => { setEditingProject(null); setIsModalOpen(true); }} 
+                        className="bg-uninunez-orange text-white px-6 py-3 rounded-xl flex items-center text-[10px] font-black uppercase tracking-widest shadow-xl hover:bg-uninunez-orangeLight transition-all active:scale-95"
+                    >
+                        <PlusIcon className="h-5 w-5 mr-2"/> Nuevo Proyecto
+                    </button>
+                )}
             </div>
 
             <div className="bg-white shadow-sm border border-gray-100 rounded-3xl overflow-hidden min-h-[400px]">
-                {isLoading ? <div className="flex flex-col items-center justify-center py-20 space-y-4"><div className="w-12 h-12 border-4 border-uninunez-orange border-t-transparent rounded-full animate-spin"></div><p className="text-xs font-black text-uninunez-ash uppercase tracking-widest">Sincronizando...</p></div> : (
+                {isLoading ? (
+                    <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                        <div className="w-12 h-12 border-4 border-uninunez-orange border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-xs font-black text-uninunez-ash uppercase tracking-widest">Sincronizando expedientes...</p>
+                    </div>
+                ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
                             <thead className="bg-gray-50/50 border-b border-gray-100">
@@ -313,9 +377,9 @@ export const ProjectsPage: React.FC = () => {
                                         <td className="px-8 py-6">
                                             <div className="flex flex-wrap gap-1">
                                                 {students.filter(s => s.projectId === p.id).map(s => (
-                                                    <span key={s.id} className="inline-block px-2 py-0.5 bg-gray-100 text-[10px] font-bold text-gray-600 rounded uppercase">{s.name}</span>
+                                                    <span key={s.id} className="inline-block px-2 py-0.5 bg-jade-50 text-[10px] font-bold text-jade-700 rounded uppercase border border-jade-100 shadow-sm">{s.name}</span>
                                                 ))}
-                                                {students.filter(s => s.projectId === p.id).length === 0 && <span className="text-[10px] text-gray-300 italic">Sin estudiantes</span>}
+                                                {students.filter(s => s.projectId === p.id).length === 0 && <span className="text-[10px] text-gray-300 italic">Sin estudiantes vinculados</span>}
                                             </div>
                                         </td>
                                         <td className="px-8 py-6">
@@ -327,13 +391,21 @@ export const ProjectsPage: React.FC = () => {
                                         <td className="px-8 py-6 text-right">
                                             <div className="flex justify-end gap-2">
                                                 {(isAdmin || userPerms[p.id]?.canEdit || userPerms[p.id]?.grade?.canGrade) && (
-                                                    <button onClick={() => { setEditingProject(p); setIsModalOpen(true); }} className="p-2.5 bg-uninunez-teal/5 text-uninunez-teal hover:bg-uninunez-teal hover:text-white rounded-xl shadow-sm"><EditIcon className="h-5 w-5"/></button>
+                                                    <button onClick={() => { setEditingProject(p); setIsModalOpen(true); }} className="p-2.5 bg-uninunez-teal/5 text-uninunez-teal hover:bg-uninunez-teal hover:text-white rounded-xl shadow-sm transition-all"><EditIcon className="h-5 w-5"/></button>
                                                 )}
-                                                {(isAdmin || userPerms[p.id]?.canEdit) && <button onClick={() => setDeletingProject(p)} className="p-2.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl shadow-sm"><TrashIcon className="h-5 w-5"/></button>}
+                                                {(isAdmin || userPerms[p.id]?.canEdit) && <button onClick={() => setDeletingProject(p)} className="p-2.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl shadow-sm transition-all"><TrashIcon className="h-5 w-5"/></button>}
                                             </div>
                                         </td>
                                     </tr>
                                 ))}
+                                {!isLoading && projects.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="text-center py-20">
+                                            <p className="text-uninunez-ash italic text-sm">No se han encontrado proyectos registrados.</p>
+                                            {isAdmin && <p className="text-xs text-gray-400 mt-2">Haz clic en "Nuevo Proyecto" para comenzar.</p>}
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -343,7 +415,14 @@ export const ProjectsPage: React.FC = () => {
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingProject ? 'Expediente de Proyecto' : 'Nuevo Registro Académico'}>
                 {isModalOpen && (
                     <ProjectForm 
-                        project={editingProject} onSave={handleSave} onClose={() => setIsModalOpen(false)} statuses={statuses} formats={formats} teachers={teachers} allStudents={students} roles={roles} 
+                        project={editingProject} 
+                        onSave={handleSave} 
+                        onClose={() => setIsModalOpen(false)} 
+                        statuses={statuses} 
+                        formats={formats} 
+                        teachers={teachers} 
+                        allStudents={students} 
+                        roles={roles} 
                         initialAssignments={editingProject ? projectTeachers.filter(pt => pt.projectId === editingProject.id) : []} 
                         initialStudentIds={editingProject ? students.filter(s => s.projectId === editingProject.id).map(s => s.id) : []}
                         canEditDetails={editingProject ? (isAdmin || userPerms[editingProject.id]?.canEdit) : true} 
@@ -351,7 +430,7 @@ export const ProjectsPage: React.FC = () => {
                     />
                 )}
             </Modal>
-            <ConfirmationDialog isOpen={!!deletingProject} onClose={() => setDeletingProject(null)} onConfirm={handleDelete} title="Confirmar Eliminación" message="¿Desea eliminar permanentemente este expediente del banco institucional?" />
+            <ConfirmationDialog isOpen={!!deletingProject} onClose={() => setDeletingProject(null)} onConfirm={handleDelete} title="Confirmar Eliminación" message="¿Desea eliminar permanentemente este expediente del banco institucional? Esta acción borrará todas las notas asociadas." />
         </div>
     );
 };
