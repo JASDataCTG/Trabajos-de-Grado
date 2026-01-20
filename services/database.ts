@@ -6,16 +6,19 @@ import { Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status,
 // Función ultra-segura para obtener variables de entorno en Vite/Vercel
 const getEnv = (key: string): string => {
     try {
-        // @ts-ignore
-        const vEnv = import.meta.env;
-        if (vEnv && vEnv[`VITE_${key}`]) return vEnv[`VITE_${key}`];
+        // Acceso seguro a import.meta.env
+        const meta = (import.meta as any);
+        if (meta && meta.env) {
+            if (meta.env[`VITE_${key}`]) return meta.env[`VITE_${key}`];
+            if (meta.env[key]) return meta.env[key];
+        }
         
-        // @ts-ignore
+        // Fallback a process.env para entornos que lo soporten
         if (typeof process !== 'undefined' && process.env) {
-            return process.env[`VITE_${key}`] || process.env[key] || '';
+            return (process.env as any)[`VITE_${key}`] || (process.env as any)[key] || '';
         }
     } catch (e) {
-        console.warn("No se pudo acceder al entorno:", e);
+        console.warn("Error al intentar acceder a las variables de entorno:", e);
     }
     return '';
 };

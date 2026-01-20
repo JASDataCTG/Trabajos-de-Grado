@@ -156,7 +156,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                                     <ul className="list-disc pl-3 space-y-1">
                                         <li>Renombra las variables en Vercel Settings.</li>
                                         <li>Asegúrate de que tengan el prefijo <strong>VITE_</strong>.</li>
-                                        <li>Haz clic en <strong>Deployments > Redeploy</strong>.</li>
+                                        <li>Haz clic en <strong>Deployments &rarr; Redeploy</strong>.</li>
                                     </ul>
                                 </div>
                             )}
