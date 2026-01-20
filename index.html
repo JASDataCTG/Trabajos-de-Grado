@@ -1,10 +1,15 @@
+
 <!DOCTYPE html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gestor de Proyectos de Grado - Supabase</title>
+    <title>Gestor de Proyectos de Grado - CURN</title>
+    <!-- Tipografías Institucionales Uninúñez -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -12,8 +17,32 @@
       tailwind.config = {
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['Roboto', 'sans-serif'],
+              display: ['Montserrat', 'sans-serif'],
+            },
             colors: {
-              primary: {"50":"#fff5e6","100":"#ffe9cc","200":"#ffd399","300":"#ffbd66","400":"#ffa633","500":"#ff9500","600":"#e68600","700":"#bf7000","800":"#995a00","900":"#7d4900","950":"#422600"}
+              uninunez: {
+                orange: "#F07E12",      // Naranja Oscuro Uninúñez
+                orangeLight: "#F39200", // Naranja Claro Uninúñez
+                teal: "#249A8C",        // Turquesa Oscuro Uninúñez
+                tealLight: "#14AA9F",   // Turquesa Claro Uninúñez
+                jade: "#2FAC66",        // Verde Jade
+                onix: "#3C3C3B",        // Ónix (Neutral Oscuro)
+                ash: "#575756",         // Gris Ceniza
+              },
+              primary: {
+                "50": "#fff7ed",
+                "100": "#ffedd5",
+                "200": "#fed7aa",
+                "300": "#fdba74",
+                "400": "#fb923c",
+                "500": "#F07E12", // Mapeado al naranja principal
+                "600": "#F39200",
+                "700": "#bf7000",
+                "800": "#995a00",
+                "900": "#7d4900",
+              }
             }
           }
         }
@@ -30,7 +59,7 @@
 }
 </script>
 </head>
-  <body class="bg-gray-100">
+  <body class="bg-gray-50 text-uninunez-onix font-sans">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

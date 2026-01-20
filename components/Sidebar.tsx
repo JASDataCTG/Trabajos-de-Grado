@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { HomeIcon, ProjectIcon, StudentIcon, TeacherIcon, SettingsIcon, ReportIcon, UserAdminIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -24,14 +25,16 @@ const NavItem: React.FC<{
         e.preventDefault();
         onClick();
       }}
-      className={`flex items-center px-4 py-2.5 text-sm font-medium transition-colors duration-200 ease-in-out ${
+      className={`flex items-center px-4 py-3 text-sm font-semibold transition-all duration-200 ease-in-out border-l-4 ${
         isActive
-          ? 'bg-primary-500 text-white rounded-md'
-          : 'text-gray-200 hover:bg-primary-800 hover:text-white rounded-md'
+          ? 'bg-uninunez-orange text-white border-white'
+          : 'text-gray-300 border-transparent hover:bg-uninunez-ash hover:text-white'
       }`}
     >
-      {icon}
-      <span className="ml-4">{label}</span>
+      <div className={`${isActive ? 'text-white' : 'text-uninunez-orangeLight'}`}>
+        {icon}
+      </div>
+      <span className="ml-4 font-display uppercase tracking-wider text-[11px]">{label}</span>
     </a>
   );
 };
@@ -39,24 +42,28 @@ const NavItem: React.FC<{
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, setIsOpen }) => {
     const { user } = useAuth();
     const navItems: { page: Page; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
-        { page: 'dashboard', label: 'Panel Principal', icon: <HomeIcon className="h-5 w-5" /> },
+        { page: 'dashboard', label: 'Inicio', icon: <HomeIcon className="h-5 w-5" /> },
         { page: 'projects', label: 'Proyectos', icon: <ProjectIcon className="h-5 w-5" /> },
         { page: 'students', label: 'Estudiantes', icon: <StudentIcon className="h-5 w-5" /> },
         { page: 'teachers', label: 'Docentes', icon: <TeacherIcon className="h-5 w-5" /> },
-        { page: 'reports', label: 'Reportes', icon: <ReportIcon className="h-5 w-5" /> },
-        { page: 'users', label: 'Usuarios', icon: <UserAdminIcon className="h-5 w-5" />, adminOnly: true },
-        { page: 'settings', label: 'Configuración', icon: <SettingsIcon className="h-5 w-5" /> },
+        { page: 'reports', label: 'Informes', icon: <ReportIcon className="h-5 w-5" /> },
+        { page: 'users', label: 'Seguridad', icon: <UserAdminIcon className="h-5 w-5" />, adminOnly: true },
+        { page: 'settings', label: 'Maestros', icon: <SettingsIcon className="h-5 w-5" /> },
     ];
 
   return (
     <>
-      <div className={`fixed inset-0 z-20 bg-black bg-opacity-50 transition-opacity md:hidden ${isOpen ? 'block' : 'hidden'}`} onClick={() => setIsOpen(false)}></div>
-      <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-primary-900 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:flex md:flex-shrink-0`}>
-        <div className="flex flex-col h-full">
-           <div className="flex items-center justify-center p-4 bg-white" style={{ minHeight: '4rem' }}>
-            <img src="https://i.ibb.co/L8yFz9p/logo.png" alt="Logo Corporación Universitaria Rafael Núñez" className="h-24 object-contain"/>
+      <div className={`fixed inset-0 z-20 bg-black bg-opacity-60 transition-opacity md:hidden ${isOpen ? 'block' : 'hidden'}`} onClick={() => setIsOpen(false)}></div>
+      <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-uninunez-onix shadow-2xl transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:flex md:flex-shrink-0`}>
+        <div className="flex flex-col h-full w-full">
+           <div className="flex flex-col items-center justify-center p-6 bg-white border-b-4 border-uninunez-orange">
+            <img 
+              src="https://www.curn.edu.co/images/logo_curn_social.png" 
+              alt="Logo CURN" 
+              className="h-20 object-contain"
+            />
           </div>
-          <nav className="flex-1 px-2 py-4 space-y-2">
+          <nav className="flex-1 mt-4 space-y-1">
             {navItems.map(item => (
                 (!item.adminOnly || user?.username === 'admin') && (
                     <NavItem 
@@ -69,6 +76,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
                 )
             ))}
           </nav>
+          <div className="p-4 bg-uninunez-ash bg-opacity-20 border-t border-uninunez-ash">
+             <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest text-center">
+                UNINÚÑEZ v2.0
+             </div>
+          </div>
         </div>
       </div>
     </>
