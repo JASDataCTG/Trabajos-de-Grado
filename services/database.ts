@@ -5,10 +5,8 @@ import { Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status,
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 
-// Verificación estricta antes de inicializar para evitar el error "supabaseUrl is required"
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http'));
 
-// Inicializamos el cliente solo si la configuración es válida
 export const supabase = isSupabaseConfigured 
     ? createClient(supabaseUrl, supabaseAnonKey) 
     : null;
@@ -17,12 +15,10 @@ const generateId = (): string => Date.now().toString(36) + Math.random().toStrin
 
 export const initializeDB = () => { 
     if (!isSupabaseConfigured) {
-        console.error('CRÍTICO: Supabase no está configurado. La aplicación no funcionará correctamente.');
-        console.info('Asegúrate de configurar SUPABASE_URL y SUPABASE_ANON_KEY en las variables de entorno.');
+        console.error('CRÍTICO: Supabase no está configurado.');
     }
 };
 
-// Función auxiliar para manejar respuestas de Supabase de forma segura
 const safeQuery = async (queryPromise: Promise<any>) => {
     if (!supabase) return { data: null, error: new Error('Base de datos no configurada') };
     return await queryPromise;
@@ -81,8 +77,8 @@ export const db = {
             const userId = generateId();
             await safeQuery(supabase?.from('users').insert([{
                 id: userId,
-                username: student.email.split('@')[0],
-                password: student.cedula,
+                username: student.name, // Nombre completo como usuario
+                password: student.cedula, // Cédula como contraseña
                 role: 'student',
                 studentId: id
             }]) || Promise.resolve({}));
@@ -91,14 +87,15 @@ export const db = {
     },
     updateStudent: async (student: Student) => {
         const { data } = await safeQuery(supabase?.from('students').update(student).eq('id', student.id).select().single() || Promise.resolve({data: null}));
+        // Sincronizar credenciales si cambian
         await safeQuery(supabase?.from('users').update({
-            username: student.email.split('@')[0],
+            username: student.name,
             password: student.cedula
         }).eq('studentId', student.id) || Promise.resolve({}));
         return data;
     },
     deleteStudent: async (id: string) => {
-        await safeQuery(supabase?.from('users').delete().eq('studentId', id) || Promise.resolve({}));
+        await safeQuery(supabase?.from('users').delete().eq('student_id', id) || Promise.resolve({}));
         await safeQuery(supabase?.from('students').delete().eq('id', id) || Promise.resolve({}));
     },
 
@@ -119,8 +116,8 @@ export const db = {
             const userId = generateId();
             await safeQuery(supabase?.from('users').insert([{
                 id: userId,
-                username: teacher.email.split('@')[0],
-                password: teacher.cedula,
+                username: teacher.name, // Nombre completo como usuario
+                password: teacher.cedula, // Cédula como contraseña
                 role: 'teacher',
                 teacherId: id
             }]) || Promise.resolve({}));
@@ -129,14 +126,15 @@ export const db = {
     },
     updateTeacher: async (teacher: Teacher) => {
         const { data } = await safeQuery(supabase?.from('teachers').update(teacher).eq('id', teacher.id).select().single() || Promise.resolve({data: null}));
+        // Sincronizar credenciales si cambian
         await safeQuery(supabase?.from('users').update({
-            username: teacher.email.split('@')[0],
+            username: teacher.name,
             password: teacher.cedula
         }).eq('teacherId', teacher.id) || Promise.resolve({}));
         return data;
     },
     deleteTeacher: async (id: string) => {
-        await safeQuery(supabase?.from('users').delete().eq('teacherId', id) || Promise.resolve({}));
+        await safeQuery(supabase?.from('users').delete().eq('teacher_id', id) || Promise.resolve({}));
         await safeQuery(supabase?.from('teachers').delete().eq('id', id) || Promise.resolve({}));
     },
 
