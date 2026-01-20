@@ -15,7 +15,7 @@ export const supabase = isSupabaseConfigured
 
 const generateId = (): string => Date.now().toString(36) + Math.random().toString(36).substring(2);
 
-const LOCAL_STORAGE_KEY = 'uninunez_db';
+const LOCAL_STORAGE_KEY = 'uninunez_db_v3'; // Nueva versión para evitar conflictos
 
 const initialDB = {
     users: [{ id: 'admin-id', username: 'admin', password: 'admin123', role: 'admin', teacherId: null, studentId: null }],
@@ -29,11 +29,13 @@ const initialDB = {
     statuses: [{ id: '1', name: 'En Proceso' }, { id: '2', name: 'Aprobado' }, { id: '3', name: 'Sustentado' }, { id: '4', name: 'Rechazado' }]
 };
 
-const getLocalDB = () => {
+const getLocalDB = (): any => {
     const data = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!data) return initialDB;
     try {
-        return { ...initialDB, ...JSON.parse(data) };
+        const parsed = JSON.parse(data);
+        // Mezclamos con initialDB para asegurar que todas las tablas existan
+        return { ...initialDB, ...parsed };
     } catch {
         return initialDB;
     }
@@ -44,38 +46,13 @@ const setLocalDB = (db: any) => {
 };
 
 export const initializeDB = () => {
-    // Siempre inicializamos LocalStorage si está vacío o incompleto
     const current = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!current) {
         setLocalDB(initialDB);
-    } else {
-        // Asegurar que existan todas las tablas básicas
-        const db = getLocalDB();
-        let changed = false;
-        Object.keys(initialDB).forEach(key => {
-            if (!db[key]) {
-                db[key] = (initialDB as any)[key];
-                changed = true;
-            }
-        });
-        if (changed) setLocalDB(db);
     }
 };
 
-const safeQuery = async (queryPromise: Promise<any>, tableName: string) => {
-    if (supabase) {
-        try {
-            const result = await queryPromise;
-            if (result.error) throw result.error;
-            if (result.data && result.data.length > 0) return result;
-        } catch (error) {
-            console.warn(`Supabase falló o está vacío para ${tableName}, usando local:`, error);
-        }
-    }
-    const db = getLocalDB();
-    return { data: db[tableName] || [], error: null };
-};
-
+// Mapeos de campos para compatibilidad con bases de datos SQL
 const mapProjectToDB = (p: Partial<Project>) => ({
     id: p.id,
     title: p.title,
@@ -115,55 +92,40 @@ export const db = {
         }
     },
 
-    getUsers: async () => {
-        const { data } = await safeQuery(supabase?.from('users').select('*') || Promise.resolve({}), 'users');
-        return (data || []).map((u: any) => ({
-            ...u,
-            teacherId: u.teacher_id || u.teacherId,
-            studentId: u.student_id || u.studentId
-        }));
-    },
+    // --- OPERACIONES DE LECTURA (Priorizan Local) ---
+    getUsers: async () => getLocalDB().users,
     getUserByUsername: async (username: string) => {
         const users = await db.getUsers();
         return users.find((u: User) => u.username.toLowerCase() === username.toLowerCase().trim()) || null;
     },
-    deleteUser: async (id: string) => {
-        if (supabase) {
-            await supabase.from('users').delete().eq('id', id);
-        }
-        const db_local = getLocalDB();
-        db_local.users = db_local.users.filter((u: any) => u.id !== id);
-        setLocalDB(db_local);
-    },
-    getProjects: async () => {
-        const { data } = await safeQuery(supabase?.from('projects').select('*').order('created_at', { ascending: false }) || Promise.resolve({}), 'projects');
-        return (data || []).map(mapProjectFromDB);
-    },
-    getProjectById: async (id: string) => {
-        const projects = await db.getProjects();
-        return projects.find(p => p.id === id) || null;
-    },
+    getProjects: async () => getLocalDB().projects,
+    getProjectById: async (id: string) => (await db.getProjects()).find(p => p.id === id) || null,
+    getStudents: async () => getLocalDB().students,
+    getStudentById: async (id: string) => (await db.getStudents()).find(s => s.id === id) || null,
+    getTeachers: async () => getLocalDB().teachers,
+    getProjectTeachers: async () => getLocalDB().projectTeachers,
+    getPrograms: async () => getLocalDB().programs,
+    getStatuses: async () => getLocalDB().statuses,
+    getFormats: async () => getLocalDB().formats,
+    getTeacherRoles: async () => getLocalDB().teacherRoles,
+
+    // --- OPERACIONES DE ESCRITURA (Local + Mirror Supabase) ---
     addProject: async (project: Omit<Project, 'id'>) => {
         const id = generateId();
         const newProject = { ...project, id } as Project;
-        
-        // Guardar local primero para garantizar persistencia
         const db_local = getLocalDB();
-        db_local.projects.push(newProject);
+        db_local.projects.unshift(newProject);
         setLocalDB(db_local);
 
         if (supabase) {
-            try {
-                const { error } = await supabase.from('projects').insert([mapProjectToDB(newProject)]);
-                if (error) console.error("Error Supabase addProject:", error);
-            } catch (e) {
-                console.error("Fallo crítico Supabase addProject:", e);
-            }
+            supabase.from('projects').insert([mapProjectToDB(newProject)]).then(({error}) => {
+                if (error) console.error("Sync Error (addProject):", error);
+            });
         }
         return newProject;
     },
+
     updateProject: async (project: Project) => {
-        // Actualizar local
         const db_local = getLocalDB();
         const idx = db_local.projects.findIndex((p: any) => p.id === project.id);
         if (idx !== -1) {
@@ -172,48 +134,37 @@ export const db = {
         }
 
         if (supabase) {
-            try {
-                const { error } = await supabase.from('projects').update(mapProjectToDB(project)).eq('id', project.id);
-                if (error) console.error("Error Supabase updateProject:", error);
-            } catch (e) {
-                console.error("Fallo crítico Supabase updateProject:", e);
-            }
+            supabase.from('projects').update(mapProjectToDB(project)).eq('id', project.id).then(({error}) => {
+                if (error) console.error("Sync Error (updateProject):", error);
+            });
         }
         return project;
     },
+
     deleteProject: async (id: string) => {
         const db_local = getLocalDB();
         db_local.projects = db_local.projects.filter((p: any) => p.id !== id);
         setLocalDB(db_local);
+        if (supabase) supabase.from('projects').delete().eq('id', id).then();
+    },
 
-        if (supabase) {
-            await supabase.from('projects').delete().eq('id', id);
-        }
-    },
-    getStudents: async () => {
-        const { data } = await safeQuery(supabase?.from('students').select('*') || Promise.resolve({}), 'students');
-        return (data || []).map((s: any) => ({ ...s, projectId: s.project_id || s.projectId, programId: s.program_id || s.programId }));
-    },
-    getStudentById: async (id: string) => {
-        const students = await db.getStudents();
-        return students.find(s => s.id === id) || null;
-    },
     addStudent: async (student: Omit<Student, 'id'>) => {
         const id = generateId();
         const newStudent = { ...student, id } as Student;
         const newUser = { id: generateId(), username: student.name, password: student.cedula, role: 'student' as const, studentId: id, teacherId: null };
-
+        
         const db_local = getLocalDB();
         db_local.students.push(newStudent);
         db_local.users.push(newUser);
         setLocalDB(db_local);
 
         if (supabase) {
-            await supabase.from('students').insert([{ id, name: student.name, email: student.email, cedula: student.cedula, project_id: student.projectId, program_id: student.programId }]);
-            await supabase.from('users').insert([{ id: newUser.id, username: newUser.username, password: newUser.password, role: 'student', student_id: id }]);
+            supabase.from('students').insert([{ id, name: student.name, email: student.email, cedula: student.cedula, project_id: student.projectId, program_id: student.programId }]).then();
+            supabase.from('users').insert([{ id: newUser.id, username: newUser.username, password: newUser.password, role: 'student', student_id: id }]).then();
         }
         return newStudent;
     },
+
     updateStudent: async (student: Student) => {
         const db_local = getLocalDB();
         const idx = db_local.students.findIndex((s: any) => s.id === student.id);
@@ -226,28 +177,24 @@ export const db = {
             }
             setLocalDB(db_local);
         }
-
         if (supabase) {
-            await supabase.from('students').update({ name: student.name, email: student.email, cedula: student.cedula, project_id: student.projectId, program_id: student.programId }).eq('id', student.id);
-            await supabase.from('users').update({ username: student.name, password: student.cedula }).eq('student_id', student.id);
+            supabase.from('students').update({ name: student.name, email: student.email, cedula: student.cedula, project_id: student.projectId, program_id: student.programId }).eq('id', student.id).then();
         }
         return student;
     },
+
+    // Fix: Added deleteStudent to remove student records and their associated user accounts
     deleteStudent: async (id: string) => {
         const db_local = getLocalDB();
         db_local.students = db_local.students.filter((s: any) => s.id !== id);
         db_local.users = db_local.users.filter((u: any) => u.studentId !== id);
         setLocalDB(db_local);
-
         if (supabase) {
-            await supabase.from('users').delete().eq('student_id', id);
-            await supabase.from('students').delete().eq('id', id);
+            supabase.from('students').delete().eq('id', id).then();
+            supabase.from('users').delete().eq('student_id', id).then();
         }
     },
-    getTeachers: async () => {
-        const { data } = await safeQuery(supabase?.from('teachers').select('*') || Promise.resolve({}), 'teachers');
-        return data || [];
-    },
+
     addTeacher: async (teacher: Omit<Teacher, 'id'>) => {
         const id = generateId();
         const newTeacher = { ...teacher, id } as Teacher;
@@ -259,11 +206,13 @@ export const db = {
         setLocalDB(db_local);
 
         if (supabase) {
-            await supabase.from('teachers').insert([{ ...teacher, id }]);
-            await supabase.from('users').insert([{ id: newUser.id, username: newUser.username, password: newUser.password, role: 'teacher', teacher_id: id }]);
+            supabase.from('teachers').insert([{ ...teacher, id }]).then();
+            supabase.from('users').insert([{ id: newUser.id, username: newUser.username, password: newUser.password, role: 'teacher', teacher_id: id }]).then();
         }
         return newTeacher;
     },
+
+    // Fix: Added updateTeacher to handle profile modifications and sync with the associated user
     updateTeacher: async (teacher: Teacher) => {
         const db_local = getLocalDB();
         const idx = db_local.teachers.findIndex((t: any) => t.id === teacher.id);
@@ -276,118 +225,63 @@ export const db = {
             }
             setLocalDB(db_local);
         }
-
         if (supabase) {
-            await supabase.from('teachers').update(teacher).eq('id', teacher.id);
-            await supabase.from('users').update({ username: teacher.name, password: teacher.cedula }).eq('teacher_id', teacher.id);
+            supabase.from('teachers').update({ name: teacher.name, email: teacher.email, cedula: teacher.cedula }).eq('id', teacher.id).then();
         }
         return teacher;
     },
+
+    // Fix: Added deleteTeacher to remove teacher records and their associated user accounts
     deleteTeacher: async (id: string) => {
         const db_local = getLocalDB();
         db_local.teachers = db_local.teachers.filter((t: any) => t.id !== id);
         db_local.users = db_local.users.filter((u: any) => u.teacherId !== id);
         setLocalDB(db_local);
-
         if (supabase) {
-            await supabase.from('users').delete().eq('teacher_id', id);
-            await supabase.from('teachers').delete().eq('id', id);
+            supabase.from('teachers').delete().eq('id', id).then();
+            supabase.from('users').delete().eq('teacher_id', id).then();
         }
     },
-    getProjectTeachers: async () => {
-        const { data } = await safeQuery(supabase?.from('project_teachers').select('*') || Promise.resolve({}), 'projectTeachers');
-        return (data || []).map((pt: any) => ({ 
-            id: pt.id, 
-            projectId: pt.project_id || pt.projectId, 
-            teacherId: pt.teacher_id || pt.teacherId, 
-            roleId: pt.role_id || pt.roleId 
-        }));
-    },
+
     addProjectTeacher: async (pt: Omit<ProjectTeacher, 'id'>) => {
         const id = generateId();
         const newPT = { ...pt, id } as ProjectTeacher;
-        
         const db_local = getLocalDB();
         db_local.projectTeachers.push(newPT);
         setLocalDB(db_local);
-
-        if (supabase) {
-            await supabase.from('project_teachers').insert([{ id, project_id: pt.projectId, teacher_id: pt.teacherId, role_id: pt.roleId }]);
-        }
+        if (supabase) supabase.from('project_teachers').insert([{ id, project_id: pt.projectId, teacher_id: pt.teacherId, role_id: pt.roleId }]).then();
         return newPT;
     },
+
     deleteProjectTeachersByProject: async (projectId: string) => {
         const db_local = getLocalDB();
         db_local.projectTeachers = db_local.projectTeachers.filter((pt: any) => pt.projectId !== projectId);
         setLocalDB(db_local);
-
-        if (supabase) {
-            await supabase.from('project_teachers').delete().eq('project_id', projectId);
-        }
+        if (supabase) supabase.from('project_teachers').delete().eq('project_id', projectId).then();
     },
-    getPrograms: async () => (await safeQuery(supabase?.from('programs').select('*') || Promise.resolve({}), 'programs')).data || [],
-    getStatuses: async () => (await safeQuery(supabase?.from('statuses').select('*') || Promise.resolve({}), 'statuses')).data || [],
-    getFormats: async () => (await safeQuery(supabase?.from('formats').select('*') || Promise.resolve({}), 'formats')).data || [],
-    getTeacherRoles: async () => (await safeQuery(supabase?.from('teacher_roles').select('*') || Promise.resolve({}), 'teacherRoles')).data || [],
+
+    // Fix: Added deleteUser to allow administrative removal of system access accounts
+    deleteUser: async (id: string) => {
+        const db_local = getLocalDB();
+        db_local.users = db_local.users.filter((u: any) => u.id !== id);
+        setLocalDB(db_local);
+        if (supabase) supabase.from('users').delete().eq('id', id).then();
+    },
+
+    // --- CONFIGURACIONES (Mantenidas locales por simplicidad) ---
+    addStatus: async (p: Omit<Status, 'id'>) => { const id=generateId(); const item={...p, id}; const db=getLocalDB(); db.statuses.push(item); setLocalDB(db); return item; },
+    addFormat: async (p: Omit<Format, 'id'>) => { const id=generateId(); const item={...p, id}; const db=getLocalDB(); db.formats.push(item); setLocalDB(db); return item; },
+    addProgram: async (p: Omit<Program, 'id'>) => { const id=generateId(); const item={...p, id}; const db=getLocalDB(); db.programs.push(item); setLocalDB(db); return item; },
+    addTeacherRole: async (p: Omit<TeacherRole, 'id'>) => { const id=generateId(); const item={...p, id}; const db=getLocalDB(); db.teacherRoles.push(item); setLocalDB(db); return item; },
     
-    addProgram: async (p: Omit<Program, 'id'>) => {
-        const id = generateId();
-        const item = {...p, id};
-        const db_l = getLocalDB(); db_l.programs.push(item); setLocalDB(db_l);
-        if (supabase) await supabase.from('programs').insert([item]);
-        return item;
-    },
-    addStatus: async (p: Omit<Status, 'id'>) => { 
-        const id = generateId(); const item = {...p, id};
-        const db_l = getLocalDB(); db_l.statuses.push(item); setLocalDB(db_l);
-        if (supabase) await supabase.from('statuses').insert([item]);
-        return item;
-    },
-    addFormat: async (p: Omit<Format, 'id'>) => { 
-        const id = generateId(); const item = {...p, id};
-        const db_l = getLocalDB(); db_l.formats.push(item); setLocalDB(db_l);
-        if (supabase) await supabase.from('formats').insert([item]);
-        return item;
-    },
-    addTeacherRole: async (p: Omit<TeacherRole, 'id'>) => { 
-        const id = generateId(); const item = {...p, id};
-        const db_l = getLocalDB(); db_l.teacherRoles.push(item); setLocalDB(db_l);
-        if (supabase) await supabase.from('teacher_roles').insert([item]);
-        return item;
-    },
-
-    updateStatus: async (p: Status) => { 
-        const db_l = getLocalDB(); const idx = db_l.statuses.findIndex((x:any)=>x.id===p.id); if(idx!==-1) db_l.statuses[idx]=p; setLocalDB(db_l);
-        if(supabase) await supabase.from('statuses').update({name: p.name}).eq('id', p.id); return p; 
-    },
-    deleteStatus: async (id: string) => { 
-        const db_l = getLocalDB(); db_l.statuses = db_l.statuses.filter((x:any)=>x.id!==id); setLocalDB(db_l);
-        if(supabase) await supabase.from('statuses').delete().eq('id', id); 
-    },
-    updateFormat: async (p: Format) => { 
-        const db_l = getLocalDB(); const idx = db_l.formats.findIndex((x:any)=>x.id===p.id); if(idx!==-1) db_l.formats[idx]=p; setLocalDB(db_l);
-        if(supabase) await supabase.from('formats').update({name: p.name}).eq('id', p.id); return p; 
-    },
-    deleteFormat: async (id: string) => { 
-        const db_l = getLocalDB(); db_l.formats = db_l.formats.filter((x:any)=>x.id!==id); setLocalDB(db_l);
-        if(supabase) await supabase.from('formats').delete().eq('id', id); 
-    },
-    updateTeacherRole: async (p: TeacherRole) => { 
-        const db_l = getLocalDB(); const idx = db_l.teacherRoles.findIndex((x:any)=>x.id===p.id); if(idx!==-1) db_l.teacherRoles[idx]=p; setLocalDB(db_l);
-        if(supabase) await supabase.from('teacher_roles').update({name: p.name}).eq('id', p.id); return p; 
-    },
-    deleteTeacherRole: async (id: string) => { 
-        const db_l = getLocalDB(); db_l.teacherRoles = db_l.teacherRoles.filter((x:any)=>x.id!==id); setLocalDB(db_l);
-        if(supabase) await supabase.from('teacher_roles').delete().eq('id', id); 
-    },
-    updateProgram: async (p: Program) => { 
-        const db_l = getLocalDB(); const idx = db_l.programs.findIndex((x:any)=>x.id===p.id); if(idx!==-1) db_l.programs[idx]=p; setLocalDB(db_l);
-        if(supabase) await supabase.from('programs').update({name: p.name}).eq('id', p.id); return p; 
-    },
-    deleteProgram: async (id: string) => { 
-        const db_l = getLocalDB(); db_l.programs = db_l.programs.filter((x:any)=>x.id!==id); setLocalDB(db_l);
-        if(supabase) await supabase.from('programs').delete().eq('id', id); 
-    },
+    updateStatus: async (p: Status) => { const db=getLocalDB(); const i=db.statuses.findIndex((x:any)=>x.id===p.id); if(i!==-1) db.statuses[i]=p; setLocalDB(db); return p; },
+    deleteStatus: async (id: string) => { const db=getLocalDB(); db.statuses=db.statuses.filter((x:any)=>x.id!==id); setLocalDB(db); },
+    updateFormat: async (p: Format) => { const db=getLocalDB(); const i=db.formats.findIndex((x:any)=>x.id===p.id); if(i!==-1) db.formats[i]=p; setLocalDB(db); return p; },
+    deleteFormat: async (id: string) => { const db=getLocalDB(); db.formats=db.formats.filter((x:any)=>x.id!==id); setLocalDB(db); },
+    updateProgram: async (p: Program) => { const db=getLocalDB(); const i=db.programs.findIndex((x:any)=>x.id===p.id); if(i!==-1) db.programs[i]=p; setLocalDB(db); return p; },
+    deleteProgram: async (id: string) => { const db=getLocalDB(); db.programs=db.programs.filter((x:any)=>x.id!==id); setLocalDB(db); },
+    updateTeacherRole: async (p: TeacherRole) => { const db=getLocalDB(); const i=db.teacherRoles.findIndex((x:any)=>x.id===p.id); if(i!==-1) db.teacherRoles[i]=p; setLocalDB(db); return p; },
+    deleteTeacherRole: async (id: string) => { const db=getLocalDB(); db.teacherRoles=db.teacherRoles.filter((x:any)=>x.id!==id); setLocalDB(db); },
 
     initializeDB
 };

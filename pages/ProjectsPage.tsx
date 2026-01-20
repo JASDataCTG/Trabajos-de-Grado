@@ -109,7 +109,7 @@ const ProjectForm: React.FC<{
         if (isSaving) return;
         
         if (!formData.title?.trim() || !formData.presentationDate) {
-            alert("Título y Fecha son obligatorios.");
+            alert("El Título y la Fecha de Radicación son obligatorios.");
             return;
         }
 
@@ -119,7 +119,7 @@ const ProjectForm: React.FC<{
             onClose();
         } catch (error) {
             console.error("Error al guardar:", error);
-            alert("Error al guardar los datos. Intente nuevamente.");
+            alert("No se pudieron guardar los cambios. Verifique su conexión.");
         } finally {
             setIsSaving(false);
         }
@@ -202,13 +202,6 @@ const ProjectForm: React.FC<{
                         </div>
                     </div>
                 </div>
-                
-                {gradeInfo.canGrade && !isAdmin && (
-                    <div className="mt-2 text-[9px] font-bold text-uninunez-ash bg-white/50 p-2 rounded-lg border border-uninunez-onix/5 text-center uppercase tracking-tight">
-                        Acceso de Evaluador: <span className="text-uninunez-teal">{gradeInfo.reviewerRole}</span>. 
-                        Los campos de calificación están restringidos a su rol asignado.
-                    </div>
-                )}
             </div>
             
             <div className="pt-4 border-t border-gray-100">
@@ -309,8 +302,8 @@ export const ProjectsPage: React.FC = () => {
                 };
             }
             
-            setProjects(p);
-            setStudents(s);
+            setProjects([...p]); // Nueva referencia para forzar render
+            setStudents([...s]);
             setTeachers(t);
             setRoles(r);
             setStatuses(st);
@@ -335,34 +328,36 @@ export const ProjectsPage: React.FC = () => {
                 savedProject = await db.addProject(projectData as Omit<Project, 'id'>);
             }
 
-            // Solo actualizar vínculos si es administrador o creador (o si es nuevo)
+            // Actualizar vínculos de docentes
             if (!isEditing || isAdmin || userPerms[savedProject.id]?.canEdit) {
                 await db.deleteProjectTeachersByProject(savedProject.id);
                 for (const a of assignments) {
                     await db.addProjectTeacher({ projectId: savedProject.id, teacherId: a.teacherId, roleId: a.roleId });
                 }
 
-                // Actualizar estudiantes vinculados
-                const studentsData = await db.getStudents();
-                const prevProjectStudents = studentsData.filter(s => s.projectId === savedProject.id);
-                
-                for (const s of prevProjectStudents) {
+                // Actualizar estudiantes
+                const allStudents = await db.getStudents();
+                // Limpiar vinculación anterior de este proyecto
+                const currentStudents = allStudents.filter(s => s.projectId === savedProject.id);
+                for (const s of currentStudents) {
                     if (!studentIds.includes(s.id)) {
                         await db.updateStudent({ ...s, projectId: null });
                     }
                 }
+                // Vincular nuevos seleccionados
                 for (const sid of studentIds) {
-                    const s = studentsData.find(x => x.id === sid);
-                    if (s && s.projectId !== savedProject.id) {
-                        await db.updateStudent({ ...s, projectId: savedProject.id });
+                    const student = allStudents.find(s => s.id === sid);
+                    if (student && student.projectId !== savedProject.id) {
+                        await db.updateStudent({ ...student, projectId: savedProject.id });
                     }
                 }
             }
 
+            // Forzar recarga total de datos
             await loadData();
             setIsModalOpen(false);
         } catch (err) {
-            console.error("Error en proceso de guardado:", err);
+            console.error("Error crítico en handleSave:", err);
             throw err;
         }
     };
@@ -436,7 +431,7 @@ export const ProjectsPage: React.FC = () => {
                             ))}
                             {projects.length === 0 && (
                                 <tr>
-                                    <td colSpan={3} className="text-center py-10 text-gray-400 italic">No hay proyectos registrados.</td>
+                                    <td colSpan={3} className="text-center py-20 text-gray-400 italic text-sm">No se encontraron proyectos registrados en el banco institucional.</td>
                                 </tr>
                             )}
                         </tbody>
@@ -457,7 +452,7 @@ export const ProjectsPage: React.FC = () => {
                         roles={roles} 
                         initialAssignments={editingProject ? projectTeachers.filter(pt => pt.projectId === editingProject.id) : []} 
                         initialStudentIds={editingProject ? students.filter(s => s.projectId === editingProject.id).map(s => s.id) : []}
-                        canEditDetails={editingProject ? (isAdmin || userPerms[editingProject.id]?.canEdit) : isAdmin} 
+                        canEditDetails={editingProject ? (isAdmin || userPerms[editingProject.id]?.canEdit) : true} 
                         gradeInfo={editingProject ? userPerms[editingProject.id]?.grade : {canGrade: false, reviewerRole: null, reviewerSlot: null}} 
                     />
                 )}
