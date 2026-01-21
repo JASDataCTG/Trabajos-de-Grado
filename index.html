@@ -4,10 +4,11 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#F07E12" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Uninúñez Proyectos" />
     <link rel="apple-touch-icon" href="https://axis.uninunez.edu.co/images/uninunez/vm/logoqteal.svg" />
     <link rel="manifest" href="/manifest.json" />
     <title>Gestor de Proyectos de Grado - CURN</title>
@@ -57,6 +58,11 @@
       /* Prevenir selección de texto en botones en móviles */
       button {
         -webkit-tap-highlight-color: transparent;
+      }
+      /* Ajuste para notch en móviles modernos */
+      body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
       }
     </style>
   <script type="importmap">

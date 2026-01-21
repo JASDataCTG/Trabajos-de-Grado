@@ -1,16 +1,18 @@
 
 {
-  "short_name": "Uninúñez Grados",
-  "name": "Gestor de Proyectos de Grado - Uninúñez",
+  "short_name": "Uninúñez",
+  "name": "Gestor de Proyectos - Uninúñez",
   "icons": [
     {
       "src": "https://axis.uninunez.edu.co/images/uninunez/vm/logoqteal.svg",
       "type": "image/svg+xml",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "theme_color": "#F07E12",
   "background_color": "#ffffff"
 }
