@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { HomeIcon, ProjectIcon, StudentIcon, TeacherIcon, SettingsIcon, ReportIcon, UserAdminIcon } from './Icons';
+import { HomeIcon, ProjectIcon, StudentIcon, TeacherIcon, SettingsIcon, ReportIcon, UserAdminIcon, XIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 
 type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings' | 'reports' | 'users';
@@ -25,7 +25,7 @@ const NavItem: React.FC<{
         e.preventDefault();
         onClick();
       }}
-      className={`flex items-center px-4 py-3 text-sm font-semibold transition-all duration-200 ease-in-out border-l-4 ${
+      className={`flex items-center px-6 py-4 text-sm font-semibold transition-all duration-200 ease-in-out border-l-4 ${
         isActive
           ? 'bg-uninunez-orange text-white border-white'
           : 'text-gray-300 border-transparent hover:bg-uninunez-ash hover:text-white'
@@ -53,17 +53,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
 
   return (
     <>
-      <div className={`fixed inset-0 z-20 bg-black bg-opacity-60 transition-opacity md:hidden ${isOpen ? 'block' : 'hidden'}`} onClick={() => setIsOpen(false)}></div>
-      <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-uninunez-onix shadow-2xl transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:flex md:flex-shrink-0`}>
+      {/* Mobile Overlay con Blur */}
+      <div 
+        className={`fixed inset-0 z-40 bg-uninunez-onix/60 backdrop-blur-sm transition-opacity duration-300 md:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} 
+        onClick={() => setIsOpen(false)}
+      ></div>
+
+      <div className={`fixed inset-y-0 left-0 z-50 w-72 bg-uninunez-onix shadow-2xl transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:flex md:flex-shrink-0`}>
         <div className="flex flex-col h-full w-full">
-           <div className="flex flex-col items-center justify-center p-6 bg-white border-b-4 border-uninunez-orange">
+           <div className="flex flex-col items-center justify-center p-8 bg-white border-b-4 border-uninunez-orange relative">
+            <button 
+              className="absolute top-4 right-4 md:hidden text-uninunez-onix p-2"
+              onClick={() => setIsOpen(false)}
+            >
+              <XIcon className="h-6 w-6" />
+            </button>
             <img 
               src="https://axis.uninunez.edu.co/images/uninunez/vm/logoqteal.svg" 
               alt="Logo Uninúñez" 
-              className="h-20 object-contain"
+              className="h-16 md:h-20 object-contain"
             />
           </div>
-          <nav className="flex-1 mt-4 space-y-1">
+          <nav className="flex-1 mt-4 space-y-1 overflow-y-auto scrollbar-hide">
             {navItems.map(item => (
                 (!item.adminOnly || user?.username === 'admin') && (
                     <NavItem 
@@ -76,9 +87,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
                 )
             ))}
           </nav>
-          <div className="p-4 bg-uninunez-ash bg-opacity-20 border-t border-uninunez-ash">
-             <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest text-center">
-                UNINÚÑEZ v2.0
+          <div className="p-6 bg-uninunez-ash/10 border-t border-white/5">
+             <div className="text-[9px] text-gray-400 font-black uppercase tracking-[0.3em] text-center">
+                Corporación Universitaria<br/> Rafael Núñez
              </div>
           </div>
         </div>

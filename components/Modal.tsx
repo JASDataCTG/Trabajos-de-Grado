@@ -14,23 +14,26 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 z-40 flex justify-center items-center p-4"
+      className="fixed inset-0 bg-uninunez-onix/80 backdrop-blur-sm z-[100] flex justify-center items-end md:items-center p-0 md:p-4 animate-fadeIn"
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-lg shadow-xl w-full max-w-2xl transform transition-all"
+        className="bg-white rounded-t-[2.5rem] md:rounded-3xl shadow-2xl w-full max-w-2xl transform transition-all max-h-[92vh] flex flex-col animate-slideUp"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center p-4 border-b">
-          <h3 className="text-xl font-semibold text-gray-800">{title}</h3>
+        <div className="flex justify-between items-center p-6 md:p-8 border-b border-gray-50">
+          <div>
+            <h3 className="text-xl md:text-2xl font-black text-uninunez-onix font-display uppercase tracking-tight">{title}</h3>
+            <div className="w-10 h-1 bg-uninunez-orange mt-1"></div>
+          </div>
           <button 
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-full p-1"
+            className="bg-gray-100 text-gray-400 hover:text-uninunez-orange hover:bg-gray-200 focus:outline-none rounded-full p-2 transition-all"
           >
             <XIcon className="h-6 w-6" />
           </button>
         </div>
-        <div className="p-6">
+        <div className="p-6 md:p-8 overflow-y-auto flex-1 overscroll-contain">
           {children}
         </div>
       </div>

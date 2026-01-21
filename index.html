@@ -4,7 +4,12 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#F07E12" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="apple-touch-icon" href="https://axis.uninunez.edu.co/images/uninunez/vm/logoqteal.svg" />
+    <link rel="manifest" href="/manifest.json" />
     <title>Gestor de Proyectos de Grado - CURN</title>
     <!-- Tipografías Institucionales Uninúñez -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -30,24 +35,30 @@
                 jade: "#2FAC66",        // Verde Jade
                 onix: "#3C3C3B",        // Ónix (Neutral Oscuro)
                 ash: "#575756",         // Gris Ceniza
-              },
-              primary: {
-                "50": "#fff7ed",
-                "100": "#ffedd5",
-                "200": "#fed7aa",
-                "300": "#fdba74",
-                "400": "#fb923c",
-                "500": "#F07E12", // Mapeado al naranja principal
-                "600": "#F39200",
-                "700": "#bf7000",
-                "800": "#995a00",
-                "900": "#7d4900",
               }
             }
           }
         }
       }
     </script>
+    <style>
+      /* Mejoras de scroll para móviles */
+      ::-webkit-scrollbar {
+        width: 4px;
+        height: 4px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #F07E12;
+        border-radius: 10px;
+      }
+      .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+      }
+      /* Prevenir selección de texto en botones en móviles */
+      button {
+        -webkit-tap-highlight-color: transparent;
+      }
+    </style>
   <script type="importmap">
 {
   "imports": {
@@ -59,7 +70,7 @@
 }
 </script>
 </head>
-  <body class="bg-gray-50 text-uninunez-onix font-sans">
+  <body class="bg-gray-50 text-uninunez-onix font-sans overscroll-none">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
