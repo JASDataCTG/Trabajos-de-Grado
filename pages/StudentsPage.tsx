@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { db } from '../services/database';
-import { Student, Program } from '../types';
+import { Student, Program, Project } from '../types';
 import { Modal } from '../components/Modal';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { PlusIcon, EditIcon, TrashIcon } from '../components/Icons';
@@ -11,6 +11,7 @@ export const StudentsPage: React.FC = () => {
     const { isAdmin } = useAuth();
     const [students, setStudents] = useState<Student[]>([]);
     const [programs, setPrograms] = useState<Program[]>([]);
+    const [projects, setProjects] = useState<Project[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -19,15 +20,19 @@ export const StudentsPage: React.FC = () => {
     // Filtros
     const [filterProgram, setFilterProgram] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterStartDate, setFilterStartDate] = useState('');
+    const [filterEndDate, setFilterEndDate] = useState('');
 
     const loadData = useCallback(async () => {
         setIsLoading(true);
-        const [s, p] = await Promise.all([
+        const [s, p, proj] = await Promise.all([
             db.getStudents(),
-            db.getPrograms()
+            db.getPrograms(),
+            db.getProjects()
         ]);
         setStudents(s);
         setPrograms(p);
+        setProjects(proj);
         setIsLoading(false);
     }, []);
 
@@ -39,9 +44,26 @@ export const StudentsPage: React.FC = () => {
             const matchesSearch = !searchTerm || 
                                  s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                                  s.cedula.includes(searchTerm);
-            return matchesProgram && matchesSearch;
+            
+            // Filtro por fecha basado en el proyecto asignado
+            let matchesDate = true;
+            if (filterStartDate || filterEndDate) {
+                const studentProject = projects.find(p => p.id === s.projectId);
+                if (!studentProject) {
+                    matchesDate = false;
+                } else {
+                    if (filterStartDate) {
+                        matchesDate = matchesDate && new Date(studentProject.presentationDate) >= new Date(filterStartDate);
+                    }
+                    if (filterEndDate) {
+                        matchesDate = matchesDate && new Date(studentProject.presentationDate) <= new Date(filterEndDate);
+                    }
+                }
+            }
+
+            return matchesProgram && matchesSearch && matchesDate;
         });
-    }, [students, filterProgram, searchTerm]);
+    }, [students, projects, filterProgram, searchTerm, filterStartDate, filterEndDate]);
 
     const handleSave = async (studentData: any) => {
         if (editingStudent) {
@@ -84,28 +106,58 @@ export const StudentsPage: React.FC = () => {
             </div>
 
             {/* Barra de Filtros */}
-            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                    <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Buscar por Nombre o Cédula</label>
-                    <input 
-                        type="text" 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Escribe para buscar..."
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
-                    />
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="lg:col-span-1">
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Buscar por Nombre o Cédula</label>
+                        <input 
+                            type="text" 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Escribe para buscar..."
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Filtrar por Programa</label>
+                        <select 
+                            value={filterProgram} 
+                            onChange={(e) => setFilterProgram(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
+                        >
+                            <option value="">TODOS LOS PROGRAMAS</option>
+                            {programs.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Proyecto Desde</label>
+                        <input 
+                            type="date" 
+                            value={filterStartDate}
+                            onChange={(e) => setFilterStartDate(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Proyecto Hasta</label>
+                        <input 
+                            type="date" 
+                            value={filterEndDate}
+                            onChange={(e) => setFilterEndDate(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
+                        />
+                    </div>
                 </div>
-                <div className="flex-1">
-                    <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Filtrar por Programa</label>
-                    <select 
-                        value={filterProgram} 
-                        onChange={(e) => setFilterProgram(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
-                    >
-                        <option value="">TODOS LOS PROGRAMAS</option>
-                        {programs.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>)}
-                    </select>
-                </div>
+                {(searchTerm || filterProgram || filterStartDate || filterEndDate) && (
+                    <div className="flex justify-end">
+                        <button 
+                            onClick={() => { setSearchTerm(''); setFilterProgram(''); setFilterStartDate(''); setFilterEndDate(''); }}
+                            className="text-[9px] font-black text-uninunez-orange uppercase tracking-widest hover:underline"
+                        >
+                            Limpiar Filtros
+                        </button>
+                    </div>
+                )}
             </div>
             
             <div className="bg-white shadow rounded-3xl overflow-hidden border border-gray-100 min-h-[400px]">

@@ -313,6 +313,8 @@ export const ProjectsPage: React.FC = () => {
     // Filtros
     const [filterProgram, setFilterProgram] = useState('');
     const [filterTeacher, setFilterTeacher] = useState('');
+    const [filterStartDate, setFilterStartDate] = useState('');
+    const [filterEndDate, setFilterEndDate] = useState('');
 
     const loadData = useCallback(async () => {
         setIsLoading(true);
@@ -359,16 +361,25 @@ export const ProjectsPage: React.FC = () => {
             const linkedStudents = students.filter(s => s.projectId === p.id);
             const studentProgramIds = Array.from(new Set(linkedStudents.map(s => s.programId)));
             
-            // Filtro por programa: coincide con el programa base del proyecto o con el de alguno de sus integrantes
+            // Filtro por programa
             const matchesProgram = !filterProgram || p.programId === filterProgram || studentProgramIds.includes(filterProgram);
             
-            // Filtro por docente: participa en el proyecto
+            // Filtro por docente
             const projectAssignedTeacherIds = projectTeachers.filter(pt => pt.projectId === p.id).map(pt => pt.teacherId);
             const matchesTeacher = !filterTeacher || projectAssignedTeacherIds.includes(filterTeacher);
 
-            return matchesProgram && matchesTeacher;
+            // Filtro por fecha
+            let matchesDate = true;
+            if (filterStartDate) {
+                matchesDate = matchesDate && new Date(p.presentationDate) >= new Date(filterStartDate);
+            }
+            if (filterEndDate) {
+                matchesDate = matchesDate && new Date(p.presentationDate) <= new Date(filterEndDate);
+            }
+
+            return matchesProgram && matchesTeacher && matchesDate;
         });
-    }, [projects, students, projectTeachers, filterProgram, filterTeacher]);
+    }, [projects, students, projectTeachers, filterProgram, filterTeacher, filterStartDate, filterEndDate]);
 
     const handleSave = async (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>, studentIds: string[]) => {
         try {
@@ -430,29 +441,59 @@ export const ProjectsPage: React.FC = () => {
             </div>
 
             {/* Barra de Filtros */}
-            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                    <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Filtrar por Programa</label>
-                    <select 
-                        value={filterProgram} 
-                        onChange={(e) => setFilterProgram(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
-                    >
-                        <option value="">TODOS LOS PROGRAMAS</option>
-                        {programs.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>)}
-                    </select>
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Filtrar por Programa</label>
+                        <select 
+                            value={filterProgram} 
+                            onChange={(e) => setFilterProgram(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
+                        >
+                            <option value="">TODOS LOS PROGRAMAS</option>
+                            {programs.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Filtrar por Docente</label>
+                        <select 
+                            value={filterTeacher} 
+                            onChange={(e) => setFilterTeacher(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
+                        >
+                            <option value="">TODOS LOS DOCENTES</option>
+                            {teachers.map(t => <option key={t.id} value={t.id}>{t.name.toUpperCase()}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Fecha Inicio (Desde)</label>
+                        <input 
+                            type="date" 
+                            value={filterStartDate}
+                            onChange={(e) => setFilterStartDate(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Fecha Fin (Hasta)</label>
+                        <input 
+                            type="date" 
+                            value={filterEndDate}
+                            onChange={(e) => setFilterEndDate(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
+                        />
+                    </div>
                 </div>
-                <div className="flex-1">
-                    <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Filtrar por Docente</label>
-                    <select 
-                        value={filterTeacher} 
-                        onChange={(e) => setFilterTeacher(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
-                    >
-                        <option value="">TODOS LOS DOCENTES</option>
-                        {teachers.map(t => <option key={t.id} value={t.id}>{t.name.toUpperCase()}</option>)}
-                    </select>
-                </div>
+                {(filterProgram || filterTeacher || filterStartDate || filterEndDate) && (
+                    <div className="flex justify-end">
+                        <button 
+                            onClick={() => { setFilterProgram(''); setFilterTeacher(''); setFilterStartDate(''); setFilterEndDate(''); }}
+                            className="text-[9px] font-black text-uninunez-orange uppercase tracking-widest hover:underline"
+                        >
+                            Limpiar Filtros
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="bg-white shadow-sm border border-gray-100 rounded-3xl overflow-hidden min-h-[400px]">
@@ -492,7 +533,6 @@ export const ProjectsPage: React.FC = () => {
                                         if (projectProgram) programDisplay = projectProgram.name;
                                     }
 
-                                    // Obtener docentes asignados al proyecto
                                     const currentProjectTeachers = projectTeachers.filter(pt => pt.projectId === p.id);
 
                                     return (

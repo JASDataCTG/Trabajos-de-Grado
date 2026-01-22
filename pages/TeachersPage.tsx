@@ -21,6 +21,8 @@ export const TeachersPage: React.FC = () => {
     // Filtros
     const [filterProgram, setFilterProgram] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterStartDate, setFilterStartDate] = useState('');
+    const [filterEndDate, setFilterEndDate] = useState('');
 
     const loadData = useCallback(async () => {
         setIsLoading(true);
@@ -50,17 +52,25 @@ export const TeachersPage: React.FC = () => {
                                  t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                                  t.cedula.includes(searchTerm);
             
-            // Lógica de filtro por programa para docentes:
-            // Un docente "pertenece" a un programa si está asignado a un proyecto de ese programa.
-            if (!filterProgram) return matchesSearch;
+            // Lógica de filtro por programa y fechas para docentes:
+            // Un docente coincide si tiene algún proyecto asignado que cumpla los criterios.
+            if (!filterProgram && !filterStartDate && !filterEndDate) return matchesSearch;
 
-            const teacherProjectIds = projectTeachers.filter(pt => pt.teacherId === t.id).map(pt => pt.projectId);
+            const teacherAssignments = projectTeachers.filter(pt => pt.teacherId === t.id);
+            const teacherProjectIds = teacherAssignments.map(pt => pt.projectId);
             const teacherProjects = projects.filter(p => teacherProjectIds.includes(p.id));
-            const hasProjectInProgram = teacherProjects.some(p => p.programId === filterProgram);
 
-            return matchesSearch && hasProjectInProgram;
+            let hasMatchingProject = teacherProjects.some(p => {
+                let projectMatches = true;
+                if (filterProgram) projectMatches = projectMatches && p.programId === filterProgram;
+                if (filterStartDate) projectMatches = projectMatches && new Date(p.presentationDate) >= new Date(filterStartDate);
+                if (filterEndDate) projectMatches = projectMatches && new Date(p.presentationDate) <= new Date(filterEndDate);
+                return projectMatches;
+            });
+
+            return matchesSearch && hasMatchingProject;
         });
-    }, [teachers, searchTerm, filterProgram, projectTeachers, projects]);
+    }, [teachers, searchTerm, filterProgram, filterStartDate, filterEndDate, projectTeachers, projects]);
 
     const handleSave = async (teacherData: any) => {
         if (editingTeacher) {
@@ -98,28 +108,58 @@ export const TeachersPage: React.FC = () => {
             </div>
 
             {/* Barra de Filtros */}
-            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                    <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Buscar por Nombre o Cédula</label>
-                    <input 
-                        type="text" 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Escribe para buscar..."
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-onix outline-none"
-                    />
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="lg:col-span-1">
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Buscar por Nombre o Cédula</label>
+                        <input 
+                            type="text" 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Escribe para buscar..."
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-onix outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Programa (Proyectos)</label>
+                        <select 
+                            value={filterProgram} 
+                            onChange={(e) => setFilterProgram(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-onix outline-none"
+                        >
+                            <option value="">TODOS LOS PROGRAMAS</option>
+                            {programs.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Proyectos Desde</label>
+                        <input 
+                            type="date" 
+                            value={filterStartDate}
+                            onChange={(e) => setFilterStartDate(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-onix outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Proyectos Hasta</label>
+                        <input 
+                            type="date" 
+                            value={filterEndDate}
+                            onChange={(e) => setFilterEndDate(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-onix outline-none"
+                        />
+                    </div>
                 </div>
-                <div className="flex-1">
-                    <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Filtrar por Programa (Proyectos)</label>
-                    <select 
-                        value={filterProgram} 
-                        onChange={(e) => setFilterProgram(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-onix outline-none"
-                    >
-                        <option value="">TODOS LOS PROGRAMAS</option>
-                        {programs.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>)}
-                    </select>
-                </div>
+                {(searchTerm || filterProgram || filterStartDate || filterEndDate) && (
+                    <div className="flex justify-end">
+                        <button 
+                            onClick={() => { setSearchTerm(''); setFilterProgram(''); setFilterStartDate(''); setFilterEndDate(''); }}
+                            className="text-[9px] font-black text-uninunez-orange uppercase tracking-widest hover:underline"
+                        >
+                            Limpiar Filtros
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="bg-white shadow rounded-3xl overflow-hidden border border-gray-100 min-h-[400px]">
