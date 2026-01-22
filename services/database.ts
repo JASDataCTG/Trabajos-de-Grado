@@ -172,14 +172,27 @@ export const db = {
         if (!supabase) throw new Error("Supabase no configurado");
         const id = generateId();
         const userId = generateId();
-        await supabase.from('students').insert([{ id, name: student.name, email: student.email, cedula: student.cedula, project_id: student.projectId }]);
+        await supabase.from('students').insert([{ 
+            id, 
+            name: student.name, 
+            email: student.email, 
+            cedula: student.cedula, 
+            project_id: student.projectId,
+            program_id: student.programId 
+        }]);
         await supabase.from('users').insert([{ id: userId, username: student.name, password: student.cedula, role: 'student', student_id: id }]);
         return { ...student, id } as Student;
     },
 
     updateStudent: async (student: Student) => {
         if (!supabase) return student;
-        await supabase.from('students').update({ name: student.name, email: student.email, cedula: student.cedula, project_id: student.projectId }).eq('id', student.id);
+        await supabase.from('students').update({ 
+            name: student.name, 
+            email: student.email, 
+            cedula: student.cedula, 
+            project_id: student.projectId,
+            program_id: student.programId 
+        }).eq('id', student.id);
         return student;
     },
 

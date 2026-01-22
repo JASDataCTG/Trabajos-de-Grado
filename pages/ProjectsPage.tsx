@@ -34,20 +34,31 @@ const ProjectForm: React.FC<{
     const [teacherSearch, setTeacherSearch] = useState('');
 
     useEffect(() => {
+        // Lógica para inferir el programa si es un proyecto antiguo sin programId
+        let inferredProgramId = project?.programId;
+        if (!inferredProgramId && initialStudentIds.length > 0) {
+             const student = allStudents.find(s => s.id === initialStudentIds[0]);
+             if (student && student.programId) {
+                 inferredProgramId = student.programId;
+             }
+        }
+
         const initialData: Partial<Project> = {
             title: '', presentationDate: '', filesUrl: '',
             statusId: statuses[0]?.id || '', formatId: formats[0]?.id || '',
-            programId: programs[0]?.id || '',
             isApprovedByDirector: false, writtenGradeReviewer1: null,
             presentationGradeReviewer1: null, writtenGradeReviewer2: null,
-            presentationGradeReviewer2: null, finalGrade: null, ...project
+            presentationGradeReviewer2: null, finalGrade: null,
+            ...project,
+            // Prioridad: 1. El del proyecto, 2. El inferido de estudiantes, 3. El primero de la lista
+            programId: project?.programId || inferredProgramId || programs[0]?.id || '' 
         };
         setFormData(initialData);
         setAssignments(initialAssignments.map(a => ({ teacherId: a.teacherId, roleId: a.roleId, tempId: Math.random() })));
         setAssignedStudentIds(initialStudentIds);
         setNewAssignment({ teacherId: '', roleId: '' });
         setSelectedStudentId('');
-    }, [project, initialAssignments, initialStudentIds, statuses, formats, programs]);
+    }, [project, initialAssignments, initialStudentIds, statuses, formats, programs, allStudents]);
 
     const calculateFinalAverage = (data: Partial<Project>) => {
         const g1w = data.writtenGradeReviewer1;
@@ -160,7 +171,7 @@ const ProjectForm: React.FC<{
                         <input type="date" name="presentationDate" value={formData.presentationDate || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50" disabled={!canEditDetails}/>
                     </div>
                     <div>
-                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Programa Académico</label>
+                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Programa Principal (Radicación)</label>
                         <select name="programId" value={formData.programId || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50 font-bold text-uninunez-teal" disabled={!canEditDetails}>
                             {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
@@ -411,7 +422,7 @@ export const ProjectsPage: React.FC = () => {
                             <thead className="bg-gray-50/50 border-b border-gray-100">
                                 <tr>
                                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Proyecto</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Programa</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Programa(s)</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Autores</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Nota Final</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Acciones</th>
@@ -420,6 +431,24 @@ export const ProjectsPage: React.FC = () => {
                             <tbody className="divide-y divide-gray-50">
                                 {projects.map(p => {
                                     const linkedStudents = students.filter(s => s.projectId === p.id);
+                                    
+                                    // Escaneo de programas de los estudiantes para mostrar composición real
+                                    const studentProgramNames = Array.from(new Set(
+                                        linkedStudents
+                                            .map(s => programs.find(prog => prog.id === s.programId)?.name)
+                                            .filter((name): name is string => !!name)
+                                    ));
+
+                                    // Lógica de visualización: Si hay programas de estudiantes, se muestran (unidos por /), sino el del proyecto
+                                    let programDisplay = 'Sin Programa';
+
+                                    if (studentProgramNames.length > 0) {
+                                        programDisplay = studentProgramNames.join(' / ');
+                                    } else {
+                                        const projectProgram = programs.find(pr => pr.id === p.programId);
+                                        if (projectProgram) programDisplay = projectProgram.name;
+                                    }
+
                                     return (
                                         <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
                                             <td className="px-8 py-6">
@@ -427,7 +456,7 @@ export const ProjectsPage: React.FC = () => {
                                                 <div className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tight">Radicación: {p.presentationDate}</div>
                                             </td>
                                             <td className="px-8 py-6">
-                                                <span className="text-[10px] font-black text-uninunez-teal uppercase">{programs.find(pr => pr.id === p.programId)?.name || 'Sin Programa'}</span>
+                                                <span className="text-[10px] font-black text-uninunez-teal uppercase leading-tight block max-w-[200px]">{programDisplay}</span>
                                             </td>
                                             <td className="px-8 py-6">
                                                 <div className="flex flex-wrap gap-1">

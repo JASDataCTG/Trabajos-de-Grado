@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/database';
-import { Student, Project, Program } from '../types';
+import { Student, Program } from '../types';
 import { Modal } from '../components/Modal';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { PlusIcon, EditIcon, TrashIcon } from '../components/Icons';
@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 export const StudentsPage: React.FC = () => {
     const { isAdmin } = useAuth();
     const [students, setStudents] = useState<Student[]>([]);
+    const [programs, setPrograms] = useState<Program[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -17,8 +18,12 @@ export const StudentsPage: React.FC = () => {
 
     const loadData = useCallback(async () => {
         setIsLoading(true);
-        const s = await db.getStudents();
+        const [s, p] = await Promise.all([
+            db.getStudents(),
+            db.getPrograms()
+        ]);
         setStudents(s);
+        setPrograms(p);
         setIsLoading(false);
     }, []);
 
@@ -41,6 +46,11 @@ export const StudentsPage: React.FC = () => {
             setDeletingStudent(null);
         }
     };
+    
+    const getProgramName = (id?: string) => {
+        if (!id) return '---';
+        return programs.find(p => p.id === id)?.name || '---';
+    }
 
     return (
         <div className="space-y-6">
@@ -61,6 +71,7 @@ export const StudentsPage: React.FC = () => {
                             <tr>
                                 <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Nombre del Estudiante</th>
                                 <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Cédula / Documento</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Programa</th>
                                 <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Acciones</th>
                             </tr>
                         </thead>
@@ -69,6 +80,7 @@ export const StudentsPage: React.FC = () => {
                                 <tr key={s.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-8 py-5 text-sm font-bold text-uninunez-onix">{s.name}</td>
                                     <td className="px-8 py-5 text-sm text-uninunez-ash">{s.cedula}</td>
+                                    <td className="px-8 py-5 text-xs font-semibold text-uninunez-teal">{getProgramName(s.programId)}</td>
                                     <td className="px-8 py-5 text-right flex justify-end gap-2">
                                         {isAdmin && <button onClick={() => { setEditingStudent(s); setIsModalOpen(true); }} className="p-2 text-uninunez-teal hover:bg-uninunez-teal hover:text-white rounded-lg transition-colors"><EditIcon className="h-5 w-5"/></button>}
                                         {isAdmin && <button onClick={() => setDeletingStudent(s)} className="p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors"><TrashIcon className="h-5 w-5"/></button>}
@@ -95,6 +107,15 @@ export const StudentsPage: React.FC = () => {
                             <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Correo Institucional</label>
                             <input name="email" defaultValue={editingStudent?.email} placeholder="email@uninunez.edu.co" className="w-full border border-gray-200 p-3 rounded-xl focus:ring-uninunez-orange focus:border-uninunez-orange outline-none" required />
                         </div>
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Programa Académico</label>
+                        <select name="programId" defaultValue={editingStudent?.programId || ''} className="w-full border border-gray-200 p-3 rounded-xl focus:ring-uninunez-orange focus:border-uninunez-orange outline-none bg-white text-sm" required>
+                            <option value="">Seleccione el programa...</option>
+                            {programs.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
                     </div>
                     <div className="flex justify-end gap-2 pt-6 border-t mt-4">
                         <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3 border rounded-xl text-[10px] font-black uppercase text-gray-400">Cancelar</button>
