@@ -468,6 +468,7 @@ export const ProjectsPage: React.FC = () => {
                                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Proyecto</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Programa(s)</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Autores</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Docentes / Roles</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Nota Final</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Acciones</th>
                                 </tr>
@@ -491,6 +492,9 @@ export const ProjectsPage: React.FC = () => {
                                         if (projectProgram) programDisplay = projectProgram.name;
                                     }
 
+                                    // Obtener docentes asignados al proyecto
+                                    const currentProjectTeachers = projectTeachers.filter(pt => pt.projectId === p.id);
+
                                     return (
                                         <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
                                             <td className="px-8 py-6">
@@ -505,6 +509,20 @@ export const ProjectsPage: React.FC = () => {
                                                     {linkedStudents.map(s => (
                                                         <span key={s.id} className="inline-block px-2 py-0.5 bg-gray-100 text-[10px] font-bold text-gray-700 rounded uppercase">{s.name}</span>
                                                     ))}
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <div className="flex flex-col gap-1.5">
+                                                    {currentProjectTeachers.length > 0 ? currentProjectTeachers.map(pt => {
+                                                        const tName = teachers.find(t => t.id === pt.teacherId)?.name || 'N/A';
+                                                        const rName = roles.find(r => r.id === pt.roleId)?.name || 'N/A';
+                                                        return (
+                                                            <div key={pt.id} className="flex flex-col leading-none">
+                                                                <span className="text-[10px] font-bold text-uninunez-onix uppercase">{tName}</span>
+                                                                <span className="text-[9px] font-black text-uninunez-orange uppercase tracking-tighter">{rName}</span>
+                                                            </div>
+                                                        );
+                                                    }) : <span className="text-[9px] text-gray-400 italic">No asignados</span>}
                                                 </div>
                                             </td>
                                             <td className="px-8 py-6 text-center">
@@ -522,7 +540,7 @@ export const ProjectsPage: React.FC = () => {
                                     );
                                 }) : (
                                     <tr>
-                                        <td colSpan={5} className="px-8 py-20 text-center text-uninunez-ash font-medium italic">
+                                        <td colSpan={6} className="px-8 py-20 text-center text-uninunez-ash font-medium italic">
                                             No se encontraron proyectos con los filtros aplicados.
                                         </td>
                                     </tr>
