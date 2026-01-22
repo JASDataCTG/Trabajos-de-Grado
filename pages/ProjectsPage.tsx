@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { db } from '../services/database';
 import { Project, Student, Teacher, TeacherRole, Status, Format, ProjectTeacher, Program } from '../types';
 import { Modal } from '../components/Modal';
@@ -34,7 +34,6 @@ const ProjectForm: React.FC<{
     const [teacherSearch, setTeacherSearch] = useState('');
 
     useEffect(() => {
-        // Lógica para inferir el programa si es un proyecto antiguo sin programId
         let inferredProgramId = project?.programId;
         if (!inferredProgramId && initialStudentIds.length > 0) {
              const student = allStudents.find(s => s.id === initialStudentIds[0]);
@@ -50,7 +49,6 @@ const ProjectForm: React.FC<{
             presentationGradeReviewer1: null, writtenGradeReviewer2: null,
             presentationGradeReviewer2: null, finalGrade: null,
             ...project,
-            // Prioridad: 1. El del proyecto, 2. El inferido de estudiantes, 3. El primero de la lista
             programId: project?.programId || inferredProgramId || programs[0]?.id || '' 
         };
         setFormData(initialData);
@@ -312,6 +310,10 @@ export const ProjectsPage: React.FC = () => {
     const [deletingProject, setDeletingProject] = useState<Project | null>(null);
     const [userPerms, setUserPerms] = useState<Record<string, any>>({});
 
+    // Filtros
+    const [filterProgram, setFilterProgram] = useState('');
+    const [filterTeacher, setFilterTeacher] = useState('');
+
     const loadData = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -351,6 +353,22 @@ export const ProjectsPage: React.FC = () => {
     }, [canEditProject, canGradeProject]);
 
     useEffect(() => { loadData(); }, [loadData]);
+
+    const filteredProjects = useMemo(() => {
+        return projects.filter(p => {
+            const linkedStudents = students.filter(s => s.projectId === p.id);
+            const studentProgramIds = Array.from(new Set(linkedStudents.map(s => s.programId)));
+            
+            // Filtro por programa: coincide con el programa base del proyecto o con el de alguno de sus integrantes
+            const matchesProgram = !filterProgram || p.programId === filterProgram || studentProgramIds.includes(filterProgram);
+            
+            // Filtro por docente: participa en el proyecto
+            const projectAssignedTeacherIds = projectTeachers.filter(pt => pt.projectId === p.id).map(pt => pt.teacherId);
+            const matchesTeacher = !filterTeacher || projectAssignedTeacherIds.includes(filterTeacher);
+
+            return matchesProgram && matchesTeacher;
+        });
+    }, [projects, students, projectTeachers, filterProgram, filterTeacher]);
 
     const handleSave = async (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>, studentIds: string[]) => {
         try {
@@ -396,7 +414,7 @@ export const ProjectsPage: React.FC = () => {
     
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-uninunez-onix font-display uppercase tracking-tight">Banco de Proyectos</h1>
                     <p className="text-uninunez-ash text-sm font-medium">Gestión por programas de Tecnología e Ingeniería.</p>
@@ -404,11 +422,37 @@ export const ProjectsPage: React.FC = () => {
                 {isAdmin && (
                     <button 
                         onClick={() => { setEditingProject(null); setIsModalOpen(true); }} 
-                        className="bg-uninunez-orange text-white px-6 py-3 rounded-xl flex items-center text-[10px] font-black uppercase tracking-widest shadow-xl hover:bg-uninunez-orangeLight transition-all"
+                        className="bg-uninunez-orange text-white px-6 py-3 rounded-xl flex items-center text-[10px] font-black uppercase tracking-widest shadow-xl hover:bg-uninunez-orangeLight transition-all w-full lg:w-auto justify-center"
                     >
                         <PlusIcon className="h-5 w-5 mr-2"/> Nuevo Proyecto
                     </button>
                 )}
+            </div>
+
+            {/* Barra de Filtros */}
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                    <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Filtrar por Programa</label>
+                    <select 
+                        value={filterProgram} 
+                        onChange={(e) => setFilterProgram(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
+                    >
+                        <option value="">TODOS LOS PROGRAMAS</option>
+                        {programs.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>)}
+                    </select>
+                </div>
+                <div className="flex-1">
+                    <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Filtrar por Docente</label>
+                    <select 
+                        value={filterTeacher} 
+                        onChange={(e) => setFilterTeacher(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-uninunez-onix focus:ring-1 focus:ring-uninunez-teal outline-none"
+                    >
+                        <option value="">TODOS LOS DOCENTES</option>
+                        {teachers.map(t => <option key={t.id} value={t.id}>{t.name.toUpperCase()}</option>)}
+                    </select>
+                </div>
             </div>
 
             <div className="bg-white shadow-sm border border-gray-100 rounded-3xl overflow-hidden min-h-[400px]">
@@ -429,17 +473,15 @@ export const ProjectsPage: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {projects.map(p => {
+                                {filteredProjects.length > 0 ? filteredProjects.map(p => {
                                     const linkedStudents = students.filter(s => s.projectId === p.id);
                                     
-                                    // Escaneo de programas de los estudiantes para mostrar composición real
                                     const studentProgramNames = Array.from(new Set(
                                         linkedStudents
                                             .map(s => programs.find(prog => prog.id === s.programId)?.name)
                                             .filter((name): name is string => !!name)
                                     ));
 
-                                    // Lógica de visualización: Si hay programas de estudiantes, se muestran (unidos por /), sino el del proyecto
                                     let programDisplay = 'Sin Programa';
 
                                     if (studentProgramNames.length > 0) {
@@ -478,7 +520,13 @@ export const ProjectsPage: React.FC = () => {
                                             </td>
                                         </tr>
                                     );
-                                })}
+                                }) : (
+                                    <tr>
+                                        <td colSpan={5} className="px-8 py-20 text-center text-uninunez-ash font-medium italic">
+                                            No se encontraron proyectos con los filtros aplicados.
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
