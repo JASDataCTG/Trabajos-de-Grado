@@ -8,6 +8,11 @@ export interface User {
   studentId: string | null;
 }
 
+export interface Faculty {
+  id: string;
+  name: string;
+}
+
 export interface Project {
   id: string;
   title: string;
@@ -27,6 +32,7 @@ export interface Project {
 export interface Program {
   id: string;
   name: string;
+  facultyId?: string;
 }
 
 export interface Student {
@@ -65,18 +71,6 @@ export interface TeacherRole {
 export interface Status {
   id: string;
   name: string;
-}
-
-export interface AppDatabase {
-    users: User[];
-    projects: Project[];
-    programs: Program[];
-    students: Student[];
-    teachers: Teacher[];
-    projectTeachers: ProjectTeacher[];
-    formats: Format[];
-    teacherRoles: TeacherRole[];
-    statuses: Status[];
 }
 
 export type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings' | 'reports' | 'users';
