@@ -163,6 +163,12 @@ const ProjectForm: React.FC<{
                     <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Título Institucional</label>
                     <input type="text" name="title" value={formData.title || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50 font-bold" disabled={!canEditDetails} />
                 </div>
+                
+                <div>
+                    <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">URL de Archivos (Google Drive / OneDrive / Dropbox)</label>
+                    <input type="url" name="filesUrl" value={formData.filesUrl || ''} onChange={handleChange} placeholder="https://..." className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-teal focus:border-uninunez-teal text-xs text-uninunez-teal font-mono disabled:bg-gray-50" disabled={!canEditDetails} />
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Fecha de Radicación</label>
@@ -538,7 +544,19 @@ export const ProjectsPage: React.FC = () => {
                                     return (
                                         <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
                                             <td className="px-8 py-6">
-                                                <div className="text-sm font-bold text-uninunez-onix">{p.title}</div>
+                                                {p.filesUrl ? (
+                                                    <a 
+                                                        href={p.filesUrl} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer" 
+                                                        className="text-sm font-bold text-uninunez-teal hover:text-uninunez-orange underline transition-colors decoration-dotted"
+                                                        title="Clic para abrir archivos del proyecto"
+                                                    >
+                                                        {p.title}
+                                                    </a>
+                                                ) : (
+                                                    <div className="text-sm font-bold text-uninunez-onix">{p.title}</div>
+                                                )}
                                                 <div className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tight">Radicación: {p.presentationDate}</div>
                                             </td>
                                             <td className="px-8 py-6">

@@ -16,6 +16,7 @@ interface ProjectStatusReport {
     'Estudiantes Asignados': string;
     'Programas de Estudiantes': string;
     'Docentes / Roles': string;
+    'Enlace a Archivos': string;
 }
 
 interface TeacherWorkloadReport {
@@ -219,6 +220,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 'Estudiantes Asignados': studentNames || 'Ninguno',
                 'Programas de Estudiantes': studentPrograms || 'N/A',
                 'Docentes / Roles': assignedTeachers || 'Ninguno',
+                'Enlace a Archivos': p.filesUrl || 'Sin enlace'
             };
         });
         setProjectStatus(projectStatusData);
@@ -446,14 +448,18 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                 <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
                                     {Object.entries(row).map(([key, val], i) => (
                                         <td key={i} className={`px-6 py-5 text-[11px] leading-tight ${key === 'Título del Proyecto' ? 'font-bold text-uninunez-onix group-hover:text-uninunez-teal' : 'text-uninunez-ash'}`}>
-                                            {String(val)}
+                                            {key === 'Enlace a Archivos' && val !== 'Sin enlace' ? (
+                                                <a href={String(val)} target="_blank" rel="noopener noreferrer" className="text-uninunez-teal font-black hover:underline">VER ARCHIVOS</a>
+                                            ) : (
+                                                String(val)
+                                            )}
                                         </td>
                                     ))}
                                 </tr>
                             ))}
                             {projectStatus.length === 0 && (
                                 <tr>
-                                    <td colSpan={7} className="text-center py-24 text-uninunez-ash font-medium italic">No se hallaron registros bajo los parámetros actuales.</td>
+                                    <td colSpan={8} className="text-center py-24 text-uninunez-ash font-medium italic">No se hallaron registros bajo los parámetros actuales.</td>
                                 </tr>
                             )}
                         </tbody>
