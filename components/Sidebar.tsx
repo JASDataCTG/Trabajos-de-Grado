@@ -2,8 +2,7 @@
 import React from 'react';
 import { HomeIcon, ProjectIcon, StudentIcon, TeacherIcon, SettingsIcon, ReportIcon, UserAdminIcon, XIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
-
-type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings' | 'reports' | 'users';
+import { Page } from '../types';
 
 interface SidebarProps {
   currentPage: Page;
@@ -53,7 +52,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
 
   return (
     <>
-      {/* Mobile Overlay con Blur */}
       <div 
         className={`fixed inset-0 z-40 bg-uninunez-onix/60 backdrop-blur-sm transition-opacity duration-300 md:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} 
         onClick={() => setIsOpen(false)}

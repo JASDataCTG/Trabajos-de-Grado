@@ -13,8 +13,7 @@ import { MenuIcon, XIcon } from './components/Icons';
 import { useAuth } from './contexts/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { StudentProjectViewPage } from './pages/StudentProjectViewPage';
-
-type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings' | 'reports' | 'users';
+import { Page } from './types';
 
 const pageLabels: Record<Page, string> = {
     dashboard: 'Panel Principal',
@@ -23,7 +22,7 @@ const pageLabels: Record<Page, string> = {
     teachers: 'Docentes',
     settings: 'Configuración',
     reports: 'Reportes',
-    users: 'Usuarios',
+    users: 'Usuarios'
 };
 
 const App: React.FC = () => {
@@ -36,7 +35,6 @@ const App: React.FC = () => {
     db.initializeDB();
   }, []);
 
-  // Si el usuario elige ver reportes de forma pública
   if (isPublicReportsView && !isAuthenticated) {
       return (
           <div className="min-h-screen bg-gray-100 p-4 md:p-8">
@@ -66,22 +64,14 @@ const App: React.FC = () => {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'dashboard':
-        return <DashboardPage />;
-      case 'projects':
-        return <ProjectsPage />;
-      case 'students':
-        return <StudentsPage />;
-      case 'teachers':
-        return <TeachersPage />;
-      case 'settings':
-        return <SettingsPage />;
-      case 'reports':
-        return <ReportsPage isPublicView={false} />;
-      case 'users':
-        return <UsersPage />;
-      default:
-        return <DashboardPage />;
+      case 'dashboard': return <DashboardPage />;
+      case 'projects': return <ProjectsPage />;
+      case 'students': return <StudentsPage />;
+      case 'teachers': return <TeachersPage />;
+      case 'settings': return <SettingsPage />;
+      case 'reports': return <ReportsPage isPublicView={false} />;
+      case 'users': return <UsersPage />;
+      default: return <DashboardPage />;
     }
   };
 

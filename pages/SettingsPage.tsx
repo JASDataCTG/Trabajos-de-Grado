@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/database';
-import { Status, Format, TeacherRole, Program, Student } from '../types';
+import { Status, Format, TeacherRole, Program, Student, Project, ProjectTeacher } from '../types';
 import { EditIcon, TrashIcon, PlusIcon } from '../components/Icons';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,9 +16,12 @@ interface SettingsListProps<T extends Entity> {
     onAdd: (name: string) => void;
     onUpdate: (item: T) => void;
     onDelete: (item: T) => void;
+    isLoading?: boolean;
 }
 
-const SettingsList = <T extends {id: string; name: string}>({ title, items, placeholder, onAdd, onUpdate, onDelete }: SettingsListProps<T>) => {
+const SettingsList = <T extends {id: string; name: string}>({ 
+    title, items, placeholder, onAdd, onUpdate, onDelete, isLoading 
+}: SettingsListProps<T>) => {
     const { isAdmin } = useAuth();
     const [newItemName, setNewItemName] = useState('');
     const [editingItem, setEditingItem] = useState<T | null>(null);
@@ -38,51 +41,81 @@ const SettingsList = <T extends {id: string; name: string}>({ title, items, plac
     }
 
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">{title}</h2>
-            {isAdmin && (
-                <div className="flex space-x-2 mb-4">
-                    <input
-                        type="text"
-                        value={newItemName}
-                        onChange={(e) => setNewItemName(e.target.value)}
-                        placeholder={placeholder}
-                        className="flex-grow border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
-                    />
-                    <button onClick={handleAdd} className="flex-shrink-0 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center shadow-sm">
-                        <PlusIcon className="h-5 w-5"/>
-                    </button>
-                </div>
-            )}
-            <ul className="divide-y divide-gray-100">
-                {items.length === 0 ? (
-                    <li className="py-4 text-center text-xs text-gray-400 italic">No hay registros</li>
-                ) : (
-                    items.map(item => (
-                        <li key={item.id} className="py-3 flex justify-between items-center group">
-                            {editingItem?.id === item.id && isAdmin ? (
-                            <input 
-                                type="text"
-                                value={editingItem.name}
-                                onChange={(e) => setEditingItem({...editingItem, name: e.target.value})}
-                                onBlur={handleUpdate}
-                                onKeyDown={(e) => e.key === 'Enter' && handleUpdate()}
-                                autoFocus
-                                className="text-sm text-gray-800 border-b-2 border-primary-500 focus:outline-none bg-primary-50 px-1"
-                            />
-                            ) : (
-                                <span className="text-sm text-gray-700 font-medium">{item.name}</span>
-                            )}
-                            {isAdmin && (
-                                <div className="space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => setEditingItem(item)} className="p-1.5 text-primary-600 hover:bg-primary-50 rounded-md"><EditIcon className="h-4 w-4" /></button>
-                                    <button onClick={() => onDelete(item)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md"><TrashIcon className="h-4 w-4" /></button>
-                                </div>
-                            )}
-                        </li>
-                    ))
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full overflow-hidden transition-all hover:shadow-md">
+            <div className="p-6 bg-gray-50/50 border-b border-gray-100">
+                <h2 className="text-xs font-black text-uninunez-onix uppercase tracking-[0.2em] font-display">{title}</h2>
+            </div>
+            
+            <div className="p-6 flex-grow">
+                {isAdmin && (
+                    <div className="flex gap-2 mb-6">
+                        <input
+                            type="text"
+                            value={newItemName}
+                            onChange={(e) => setNewItemName(e.target.value)}
+                            placeholder={placeholder}
+                            className="flex-grow bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-4 text-xs font-bold focus:ring-1 focus:ring-uninunez-orange outline-none transition-all"
+                        />
+                        <button 
+                            onClick={handleAdd} 
+                            disabled={!newItemName.trim()}
+                            className="bg-uninunez-orange text-white p-2.5 rounded-xl shadow-lg hover:bg-uninunez-orangeLight disabled:bg-gray-200 disabled:shadow-none transition-all"
+                            title="Agregar nuevo"
+                        >
+                            <PlusIcon className="h-5 w-5"/>
+                        </button>
+                    </div>
                 )}
-            </ul>
+
+                {isLoading ? (
+                    <div className="py-10 flex justify-center">
+                        <div className="w-6 h-6 border-2 border-uninunez-orange border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                ) : (
+                    <ul className="space-y-2">
+                        {items.length === 0 ? (
+                            <li className="py-8 text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest italic">Sin registros</li>
+                        ) : (
+                            items.map(item => (
+                                <li key={item.id} className="group flex justify-between items-center bg-gray-50/30 hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 p-3 rounded-xl transition-all">
+                                    {editingItem?.id === item.id && isAdmin ? (
+                                        <input 
+                                            type="text"
+                                            value={editingItem.name}
+                                            onChange={(e) => setEditingItem({...editingItem, name: e.target.value})}
+                                            onBlur={handleUpdate}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleUpdate()}
+                                            autoFocus
+                                            className="flex-grow text-xs font-black text-uninunez-teal bg-transparent border-b-2 border-uninunez-teal focus:outline-none"
+                                        />
+                                    ) : (
+                                        <span className="text-xs font-bold text-uninunez-ash group-hover:text-uninunez-onix transition-colors">{item.name}</span>
+                                    )}
+                                    
+                                    {isAdmin && (
+                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button 
+                                                onClick={() => setEditingItem(item)} 
+                                                className="p-1.5 text-uninunez-teal hover:bg-uninunez-teal/10 rounded-lg transition-colors"
+                                                title="Editar"
+                                            >
+                                                <EditIcon className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button 
+                                                onClick={() => onDelete(item)} 
+                                                className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="Eliminar"
+                                            >
+                                                <TrashIcon className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </li>
+                            ))
+                        )}
+                    </ul>
+                )}
+            </div>
         </div>
     );
 };
@@ -93,18 +126,39 @@ export const SettingsPage: React.FC = () => {
     const [formats, setFormats] = useState<Format[]>([]);
     const [roles, setRoles] = useState<TeacherRole[]>([]);
     const [programs, setPrograms] = useState<Program[]>([]);
+    
+    // Datos para verificación de integridad
+    const [projects, setProjects] = useState<Project[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
+    const [projectTeachers, setProjectTeachers] = useState<ProjectTeacher[]>([]);
+    
+    const [isLoading, setIsLoading] = useState(true);
     const [deletingItem, setDeletingItem] = useState<{item: Entity, type: EntityType} | null>(null);
 
     const loadData = useCallback(async () => {
-        const [s, f, r, p, st] = await Promise.all([
-            db.getStatuses(), db.getFormats(), db.getTeacherRoles(), db.getPrograms(), db.getStudents()
-        ]);
-        setStatuses(s);
-        setFormats(f);
-        setRoles(r);
-        setPrograms(p);
-        setStudents(st);
+        setIsLoading(true);
+        try {
+            const [s, f, r, p, st, projs, pt] = await Promise.all([
+                db.getStatuses(), 
+                db.getFormats(), 
+                db.getTeacherRoles(), 
+                db.getPrograms(), 
+                db.getStudents(),
+                db.getProjects(),
+                db.getProjectTeachers()
+            ]);
+            setStatuses(s);
+            setFormats(f);
+            setRoles(r);
+            setPrograms(p);
+            setStudents(st);
+            setProjects(projs);
+            setProjectTeachers(pt);
+        } catch (error) {
+            console.error("Error cargando catálogos:", error);
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
 
     useEffect(() => {
@@ -113,33 +167,78 @@ export const SettingsPage: React.FC = () => {
     
     const handleAdd = async (type: EntityType, name: string) => {
         if (!isAdmin) return;
-        if(type === 'status') await db.addStatus({ name });
-        if(type === 'format') await db.addFormat({ name });
-        if(type === 'role') await db.addTeacherRole({ name });
-        if(type === 'program') await db.addProgram({ name });
-        loadData();
+        try {
+            if(type === 'status') await db.addStatus({ name });
+            else if(type === 'format') await db.addFormat({ name });
+            else if(type === 'role') await db.addTeacherRole({ name });
+            else if(type === 'program') await db.addProgram({ name });
+            await loadData();
+        } catch (error) {
+            alert("Error al crear el registro.");
+        }
     };
     
     const handleUpdate = async (type: EntityType, item: Entity) => {
         if (!isAdmin) return;
-        if(type === 'status') await db.updateStatus(item as Status);
-        if(type === 'format') await db.updateFormat(item as Format);
-        if(type === 'role') await db.updateTeacherRole(item as TeacherRole);
-        if(type === 'program') await db.updateProgram(item as Program);
-        loadData();
+        try {
+            if(type === 'status') await db.updateStatus(item as Status);
+            else if(type === 'format') await db.updateFormat(item as Format);
+            else if(type === 'role') await db.updateTeacherRole(item as TeacherRole);
+            else if(type === 'program') await db.updateProgram(item as Program);
+            await loadData();
+        } catch (error) {
+            alert("Error al actualizar el registro.");
+        }
+    };
+
+    const checkIntegrityAndSetDelete = (type: EntityType, item: Entity) => {
+        let inUse = false;
+        let reason = "";
+
+        switch (type) {
+            case 'status':
+                inUse = projects.some(p => p.statusId === item.id);
+                reason = "Hay proyectos académicos utilizando este estado actualmente.";
+                break;
+            case 'format':
+                inUse = projects.some(p => p.formatId === item.id);
+                reason = "Este formato está asignado a uno o más proyectos activos.";
+                break;
+            case 'role':
+                inUse = projectTeachers.some(pt => pt.roleId === item.id);
+                reason = "Existen docentes vinculados a proyectos bajo este rol específico.";
+                break;
+            case 'program':
+                const inStudents = students.some(s => s.programId === item.id);
+                const inProjects = projects.some(p => p.programId === item.id);
+                inUse = inStudents || inProjects;
+                reason = "Este programa cuenta con estudiantes matriculados o proyectos de grado radicados.";
+                break;
+        }
+
+        if (inUse) {
+            alert(`BLOQUEO DE INTEGRIDAD: No es posible eliminar "${item.name}".\n\nMotivo: ${reason}`);
+            return;
+        }
+
+        setDeletingItem({ item, type });
     };
 
     const handleDelete = async () => {
         if (!deletingItem || !isAdmin) return;
         const { item, type } = deletingItem;
 
-        if(type === 'status') await db.deleteStatus(item.id);
-        if(type === 'format') await db.deleteFormat(item.id);
-        if(type === 'role') await db.deleteTeacherRole(item.id);
-        if(type === 'program') await db.deleteProgram(item.id);
-
-        loadData();
-        setDeletingItem(null);
+        try {
+            if(type === 'status') await db.deleteStatus(item.id);
+            else if(type === 'format') await db.deleteFormat(item.id);
+            else if(type === 'role') await db.deleteTeacherRole(item.id);
+            else if(type === 'program') await db.deleteProgram(item.id);
+            await loadData();
+        } catch (error) {
+            alert("Error al eliminar el registro.");
+        } finally {
+            setDeletingItem(null);
+        }
     }
 
     const getEntityTypeSpanish = (type: EntityType | undefined) => {
@@ -147,68 +246,66 @@ export const SettingsPage: React.FC = () => {
         switch (type) {
             case 'status': return 'Estado';
             case 'format': return 'Formato';
-            case 'role': return 'Rol';
+            case 'role': return 'Rol de Docente';
             case 'program': return 'Programa Académico';
             default: return '';
         }
     }
 
     return (
-        <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <h1 className="text-3xl font-bold text-gray-900 uppercase tracking-tight">Configuración del Sistema</h1>
-                <p className="text-sm text-gray-500 mt-1">Gestión de parámetros globales y catálogos de la institución.</p>
+        <div className="space-y-8 animate-fadeIn max-w-7xl mx-auto px-2 md:px-0">
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                    <h1 className="text-3xl font-black text-uninunez-onix font-display uppercase tracking-tight">Configuración del Sistema</h1>
+                    <p className="text-sm text-uninunez-ash font-medium mt-1">Gestión de catálogos y parámetros institucionales.</p>
+                </div>
+                <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <div className="bg-uninunez-teal p-2 rounded-lg text-white">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <p className="text-[10px] text-uninunez-ash font-bold uppercase leading-tight max-w-[200px]">
+                        Los cambios afectan la integridad de los reportes y el banco de proyectos.
+                    </p>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                 <SettingsList
                     title="Estados de Proyecto"
                     items={statuses}
-                    placeholder="Ej: Aprobado"
+                    placeholder="Ej: Aprobado..."
+                    isLoading={isLoading}
                     onAdd={(name) => handleAdd('status', name)}
                     onUpdate={(item) => handleUpdate('status', item)}
-                    onDelete={(item) => setDeletingItem({item, type: 'status'})}
+                    onDelete={(item) => checkIntegrityAndSetDelete('status', item)}
                 />
                 <SettingsList
-                    title="Formatos"
+                    title="Formatos de Entrega"
                     items={formats}
-                    placeholder="Ej: Anteproyecto"
+                    placeholder="Ej: Tesis..."
+                    isLoading={isLoading}
                     onAdd={(name) => handleAdd('format', name)}
                     onUpdate={(item) => handleUpdate('format', item)}
-                    onDelete={(item) => setDeletingItem({item, type: 'format'})}
+                    onDelete={(item) => checkIntegrityAndSetDelete('format', item)}
                 />
                 <SettingsList
-                    title="Roles de Docente"
+                    title="Roles Docentes"
                     items={roles}
-                    placeholder="Ej: Director"
+                    placeholder="Ej: Jurado..."
+                    isLoading={isLoading}
                     onAdd={(name) => handleAdd('role', name)}
                     onUpdate={(item) => handleUpdate('role', item)}
-                    onDelete={(item) => setDeletingItem({item, type: 'role'})}
+                    onDelete={(item) => checkIntegrityAndSetDelete('role', item)}
                 />
                 <SettingsList
-                    title="Programas"
+                    title="Programas Académicos"
                     items={programs}
-                    placeholder="Ej: Ing. de Sistemas"
+                    placeholder="Ej: Derecho..."
+                    isLoading={isLoading}
                     onAdd={(name) => handleAdd('program', name)}
                     onUpdate={(item) => handleUpdate('program', item)}
-                    onDelete={(item) => {
-                        const isProgramInUse = students.some(s => s.programId === item.id);
-                        if (isProgramInUse) {
-                            alert('No se puede eliminar este programa porque tiene estudiantes asignados.');
-                            return;
-                        }
-                        setDeletingItem({item, type: 'program'});
-                    }}
+                    onDelete={(item) => checkIntegrityAndSetDelete('program', item)}
                 />
-            </div>
-
-            <div className="bg-primary-50 border border-primary-100 p-4 rounded-xl flex items-center gap-4">
-                <div className="bg-primary-500 p-2 rounded-lg">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                </div>
-                <p className="text-sm text-primary-800 font-medium">
-                    Los cambios realizados aquí se reflejan instantáneamente en toda la plataforma y base de datos central.
-                </p>
             </div>
 
             <ConfirmationDialog
@@ -216,7 +313,7 @@ export const SettingsPage: React.FC = () => {
                 onClose={() => setDeletingItem(null)}
                 onConfirm={handleDelete}
                 title={`Eliminar ${getEntityTypeSpanish(deletingItem?.type)}`}
-                message={`¿Estás seguro de que quieres eliminar "${deletingItem?.item.name}"? Esta acción no se puede deshacer y puede afectar la integridad de los reportes.`}
+                message={`¿Estás seguro de que quieres eliminar "${deletingItem?.item.name}"? Esta acción no se puede deshacer.`}
             />
         </div>
     );

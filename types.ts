@@ -15,7 +15,7 @@ export interface Project {
   filesUrl: string;
   statusId: string;
   formatId: string;
-  programId: string; // Movido de Student a Project
+  programId: string;
   isApprovedByDirector: boolean;
   writtenGradeReviewer1: number | null;
   presentationGradeReviewer1: number | null;
@@ -34,8 +34,8 @@ export interface Student {
   name: string;
   email: string;
   cedula: string;
-  projectId: string | null; // Mantenido por compatibilidad, pero la lógica ahora es múltiple
-  programId?: string; // Opcional ahora que reside en Project
+  projectId: string | null;
+  programId?: string;
 }
 
 export interface Teacher {
@@ -78,3 +78,5 @@ export interface AppDatabase {
     teacherRoles: TeacherRole[];
     statuses: Status[];
 }
+
+export type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings' | 'reports' | 'users';
