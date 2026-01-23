@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { db } from '../services/database';
-import { Status, Format, TeacherRole, Program, Student, Project, ProjectTeacher, Faculty } from '../types';
+import { Status, Format, TeacherRole, Program, Faculty } from '../types';
 import { EditIcon, TrashIcon, PlusIcon } from '../components/Icons';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,6 +29,11 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string}>(
     const [selectedFacultyId, setSelectedFacultyId] = useState('');
     const [editingItem, setEditingItem] = useState<T | null>(null);
 
+    // Asegurar orden alfabético local constante
+    const sortedItems = useMemo(() => {
+        return [...items].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    }, [items]);
+
     const handleAdd = () => {
         if (newItemName.trim()) {
             if (type === 'program' && !selectedFacultyId) {
@@ -51,7 +56,13 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string}>(
     return (
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full overflow-hidden transition-all hover:shadow-md">
             <div className="p-5 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
-                <h2 className="text-[10px] font-black text-uninunez-onix uppercase tracking-[0.2em] font-display">{title}</h2>
+                <div>
+                    <h2 className="text-[10px] font-black text-uninunez-onix uppercase tracking-[0.2em] font-display">{title}</h2>
+                    <p className="text-[8px] text-uninunez-teal font-bold uppercase mt-0.5 tracking-widest flex items-center gap-1">
+                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
+                        Orden Alfabético
+                    </p>
+                </div>
             </div>
             
             <div className="p-5 flex-grow">
@@ -90,10 +101,10 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string}>(
                     </div>
                 ) : (
                     <ul className="space-y-2">
-                        {items.length === 0 ? (
+                        {sortedItems.length === 0 ? (
                             <li className="py-8 text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest italic">Sin registros</li>
                         ) : (
-                            items.map((item) => (
+                            sortedItems.map((item) => (
                                 <li key={item.id} className="group flex justify-between items-center bg-gray-50/40 hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 p-3 rounded-xl transition-all">
                                     <div className="flex flex-col flex-grow">
                                         {editingItem?.id === item.id && isAdmin ? (
@@ -220,7 +231,7 @@ export const SettingsPage: React.FC = () => {
         <div className="space-y-8 animate-fadeIn max-w-7xl mx-auto px-2 md:px-0">
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
                 <h1 className="text-3xl font-black text-uninunez-onix font-display uppercase tracking-tight">Catálogos Maestros</h1>
-                <p className="text-sm text-uninunez-ash font-medium mt-1">Gestión centralizada de la estructura académica institucional.</p>
+                <p className="text-sm text-uninunez-ash font-medium mt-1">Gestión centralizada y organizada de la estructura académica institucional.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
