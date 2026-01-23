@@ -180,8 +180,6 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             filteredProjects = filteredProjects.filter(p => projectIdsForTeacher.includes(p.id));
         }
         if (currentFilters.programId) {
-            // El programa ahora reside en Project según types.ts actualizado previamente
-            // Pero verificamos tanto en proyecto como en estudiantes para mayor precisión
             const studentProjectIds = allStudents
                 .filter(s => s.programId === currentFilters.programId && s.projectId)
                 .map(s => s.projectId);
@@ -196,13 +194,12 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             filteredTeachersForWorkload = allTeachers.filter(t => t.id === currentFilters.teacherId);
         }
 
-        // --- Report Generation (using filtered data) ---
+        // --- Report Generation ---
         const projectStatusData = filteredProjects.map(p => {
             const assignedStudents = allStudents.filter(s => s.projectId === p.id);
             const studentNames = assignedStudents.map(s => s.name).join(', ');
             const studentPrograms = [...new Set(assignedStudents.map(s => programs.find(prog => prog.id === (s.programId || p.programId))?.name || 'N/A'))].join(', ');
             
-            // Mapeo detallado de Docentes y sus Roles específicos
             const assignedTeachers = projectTeachers
                 .filter(pt => pt.projectId === p.id)
                 .map(pt => {
@@ -251,7 +248,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 'Programa': programs.find(p => p.id === s.programId)?.name || 'N/A' 
         })));
 
-        // --- Chart data generation ---
+        // --- Chart data ---
         const uninunezColors = ['#F07E12', '#249A8C', '#3C3C3B', '#F39200', '#14AA9F', '#2FAC66', '#575756'];
         
         const statusCounts = statuses.map(status => ({ name: status.name, count: filteredProjects.filter(p => p.statusId === status.id).length }));
@@ -260,7 +257,6 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             datasets: [{ label: 'Proyectos', data: statusCounts.map(s => s.count), backgroundColor: uninunezColors, borderColor: '#ffffff', borderWidth: 2 }]
         });
         
-        // Estatus estudiantes (Calculado sobre el universo filtrado por programa si aplica)
         const studentUniverse = currentFilters.programId ? allStudents.filter(s => s.programId === currentFilters.programId) : allStudents;
         const currentUnassigned = unassignedStudentsDataFiltered.length;
         const currentAssigned = studentUniverse.length - currentUnassigned;
@@ -357,7 +353,6 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 </div>
             </div>
 
-            {/* --- Filter Panel --- */}
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 md:p-8">
                 <div className="flex items-center gap-2 mb-8 text-uninunez-teal border-b pb-4">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
@@ -383,26 +378,11 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                         </select>
                     </div>
                     <div>
-                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Formato de Trabajo</label>
-                        <select name="formatId" value={filters.formatId} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 outline-none">
-                            <option value="">TODOS LOS FORMATOS</option>
-                            {allFormats.map(f => <option key={f.id} value={f.id}>{f.name.toUpperCase()}</option>)}
-                        </select>
-                    </div>
-                    <div>
                         <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Docente Responsable</label>
                         <select name="teacherId" value={filters.teacherId} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 outline-none">
                             <option value="">TODOS LOS DOCENTES</option>
                             {allTeachers.map(t => <option key={t.id} value={t.id}>{t.name.toUpperCase()}</option>)}
                         </select>
-                    </div>
-                    <div>
-                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Desde (Fecha)</label>
-                        <input type="date" name="startDate" value={filters.startDate} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 outline-none" />
-                    </div>
-                    <div>
-                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Hasta (Fecha)</label>
-                        <input type="date" name="endDate" value={filters.endDate} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 outline-none" />
                     </div>
                 </div>
                 <div className="flex justify-end items-center gap-4 mt-10 pt-6 border-t border-gray-100">
@@ -457,36 +437,54 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                     ))}
                                 </tr>
                             ))}
-                            {projectStatus.length === 0 && (
-                                <tr>
-                                    <td colSpan={8} className="text-center py-24 text-uninunez-ash font-medium italic">No se hallaron registros bajo los parámetros actuales.</td>
-                                </tr>
-                            )}
                         </tbody>
                     </table>
                 </ReportTableCard>
                 
                 {!isPublicView && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pb-10">
+                    <div className="space-y-10 pb-10">
                         <ReportTableCard
-                            title="Productividad Docente"
-                            description="Conteo acumulado de participaciones académicas."
-                            onExport={() => handleExport(teacherWorkload, 'productividad_docente')}
+                            title="Productividad Docente Detallada"
+                            description="Control institucional de participaciones desglosado por roles académicos."
+                            onExport={() => handleExport(teacherWorkload, 'productividad_docente_detallada')}
                             hasData={teacherWorkload.length > 0}
                         >
-                            <table className="w-full text-left">
+                            <table className="w-full text-left border-collapse">
                                 <thead className="bg-gray-50 border-b">
                                     <tr>
                                         <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Docente</th>
-                                        <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Asignaciones</th>
+                                        <th className="px-4 py-4 text-[9px] font-black text-uninunez-orange uppercase tracking-widest text-center">Director</th>
+                                        <th className="px-4 py-4 text-[9px] font-black text-uninunez-orangeLight uppercase tracking-widest text-center">Co-Dir</th>
+                                        <th className="px-4 py-4 text-[9px] font-black text-uninunez-teal uppercase tracking-widest text-center">Eval</th>
+                                        <th className="px-6 py-4 text-[9px] font-black text-uninunez-onix uppercase tracking-widest text-center bg-gray-100">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {teacherWorkload.slice(0, 10).map((row, index) => (
-                                        <tr key={index}>
-                                            <td className="px-6 py-4 text-xs font-bold text-uninunez-onix">{row['Nombre del Docente']}</td>
-                                            <td className="px-6 py-4 text-center">
-                                                <span className="bg-uninunez-orange text-white text-[10px] font-black px-3 py-1 rounded-lg">{row['Total de Proyectos']}</span>
+                                    {teacherWorkload.map((row, index) => (
+                                        <tr key={index} className="hover:bg-gray-50/50">
+                                            <td className="px-6 py-4">
+                                                <div className="text-xs font-bold text-uninunez-onix leading-none">{row['Nombre del Docente']}</div>
+                                                <div className="text-[9px] text-gray-400 mt-1">{row['Email']}</div>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <span className={`text-[10px] font-black ${row['Proyectos como Director'] > 0 ? 'text-uninunez-orange' : 'text-gray-200'}`}>
+                                                    {row['Proyectos como Director']}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <span className={`text-[10px] font-black ${row['Proyectos como Co-Director'] > 0 ? 'text-uninunez-orangeLight' : 'text-gray-200'}`}>
+                                                    {row['Proyectos como Co-Director']}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <span className={`text-[10px] font-black ${row['Proyectos como Evaluador'] > 0 ? 'text-uninunez-teal' : 'text-gray-200'}`}>
+                                                    {row['Proyectos como Evaluador']}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center bg-gray-50/50 font-black text-xs text-uninunez-onix">
+                                                <span className="bg-uninunez-onix text-white px-2 py-0.5 rounded text-[10px]">
+                                                    {row['Total de Proyectos']}
+                                                </span>
                                             </td>
                                         </tr>
                                     ))}
@@ -496,7 +494,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
 
                         <ReportTableCard
                             title="Pendientes por Vincular"
-                            description="Estudiantes sin proyecto de grado radicado."
+                            description="Estudiantes que no cuentan con un registro de proyecto radicado."
                             onExport={() => handleExport(unassignedStudents, 'estudiantes_pendientes')}
                             hasData={unassignedStudents.length > 0}
                         >
@@ -508,7 +506,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {unassignedStudents.slice(0, 10).map((row, index) => (
+                                    {unassignedStudents.slice(0, 15).map((row, index) => (
                                         <tr key={index}>
                                             <td className="px-6 py-4 text-xs font-bold text-uninunez-onix">{row['Nombre del Estudiante']}</td>
                                             <td className="px-6 py-4 text-[10px] font-black text-uninunez-teal uppercase">{row['Programa']}</td>
