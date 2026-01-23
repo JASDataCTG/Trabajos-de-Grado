@@ -33,9 +33,11 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string, s
 
     // Determinar si los items ya tienen un orden personalizado para activar el modo manual por defecto
     useEffect(() => {
-        const hasCustomOrder = items.some(item => item.sortOrder && item.sortOrder < 99);
-        if (hasCustomOrder) setIsManualOrder(true);
-    }, [items.length === 0]);
+        if (items && items.length > 0) {
+            const hasCustomOrder = items.some(item => item.sortOrder !== undefined && item.sortOrder < 99);
+            if (hasCustomOrder) setIsManualOrder(true);
+        }
+    }, [items]); // Escuchar cambios en items directamente
 
     // Lógica de ordenación según el modo seleccionado
     const sortedItems = useMemo(() => {
@@ -86,7 +88,7 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string, s
     };
 
     return (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full overflow-hidden transition-all hover:shadow-md">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full overflow-hidden transition-all hover:shadow-md min-h-[400px]">
             {/* Header con Selector de Orden */}
             <div className="p-5 bg-gray-50/50 border-b border-gray-100">
                 <div className="flex justify-between items-start mb-3">
@@ -147,13 +149,17 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string, s
                 )}
 
                 {isLoading ? (
-                    <div className="py-10 flex justify-center">
-                        <div className="w-6 h-6 border-2 border-uninunez-orange border-t-transparent rounded-full animate-spin"></div>
+                    <div className="py-20 flex flex-col items-center justify-center">
+                        <div className="w-8 h-8 border-4 border-uninunez-teal border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-[8px] font-black uppercase text-gray-400 mt-3 tracking-widest">Sincronizando...</span>
                     </div>
                 ) : (
                     <ul className="space-y-2">
                         {sortedItems.length === 0 ? (
-                            <li className="py-8 text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest italic">Sin registros</li>
+                            <li className="py-12 text-center">
+                                <p className="text-[10px] text-gray-300 font-black uppercase tracking-[0.3em] italic">Sin registros</p>
+                                <p className="text-[8px] text-gray-400 mt-2">Agrega un nuevo elemento arriba</p>
+                            </li>
                         ) : (
                             sortedItems.map((item, index) => (
                                 <li key={item.id} className="group flex justify-between items-center bg-gray-50/40 hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 p-3 rounded-xl transition-all">
@@ -239,11 +245,11 @@ export const SettingsPage: React.FC = () => {
                 db.getTeacherRoles(), 
                 db.getPrograms()
             ]);
-            setFaculties(f);
-            setStatuses(s);
-            setFormats(fo);
-            setRoles(r);
-            setPrograms(p);
+            setFaculties([...f]);
+            setStatuses([...s]);
+            setFormats([...fo]);
+            setRoles([...r]);
+            setPrograms([...p]);
         } catch (error) {
             console.error("Error cargando catálogos:", error);
         } finally {
