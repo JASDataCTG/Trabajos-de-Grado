@@ -11,6 +11,7 @@ export interface User {
 export interface Faculty {
   id: string;
   name: string;
+  sortOrder?: number;
 }
 
 export interface Project {
@@ -33,6 +34,7 @@ export interface Program {
   id: string;
   name: string;
   facultyId?: string;
+  sortOrder?: number;
 }
 
 export interface Student {
@@ -61,16 +63,19 @@ export interface ProjectTeacher {
 export interface Format {
   id: string;
   name: string;
+  sortOrder?: number;
 }
 
 export interface TeacherRole {
   id: string;
   name: string;
+  sortOrder?: number;
 }
 
 export interface Status {
   id: string;
   name: string;
+  sortOrder?: number;
 }
 
 export type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings' | 'reports' | 'users';
