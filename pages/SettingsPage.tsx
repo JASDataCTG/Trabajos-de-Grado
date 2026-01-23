@@ -50,11 +50,11 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string}>(
 
     return (
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full overflow-hidden transition-all hover:shadow-md">
-            <div className="p-6 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
+            <div className="p-5 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
                 <h2 className="text-[10px] font-black text-uninunez-onix uppercase tracking-[0.2em] font-display">{title}</h2>
             </div>
             
-            <div className="p-6 flex-grow">
+            <div className="p-5 flex-grow">
                 {isAdmin && (
                     <div className="space-y-2 mb-6">
                         <input
@@ -198,7 +198,6 @@ export const SettingsPage: React.FC = () => {
     };
 
     const checkAndSetDelete = (type: EntityType, item: Entity) => {
-        // En una app real aquí chequearíamos integridad referencial
         setDeletingItem({ item, type });
     };
 
@@ -221,10 +220,10 @@ export const SettingsPage: React.FC = () => {
         <div className="space-y-8 animate-fadeIn max-w-7xl mx-auto px-2 md:px-0">
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
                 <h1 className="text-3xl font-black text-uninunez-onix font-display uppercase tracking-tight">Catálogos Maestros</h1>
-                <p className="text-sm text-uninunez-ash font-medium mt-1">Gestión de la estructura académica y de procesos.</p>
+                <p className="text-sm text-uninunez-ash font-medium mt-1">Gestión centralizada de la estructura académica institucional.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <SettingsList
                     type="faculty"
                     title="Facultades"
@@ -240,7 +239,7 @@ export const SettingsPage: React.FC = () => {
                     title="Programas Académicos"
                     items={programs}
                     faculties={faculties}
-                    placeholder="Ej: Sistemas..."
+                    placeholder="Ej: Ing. de Sistemas..."
                     isLoading={isLoading}
                     onAdd={(n, fid) => handleAdd('program', n, fid)}
                     onUpdate={(i) => handleUpdate('program', i)}
@@ -248,13 +247,33 @@ export const SettingsPage: React.FC = () => {
                 />
                 <SettingsList
                     type="status"
-                    title="Estados de Avance"
+                    title="Estados del Proyecto"
                     items={statuses}
-                    placeholder="Ej: Radicado..."
+                    placeholder="Ej: Radicado, Aprobado..."
                     isLoading={isLoading}
                     onAdd={(n) => handleAdd('status', n)}
                     onUpdate={(i) => handleUpdate('status', i)}
                     onDelete={(i) => checkAndSetDelete('status', i)}
+                />
+                <SettingsList
+                    type="format"
+                    title="Formatos de Trabajo"
+                    items={formats}
+                    placeholder="Ej: Anteproyecto, Proyecto Final..."
+                    isLoading={isLoading}
+                    onAdd={(n) => handleAdd('format', n)}
+                    onUpdate={(i) => handleUpdate('format', i)}
+                    onDelete={(i) => checkAndSetDelete('format', i)}
+                />
+                <SettingsList
+                    type="role"
+                    title="Roles de Docentes"
+                    items={roles}
+                    placeholder="Ej: Director, Evaluador..."
+                    isLoading={isLoading}
+                    onAdd={(n) => handleAdd('role', n)}
+                    onUpdate={(i) => handleUpdate('role', i)}
+                    onDelete={(i) => checkAndSetDelete('role', i)}
                 />
             </div>
 
@@ -263,7 +282,7 @@ export const SettingsPage: React.FC = () => {
                 onClose={() => setDeletingItem(null)}
                 onConfirm={handleDelete}
                 title="Confirmar Eliminación"
-                message={`¿Estás seguro de que quieres eliminar este registro?`}
+                message={`¿Estás seguro de que quieres eliminar este registro de los catálogos maestros?`}
             />
         </div>
     );

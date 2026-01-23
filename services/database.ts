@@ -14,7 +14,8 @@ export const supabase = isSupabaseConfigured
 
 const generateId = (): string => Date.now().toString(36) + Math.random().toString(36).substring(2);
 
-const initialSeeds = {
+// Semillas iniciales solo para bootstrapping en Supabase (si las tablas están vacías)
+const bootstrapData = {
     faculties: [{ id: 'f1', name: 'Facultad de Ingeniería' }, { id: 'f2', name: 'Facultad de Salud' }],
     programs: [{ id: '1', name: 'Tecnología en Sistemas', faculty_id: 'f1' }, { id: '2', name: 'Ingeniería de Sistemas', faculty_id: 'f1' }],
     formats: [{ id: '1', name: 'Anteproyecto' }, { id: '2', name: 'Proyecto Final' }],
@@ -24,18 +25,26 @@ const initialSeeds = {
 
 export const db = {
     initializeDB: async () => {
-        if (!supabase) return;
+        if (!supabase) {
+            console.error("Supabase no configurado. El sistema no funcionará sin conexión remota.");
+            return;
+        }
         try {
             const checkAndSeed = async (table: string, data: any[]) => {
                 const { count, error } = await supabase!.from(table).select('*', { count: 'exact', head: true });
-                if (!error && count === 0) await supabase!.from(table).insert(data);
+                if (!error && count === 0) {
+                    console.log(`Poblando tabla ${table} en Supabase...`);
+                    await supabase!.from(table).insert(data);
+                }
             };
-            await checkAndSeed('faculties', initialSeeds.faculties);
-            await checkAndSeed('statuses', initialSeeds.statuses);
-            await checkAndSeed('formats', initialSeeds.formats);
-            await checkAndSeed('programs', initialSeeds.programs);
-            await checkAndSeed('teacher_roles', initialSeeds.teacherRoles);
-        } catch (e) { console.error("Error init Supabase:", e); }
+            await checkAndSeed('faculties', bootstrapData.faculties);
+            await checkAndSeed('statuses', bootstrapData.statuses);
+            await checkAndSeed('formats', bootstrapData.formats);
+            await checkAndSeed('programs', bootstrapData.programs);
+            await checkAndSeed('teacher_roles', bootstrapData.teacherRoles);
+        } catch (e) { 
+            console.error("Error al inicializar base de datos remota:", e); 
+        }
     },
 
     checkConnection: async () => {
@@ -48,47 +57,61 @@ export const db = {
 
     // --- Facultades ---
     getFaculties: async (): Promise<Faculty[]> => {
-        if (!supabase) return initialSeeds.faculties;
-        const { data } = await supabase.from('faculties').select('*').order('name');
+        if (!supabase) return [];
+        const { data, error } = await supabase.from('faculties').select('*').order('name');
+        if (error) { console.error(error); return []; }
         return data || [];
     },
     addFaculty: async (f: { name: string }) => {
         const id = generateId();
-        if (supabase) await supabase.from('faculties').insert([{ id, name: f.name }]);
+        if (!supabase) throw new Error("Sin conexión a Supabase");
+        const { error } = await supabase.from('faculties').insert([{ id, name: f.name }]);
+        if (error) throw error;
         return { id, ...f };
     },
     updateFaculty: async (f: Faculty) => {
-        if (supabase) await supabase.from('faculties').update({ name: f.name }).eq('id', f.id);
+        if (!supabase) throw new Error("Sin conexión a Supabase");
+        const { error } = await supabase.from('faculties').update({ name: f.name }).eq('id', f.id);
+        if (error) throw error;
         return f;
     },
     deleteFaculty: async (id: string) => {
-        if (supabase) await supabase.from('faculties').delete().eq('id', id);
+        if (!supabase) throw new Error("Sin conexión a Supabase");
+        const { error } = await supabase.from('faculties').delete().eq('id', id);
+        if (error) throw error;
     },
 
     // --- Programas ---
     getPrograms: async (): Promise<Program[]> => {
-        if (!supabase) return initialSeeds.programs.map(p => ({ id: p.id, name: p.name, facultyId: p.faculty_id }));
-        const { data } = await supabase.from('programs').select('*').order('name');
+        if (!supabase) return [];
+        const { data, error } = await supabase.from('programs').select('*').order('name');
+        if (error) { console.error(error); return []; }
         return (data || []).map((p: any) => ({ id: p.id, name: p.name, facultyId: p.faculty_id }));
     },
     addProgram: async (p: { name: string, facultyId: string }) => {
         const id = generateId();
-        if (supabase) await supabase.from('programs').insert([{ id, name: p.name, faculty_id: p.facultyId }]);
+        if (!supabase) throw new Error("Sin conexión a Supabase");
+        const { error } = await supabase.from('programs').insert([{ id, name: p.name, faculty_id: p.facultyId }]);
+        if (error) throw error;
         return { id, ...p };
     },
     updateProgram: async (p: Program) => {
-        if (supabase) await supabase.from('programs').update({ name: p.name, faculty_id: p.facultyId }).eq('id', p.id);
+        if (!supabase) throw new Error("Sin conexión a Supabase");
+        const { error } = await supabase.from('programs').update({ name: p.name, faculty_id: p.facultyId }).eq('id', p.id);
+        if (error) throw error;
         return p;
     },
     deleteProgram: async (id: string) => {
-        if (supabase) await supabase.from('programs').delete().eq('id', id);
+        if (!supabase) throw new Error("Sin conexión a Supabase");
+        const { error } = await supabase.from('programs').delete().eq('id', id);
+        if (error) throw error;
     },
 
     // --- Proyectos ---
     getProjects: async (): Promise<Project[]> => {
         if (!supabase) return [];
         const { data, error } = await supabase.from('projects').select('*').order('presentation_date', { ascending: false });
-        if (error) return [];
+        if (error) { console.error(error); return []; }
         return (data || []).map(p => ({
             id: p.id, title: p.title, presentationDate: p.presentation_date, filesUrl: p.files_url,
             statusId: p.status_id, formatId: p.format_id, programId: p.program_id,
@@ -99,8 +122,8 @@ export const db = {
     },
     getProjectById: async (id: string): Promise<Project | null> => {
         if (!supabase) return null;
-        const { data } = await supabase.from('projects').select('*').eq('id', id).single();
-        if (!data) return null;
+        const { data, error } = await supabase.from('projects').select('*').eq('id', id).single();
+        if (error || !data) return null;
         return {
             id: data.id, title: data.title, presentationDate: data.presentation_date, filesUrl: data.files_url,
             statusId: data.status_id, formatId: data.format_id, programId: data.program_id,
@@ -111,14 +134,17 @@ export const db = {
     },
     addProject: async (p: Omit<Project, 'id'>) => {
         const id = generateId();
-        if (supabase) await supabase.from('projects').insert([{ 
+        if (!supabase) throw new Error("Sin conexión a Supabase");
+        const { error } = await supabase.from('projects').insert([{ 
             id, title: p.title, presentation_date: p.presentationDate, files_url: p.filesUrl, 
             status_id: p.statusId, format_id: p.formatId, program_id: p.programId 
         }]);
+        if (error) throw error;
         return { ...p, id } as Project;
     },
     updateProject: async (p: Project) => {
-        if (supabase) await supabase.from('projects').update({ 
+        if (!supabase) throw new Error("Sin conexión a Supabase");
+        const { error } = await supabase.from('projects').update({ 
             title: p.title, presentation_date: p.presentationDate, files_url: p.filesUrl, 
             status_id: p.statusId, format_id: p.formatId, program_id: p.programId, 
             final_grade: p.finalGrade, written_grade_reviewer1: p.writtenGradeReviewer1, 
@@ -126,86 +152,90 @@ export const db = {
             written_grade_reviewer2: p.writtenGradeReviewer2, 
             presentation_grade_reviewer2: p.presentationGradeReviewer2 
         }).eq('id', p.id);
+        if (error) throw error;
         return p;
     },
     deleteProject: async (id: string) => {
-        if (supabase) {
-            await supabase.from('project_teachers').delete().eq('project_id', id);
-            await supabase.from('students').update({ project_id: null }).eq('project_id', id);
-            await supabase.from('projects').delete().eq('id', id);
-        }
+        if (!supabase) return;
+        await supabase.from('project_teachers').delete().eq('project_id', id);
+        await supabase.from('students').update({ project_id: null }).eq('project_id', id);
+        await supabase.from('projects').delete().eq('id', id);
     },
 
     // --- Estudiantes ---
     getStudents: async (): Promise<Student[]> => {
         if (!supabase) return [];
-        const { data } = await supabase.from('students').select('*');
+        const { data, error } = await supabase.from('students').select('*');
+        if (error) return [];
         return (data || []).map((s: any) => ({ id: s.id, name: s.name, email: s.email, cedula: s.cedula, projectId: s.project_id, programId: s.program_id }));
     },
     getStudentById: async (id: string): Promise<Student | null> => {
         if (!supabase) return null;
-        const { data } = await supabase.from('students').select('*').eq('id', id).single();
-        if (!data) return null;
+        const { data, error } = await supabase.from('students').select('*').eq('id', id).single();
+        if (error || !data) return null;
         return { id: data.id, name: data.name, email: data.email, cedula: data.cedula, projectId: data.project_id, programId: data.program_id };
     },
     addStudent: async (s: Omit<Student, 'id'>) => {
+        if (!supabase) throw new Error("Sin conexión");
         const id = generateId();
         const userId = generateId();
-        if (supabase) {
-            await supabase.from('students').insert([{ id, name: s.name, email: s.email, cedula: s.cedula, program_id: s.programId }]);
-            await supabase.from('users').insert([{ id: userId, username: s.name, password: s.cedula, role: 'student', student_id: id }]);
-        }
+        const { error: sError } = await supabase.from('students').insert([{ id, name: s.name, email: s.email, cedula: s.cedula, program_id: s.programId }]);
+        if (sError) throw sError;
+        await supabase.from('users').insert([{ id: userId, username: s.name, password: s.cedula, role: 'student', student_id: id }]);
         return { ...s, id } as Student;
     },
     updateStudent: async (s: Student) => {
-        if (supabase) await supabase.from('students').update({ name: s.name, email: s.email, cedula: s.cedula, program_id: s.programId, project_id: s.projectId }).eq('id', s.id);
+        if (!supabase) throw new Error("Sin conexión");
+        const { error } = await supabase.from('students').update({ name: s.name, email: s.email, cedula: s.cedula, program_id: s.programId, project_id: s.projectId }).eq('id', s.id);
+        if (error) throw error;
         return s;
     },
     deleteStudent: async (id: string) => {
-        if (supabase) {
-            await supabase.from('users').delete().eq('student_id', id);
-            await supabase.from('students').delete().eq('id', id);
-        }
+        if (!supabase) return;
+        await supabase.from('users').delete().eq('student_id', id);
+        await supabase.from('students').delete().eq('id', id);
     },
 
     // --- Docentes ---
     getTeachers: async (): Promise<Teacher[]> => {
         if (!supabase) return [];
-        const { data } = await supabase.from('teachers').select('*');
+        const { data, error } = await supabase.from('teachers').select('*');
+        if (error) return [];
         return data || [];
     },
     addTeacher: async (t: Omit<Teacher, 'id'>) => {
+        if (!supabase) throw new Error("Sin conexión");
         const id = generateId();
         const userId = generateId();
-        if (supabase) {
-            await supabase.from('teachers').insert([{ id, name: t.name, email: t.email, cedula: t.cedula }]);
-            await supabase.from('users').insert([{ id: userId, username: t.name, password: t.cedula, role: 'teacher', teacher_id: id }]);
-        }
+        const { error: tError } = await supabase.from('teachers').insert([{ id, name: t.name, email: t.email, cedula: t.cedula }]);
+        if (tError) throw tError;
+        await supabase.from('users').insert([{ id: userId, username: t.name, password: t.cedula, role: 'teacher', teacher_id: id }]);
         return { ...t, id } as Teacher;
     },
     updateTeacher: async (t: Teacher) => {
-        if (supabase) {
-            await supabase.from('teachers').update({ name: t.name, email: t.email, cedula: t.cedula }).eq('id', t.id);
-            await supabase.from('users').update({ username: t.name, password: t.cedula }).eq('teacher_id', t.id);
-        }
+        if (!supabase) throw new Error("Sin conexión");
+        const { error } = await supabase.from('teachers').update({ name: t.name, email: t.email, cedula: t.cedula }).eq('id', t.id);
+        if (error) throw error;
+        await supabase.from('users').update({ username: t.name, password: t.cedula }).eq('teacher_id', t.id);
         return t;
     },
     deleteTeacher: async (id: string) => {
-        if (supabase) {
-            await supabase.from('users').delete().eq('teacher_id', id);
-            await supabase.from('teachers').delete().eq('id', id);
-        }
+        if (!supabase) return;
+        await supabase.from('users').delete().eq('teacher_id', id);
+        await supabase.from('teachers').delete().eq('id', id);
     },
 
     // --- Usuarios y Autenticación ---
     getUserByUsername: async (username: string): Promise<User | null> => {
         if (!supabase) return null;
-        const { data } = await supabase.from('users').select('*').eq('username', username).single();
-        return data ? { ...data, teacherId: data.teacher_id, studentId: data.student_id } : null;
+        const { data, error } = await supabase.from('users').select('*').eq('username', username).single();
+        if (error || !data) return null;
+        return { ...data, teacherId: data.teacher_id, studentId: data.student_id };
     },
     getUsers: async (): Promise<User[]> => {
         if (!supabase) return [];
-        const { data } = await supabase.from('users').select('*');
+        const { data, error } = await supabase.from('users').select('*');
+        if (error) return [];
         return (data || []).map((u: any) => ({ ...u, teacherId: u.teacher_id, studentId: u.student_id }));
     },
     deleteUser: async (id: string) => {
@@ -215,12 +245,15 @@ export const db = {
     // --- Relación Proyecto-Docente ---
     getProjectTeachers: async (): Promise<ProjectTeacher[]> => {
         if (!supabase) return [];
-        const { data } = await supabase.from('project_teachers').select('*');
+        const { data, error } = await supabase.from('project_teachers').select('*');
+        if (error) return [];
         return (data || []).map((pt: any) => ({ id: pt.id, projectId: pt.project_id, teacherId: pt.teacher_id, roleId: pt.role_id }));
     },
     addProjectTeacher: async (pt: Omit<ProjectTeacher, 'id'>) => {
+        if (!supabase) throw new Error("Sin conexión");
         const id = generateId();
-        if (supabase) await supabase.from('project_teachers').insert([{ id, project_id: pt.projectId, teacher_id: pt.teacherId, role_id: pt.roleId }]);
+        const { error } = await supabase.from('project_teachers').insert([{ id, project_id: pt.projectId, teacher_id: pt.teacherId, role_id: pt.roleId }]);
+        if (error) throw error;
         return { ...pt, id };
     },
     deleteProjectTeachersByProject: async (projectId: string) => {
@@ -229,18 +262,21 @@ export const db = {
 
     // --- Catálogos (Status, Format, Role) ---
     getStatuses: async () => { 
-        if (!supabase) return initialSeeds.statuses;
-        const { data } = await supabase.from('statuses').select('*'); 
+        if (!supabase) return [];
+        const { data, error } = await supabase.from('statuses').select('*'); 
+        if (error) return [];
         return data || []; 
     },
     getFormats: async () => { 
-        if (!supabase) return initialSeeds.formats;
-        const { data } = await supabase.from('formats').select('*'); 
+        if (!supabase) return [];
+        const { data, error } = await supabase.from('formats').select('*'); 
+        if (error) return [];
         return data || []; 
     },
     getTeacherRoles: async () => { 
-        if (!supabase) return initialSeeds.teacherRoles;
-        const { data } = await supabase.from('teacher_roles').select('*'); 
+        if (!supabase) return [];
+        const { data, error } = await supabase.from('teacher_roles').select('*'); 
+        if (error) return [];
         return data || []; 
     },
     

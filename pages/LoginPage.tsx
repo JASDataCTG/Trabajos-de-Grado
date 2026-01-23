@@ -22,14 +22,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
         setIsFetching(true);
         setError('');
         
-        // Verificamos conexión (Supabase o LocalStorage)
         try {
             const connected = await db.checkConnection();
             setDbConnected(connected);
-            const data = await db.getTeachers();
-            setTeachers(data);
+            
+            if (connected) {
+                const data = await db.getTeachers();
+                setTeachers(data);
+            } else {
+                setError('No se pudo establecer conexión con Supabase. Verifica la configuración de red.');
+            }
         } catch (err) {
-            setError('Error al conectar con la base de datos institucional.');
+            setError('Error crítico al conectar con el servidor institucional.');
             setDbConnected(false);
         } finally {
             setIsFetching(false);
@@ -42,6 +46,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!dbConnected) {
+            setError('El sistema está fuera de línea. Intenta recargar la página.');
+            return;
+        }
         if (!selectedUsername) {
             setError('Por favor, selecciona tu nombre de la lista oficial.');
             return;
@@ -51,14 +59,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
         try {
             const success = await login(selectedUsername, password);
             if (!success) {
-                if (selectedUsername === 'admin') {
-                    setError('Clave de administrador incorrecta. Intenta con las credenciales de sistemas.');
-                } else {
-                    setError('Credenciales incorrectas. La contraseña es su número de documento.');
-                }
+                setError('Credenciales incorrectas. Si es docente/estudiante, su contraseña es su número de documento.');
             }
         } catch (err) {
-            setError('Ocurrió un error en el protocolo de autenticación.');
+            setError('Error en el protocolo de autenticación.');
         } finally {
             setIsLoading(false);
         }
@@ -66,15 +70,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4 font-sans relative overflow-hidden">
-            {/* Elementos decorativos de marca */}
             <div className="absolute top-0 left-0 w-full h-2 bg-uninunez-orange"></div>
             <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-uninunez-teal rounded-full opacity-10"></div>
             <div className="absolute -top-24 -left-24 w-64 h-64 bg-uninunez-orange rounded-full opacity-10"></div>
 
             <div className="w-full max-w-md space-y-6 bg-white p-10 rounded-2xl shadow-2xl relative z-10 border border-gray-100">
                 <div className="absolute top-4 right-6">
-                    <span className={`inline-flex items-center px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider ${dbConnected ? 'bg-uninunez-teal text-white' : 'bg-red-500 text-white'}`}>
-                        {dbConnected === null ? 'Verificando...' : dbConnected ? (isSupabaseConfigured ? 'CLOUD SYNC' : 'LOCAL DB') : 'OFFLINE'}
+                    <span className={`inline-flex items-center px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider ${dbConnected ? 'bg-uninunez-teal text-white' : 'bg-red-500 text-white animate-pulse'}`}>
+                        {dbConnected === null ? 'CONECTANDO...' : dbConnected ? 'CLOUD SYNC ACTIVE' : 'SYSTEM OFFLINE'}
                     </span>
                 </div>
 
@@ -96,8 +99,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                                 required
                                 value={selectedUsername}
                                 onChange={(e) => setSelectedUsername(e.target.value)}
-                                disabled={isFetching}
-                                className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-uninunez-orange focus:border-uninunez-orange sm:text-sm bg-gray-50 transition-all font-medium"
+                                disabled={isFetching || !dbConnected}
+                                className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-uninunez-orange focus:border-uninunez-orange sm:text-sm bg-gray-50 transition-all font-medium disabled:opacity-50"
                             >
                                 <option value="">-- Seleccione su nombre --</option>
                                 <option value="admin">ADMINISTRADOR DEL SISTEMA</option>
@@ -113,14 +116,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-uninunez-orange focus:border-uninunez-orange sm:text-sm bg-gray-50 transition-all font-medium"
+                                disabled={!dbConnected}
+                                className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-uninunez-orange focus:border-uninunez-orange sm:text-sm bg-gray-50 transition-all font-medium disabled:opacity-50"
                                 placeholder="Cédula"
                             />
                         </div>
                     </div>
 
                     {error && (
-                        <div className="bg-red-50 p-4 rounded-xl border border-red-100 animate-pulse">
+                        <div className="bg-red-50 p-4 rounded-xl border border-red-100">
                             <p className="text-xs text-red-600 font-bold leading-tight">{error}</p>
                         </div>
                     )}
@@ -128,8 +132,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                     <div className="space-y-4 pt-4">
                         <button
                             type="submit"
-                            disabled={isLoading || isFetching}
-                            className={`w-full flex justify-center py-4 px-4 border border-transparent text-xs font-extrabold rounded-xl text-white shadow-xl transition-all transform hover:-translate-y-1 active:scale-95 ${isLoading ? 'bg-gray-400' : 'bg-uninunez-orange hover:bg-uninunez-orangeLight'} uppercase tracking-widest font-display`}
+                            disabled={isLoading || isFetching || !dbConnected}
+                            className={`w-full flex justify-center py-4 px-4 border border-transparent text-xs font-extrabold rounded-xl text-white shadow-xl transition-all transform hover:-translate-y-1 active:scale-95 ${isLoading || !dbConnected ? 'bg-gray-400' : 'bg-uninunez-orange hover:bg-uninunez-orangeLight'} uppercase tracking-widest font-display`}
                         >
                             {isLoading ? 'AUTENTICANDO...' : 'INGRESAR AL SISTEMA'}
                         </button>
@@ -147,7 +151,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
                 <div className="mt-8 text-center">
                     <p className="text-[10px] text-uninunez-ash font-bold uppercase tracking-widest leading-relaxed">
                         Corporación Universitaria Rafael Núñez<br/>
-                        <span className="text-gray-400 font-medium normal-case">Vigilada Mineducación</span>
+                        <span className="text-gray-400 font-medium normal-case">Versión Cloud Nativa</span>
                     </p>
                 </div>
             </div>
