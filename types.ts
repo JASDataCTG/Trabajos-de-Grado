@@ -44,6 +44,7 @@ export interface Student {
   cedula: string;
   projectId: string | null;
   programId?: string;
+  password?: string;
 }
 
 export interface Teacher {
@@ -51,6 +52,7 @@ export interface Teacher {
   name: string;
   email: string;
   cedula: string;
+  password?: string;
 }
 
 export interface ProjectTeacher {
@@ -78,4 +80,4 @@ export interface Status {
   sortOrder?: number;
 }
 
-export type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings' | 'reports' | 'users';
+export type Page = 'dashboard' | 'projects' | 'students' | 'teachers' | 'settings' | 'reports' | 'users' | 'profile';

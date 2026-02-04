@@ -9,6 +9,7 @@ import { TeachersPage } from './pages/TeachersPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { UsersPage } from './pages/UsersPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { MenuIcon, XIcon } from './components/Icons';
 import { useAuth } from './contexts/AuthContext';
 import { LoginPage } from './pages/LoginPage';
@@ -22,11 +23,12 @@ const pageLabels: Record<Page, string> = {
     teachers: 'Docentes',
     settings: 'Configuración',
     reports: 'Reportes',
-    users: 'Usuarios'
+    users: 'Usuarios',
+    profile: 'Mi Perfil'
 };
 
 const App: React.FC = () => {
-  const { isAuthenticated, logout, isStudent } = useAuth();
+  const { isAuthenticated, logout, isStudent, isTeacher } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPublicReportsView, setIsPublicReportsView] = useState(false);
@@ -58,8 +60,37 @@ const App: React.FC = () => {
     return <LoginPage onOpenPublicReports={() => setIsPublicReportsView(true)} />;
   }
   
-  if (isStudent) {
-    return <StudentProjectViewPage />;
+  // Vista dedicada de estudiante, pero con navegación si se requiere
+  if (isStudent && currentPage !== 'profile') {
+    // Permitimos navegar al perfil incluso siendo estudiante para cambiar clave
+    // Pero por defecto mostramos su vista de proyecto
+    const renderStudentContent = () => {
+        if (currentPage === 'profile') return <ProfilePage />;
+        return <StudentProjectViewPage />;
+    };
+
+    return (
+        <div className="flex h-screen bg-gray-100 font-sans">
+             <Sidebar 
+                currentPage={currentPage} 
+                onNavigate={(p) => setCurrentPage(p)}
+                isOpen={isSidebarOpen}
+                setIsOpen={setIsSidebarOpen}
+              />
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <header className="flex justify-between items-center p-4 bg-white border-b border-uninunez-orange">
+                    <div className="flex items-center">
+                        <button onClick={() => setIsSidebarOpen(true)} className="md:hidden mr-4 text-uninunez-onix"><MenuIcon className="h-6 w-6"/></button>
+                        <h1 className="text-xl font-black text-uninunez-onix font-display uppercase tracking-tight">{pageLabels[currentPage]}</h1>
+                    </div>
+                    <button onClick={logout} className="px-4 py-2 text-[10px] font-black uppercase tracking-widest bg-gray-100 text-uninunez-ash rounded-xl">Cerrar Sesión</button>
+                </header>
+                <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50">
+                    {renderStudentContent()}
+                </main>
+              </div>
+        </div>
+    );
   }
 
   const renderPage = () => {
@@ -71,6 +102,7 @@ const App: React.FC = () => {
       case 'settings': return <SettingsPage />;
       case 'reports': return <ReportsPage isPublicView={false} />;
       case 'users': return <UsersPage />;
+      case 'profile': return <ProfilePage />;
       default: return <DashboardPage />;
     }
   };

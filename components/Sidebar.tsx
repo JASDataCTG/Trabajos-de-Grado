@@ -39,8 +39,15 @@ const NavItem: React.FC<{
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, setIsOpen }) => {
-    const { user } = useAuth();
-    const navItems: { page: Page; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
+    const { user, isStudent } = useAuth();
+    
+    // Items base para todos
+    const baseItems: { page: Page; label: string; icon: React.ReactNode }[] = [
+        { page: 'profile', label: 'Mi Cuenta', icon: <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> }
+    ];
+
+    // Items administrativos
+    const adminItems: { page: Page; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
         { page: 'dashboard', label: 'Inicio', icon: <HomeIcon className="h-5 w-5" /> },
         { page: 'projects', label: 'Proyectos', icon: <ProjectIcon className="h-5 w-5" /> },
         { page: 'students', label: 'Estudiantes', icon: <StudentIcon className="h-5 w-5" /> },
@@ -48,6 +55,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         { page: 'reports', label: 'Informes', icon: <ReportIcon className="h-5 w-5" /> },
         { page: 'users', label: 'Seguridad', icon: <UserAdminIcon className="h-5 w-5" />, adminOnly: true },
         { page: 'settings', label: 'Maestros', icon: <SettingsIcon className="h-5 w-5" /> },
+    ];
+
+    const navItems = isStudent ? [
+        { page: 'dashboard', label: 'Mi Proyecto', icon: <ProjectIcon className="h-5 w-5" /> },
+        ...baseItems
+    ] : [
+        ...adminItems,
+        ...baseItems
     ];
 
   return (
@@ -74,6 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
           </div>
           <nav className="flex-1 mt-4 space-y-1 overflow-y-auto scrollbar-hide">
             {navItems.map(item => (
+                // @ts-ignore
                 (!item.adminOnly || user?.username === 'admin') && (
                     <NavItem 
                         key={item.page}
