@@ -2,9 +2,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { Project, Student, Teacher, Status, TeacherRole } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-// Configuración SMTP lógica
+// Configuración SMTP lógica (Simulación)
 const SMTP_CONFIG = {
   host: 'smtp.gmail.com',
   port: 587,
@@ -23,6 +21,9 @@ export const notificationService = {
     statusName?: string,
     roleName?: string
   }) {
+    // Instanciación protegida siguiendo las guías de la SDK
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
     const prompt = `Actúa como el sistema de notificaciones de la Corporación Universitaria Rafael Núñez. 
     Escribe un correo electrónico formal y profesional en HTML para informar sobre la siguiente acción: ${action}.
     Proyecto: "${data.project.title}"

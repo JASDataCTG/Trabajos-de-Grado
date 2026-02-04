@@ -1,13 +1,13 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import React from 'react';
 import { db } from '../services/database';
-import { Project, Student, Teacher, TeacherRole, Status, Format, Program } from '../types';
+import { Project, Student, Teacher, Status, Format, Program } from '../types';
 import { arrayToCsv } from '../utils/csv';
 
 // Informa a TypeScript sobre la variable global Chart de la CDN
 declare var Chart: any;
 
-// --- Interfaces para los datos de los reportes ---
 interface ProjectStatusReport {
     'Título del Proyecto': string;
     'Estado': string;
@@ -38,8 +38,6 @@ interface ReportsPageProps {
     isPublicView?: boolean;
 }
 
-// --- Componentes Reutilizables ---
-
 const ReportTableCard: React.FC<{ title: string; description: string; children: React.ReactNode; onExport: () => void; hasData: boolean; showExport?: boolean }> = ({ title, description, children, onExport, hasData, showExport = true }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-6 border-b bg-gray-50/50">
@@ -66,12 +64,17 @@ const ReportTableCard: React.FC<{ title: string; description: string; children: 
     </div>
 );
 
-
 const ChartCard: React.FC<{ title: string; type: 'pie' | 'doughnut' | 'bar'; data: any; options?: any; heightClass?: string }> = ({ title, type, data, options = {}, heightClass = 'h-80' }) => {
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstance = useRef<any>(null);
 
     useEffect(() => {
+        // Validación de carga de la librería Chart.js
+        if (typeof Chart === 'undefined') {
+            console.warn('Esperando carga de Chart.js...');
+            return;
+        }
+
         if (chartRef.current && data) {
             if (chartInstance.current) {
                 chartInstance.current.destroy();
@@ -113,20 +116,16 @@ const ChartCard: React.FC<{ title: string; type: 'pie' | 'doughnut' | 'bar'; dat
     );
 };
 
-
 export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }) => {
-    // State para reportes tabulares
     const [projectStatus, setProjectStatus] = useState<ProjectStatusReport[]>([]);
     const [teacherWorkload, setTeacherWorkload] = useState<TeacherWorkloadReport[]>([]);
     const [unassignedStudents, setUnassignedStudents] = useState<UnassignedStudentsReport[]>([]);
 
-    // State para datos de gráficos
-    const [projectStatusChartData, setProjectStatusChartData] = useState(null);
-    const [studentAssignmentChartData, setStudentAssignmentChartData] = useState(null);
-    const [teacherWorkloadChartData, setTeacherWorkloadChartData] = useState(null);
-    const [studentsPerProgramChartData, setStudentsPerProgramChartData] = useState(null);
+    const [projectStatusChartData, setProjectStatusChartData] = useState<any>(null);
+    const [studentAssignmentChartData, setStudentAssignmentChartData] = useState<any>(null);
+    const [teacherWorkloadChartData, setTeacherWorkloadChartData] = useState<any>(null);
+    const [studentsPerProgramChartData, setStudentsPerProgramChartData] = useState<any>(null);
     
-    // State for filter values
     const [filters, setFilters] = useState({
         title: '',
         programId: '',
@@ -137,10 +136,8 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         endDate: '',
     });
 
-    // State for dropdown options
     const [allPrograms, setAllPrograms] = useState<Program[]>([]);
     const [allStatuses, setAllStatuses] = useState<Status[]>([]);
-    const [allFormats, setAllFormats] = useState<Format[]>([]);
     const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
 
     const loadReportData = useCallback(async (currentFilters: any) => {
@@ -155,7 +152,6 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             db.getPrograms()
         ]);
 
-        // --- Filtering Logic ---
         let filteredProjects = allProjects;
 
         if (currentFilters.title) {
@@ -163,9 +159,6 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         }
         if (currentFilters.statusId) {
             filteredProjects = filteredProjects.filter(p => p.statusId === currentFilters.statusId);
-        }
-        if (currentFilters.formatId) {
-            filteredProjects = filteredProjects.filter(p => p.formatId === currentFilters.formatId);
         }
         if (currentFilters.startDate) {
             filteredProjects = filteredProjects.filter(p => new Date(p.presentationDate) >= new Date(currentFilters.startDate));
@@ -183,18 +176,11 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             const studentProjectIds = allStudents
                 .filter(s => s.programId === currentFilters.programId && s.projectId)
                 .map(s => s.projectId);
-            
             filteredProjects = filteredProjects.filter(p => p.programId === currentFilters.programId || studentProjectIds.includes(p.id));
         }
 
         const filteredProjectIds = new Set(filteredProjects.map(p => p.id));
         
-        let filteredTeachersForWorkload = allTeachers;
-        if (currentFilters.teacherId) {
-            filteredTeachersForWorkload = allTeachers.filter(t => t.id === currentFilters.teacherId);
-        }
-
-        // --- Report Generation ---
         const projectStatusData = filteredProjects.map(p => {
             const assignedStudents = allStudents.filter(s => s.projectId === p.id);
             const studentNames = assignedStudents.map(s => s.name).join(', ');
@@ -222,7 +208,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         });
         setProjectStatus(projectStatusData);
 
-        const workloadData = filteredTeachersForWorkload.map(teacher => {
+        const workloadData = allTeachers.filter(t => !currentFilters.teacherId || t.id === currentFilters.teacherId).map(teacher => {
             const assignments = projectTeachers.filter(pt => pt.teacherId === teacher.id && filteredProjectIds.has(pt.projectId));
             let directorCount = 0, coDirectorCount = 0, evaluatorCount = 0;
             assignments.forEach(assignment => {
@@ -238,19 +224,14 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         });
         setTeacherWorkload(workloadData);
         
-        let unassignedStudentsDataFiltered = allStudents.filter(s => !s.projectId);
-        if (currentFilters.programId) {
-            unassignedStudentsDataFiltered = unassignedStudentsDataFiltered.filter(s => s.programId === currentFilters.programId);
-        }
-        setUnassignedStudents(unassignedStudentsDataFiltered.map(s => ({ 
+        const unassignedStudentsList = allStudents.filter(s => !s.projectId && (!currentFilters.programId || s.programId === currentFilters.programId));
+        setUnassignedStudents(unassignedStudentsList.map(s => ({ 
                 'Nombre del Estudiante': s.name, 
                 'Email': s.email, 
                 'Programa': programs.find(p => p.id === s.programId)?.name || 'N/A' 
         })));
 
-        // --- Chart data ---
         const uninunezColors = ['#F07E12', '#249A8C', '#3C3C3B', '#F39200', '#14AA9F', '#2FAC66', '#575756'];
-        
         const statusCounts = statuses.map(status => ({ name: status.name, count: filteredProjects.filter(p => p.statusId === status.id).length }));
         setProjectStatusChartData({
             labels: statusCounts.map(s => s.name),
@@ -258,12 +239,9 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         });
         
         const studentUniverse = currentFilters.programId ? allStudents.filter(s => s.programId === currentFilters.programId) : allStudents;
-        const currentUnassigned = unassignedStudentsDataFiltered.length;
-        const currentAssigned = studentUniverse.length - currentUnassigned;
-
         setStudentAssignmentChartData({
             labels: ['Vinculados', 'Sin Proyecto'],
-            datasets: [{ data: [currentAssigned, currentUnassigned], backgroundColor: ['#249A8C', '#E5E7EB'], borderColor: '#ffffff', borderWidth: 2 }]
+            datasets: [{ data: [studentUniverse.length - unassignedStudentsList.length, unassignedStudentsList.length], backgroundColor: ['#249A8C', '#E5E7EB'], borderColor: '#ffffff', borderWidth: 2 }]
         });
 
         const studentsPerProgramCounts = programs.map(program => ({
@@ -283,20 +261,17 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 { label: 'Evaluador', data: workloadData.slice(0, 10).map(w => w['Proyectos como Evaluador']), backgroundColor: '#249A8C' },
             ]
         });
-
     }, []);
 
     useEffect(() => {
         const initData = async () => {
-            const [pr, st, fo, te] = await Promise.all([
+            const [pr, st, te] = await Promise.all([
                 db.getPrograms(),
                 db.getStatuses(),
-                db.getFormats(),
                 db.getTeachers()
             ]);
             setAllPrograms(pr);
             setAllStatuses(st);
-            setAllFormats(fo);
             setAllTeachers(te);
             loadReportData({
                 title: '', programId: '', statusId: '',
@@ -307,10 +282,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
     }, [loadReportData]);
 
     const handleExport = (data: any[], filename: string) => {
-        if (data.length === 0) {
-            alert('No hay datos para exportar.');
-            return;
-        }
+        if (data.length === 0) return;
         const csv = arrayToCsv(data);
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
@@ -326,19 +298,6 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         setFilters(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleApplyFilters = () => {
-        loadReportData(filters);
-    };
-
-    const handleClearFilters = () => {
-        const cleared = {
-            title: '', programId: '', statusId: '',
-            formatId: '', teacherId: '', startDate: '', endDate: '',
-        };
-        setFilters(cleared);
-        loadReportData(cleared);
-    };
-
     return (
         <div className="space-y-8 max-w-7xl mx-auto px-2 md:px-0 animate-fadeIn">
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
@@ -349,19 +308,14 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                         </h1>
                         <p className="mt-2 text-uninunez-ash font-medium">Consolidado institucional para el seguimiento de trabajos de grado.</p>
                     </div>
-                    <img src="https://axis.uninunez.edu.co/images/uninunez/vm/logoqteal.svg" alt="Uninúñez" className="h-14 hidden md:block opacity-50"/>
                 </div>
             </div>
 
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 md:p-8">
-                <div className="flex items-center gap-2 mb-8 text-uninunez-teal border-b pb-4">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-                    <h3 className="text-xs font-black uppercase tracking-[0.2em] font-display">Parámetros de Filtrado</h3>
-                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div>
                         <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Título / Clave</label>
-                        <input type="text" name="title" value={filters.title} onChange={handleFilterChange} placeholder="Buscar por título..." className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 focus:ring-uninunez-orange focus:border-uninunez-orange outline-none transition-all" />
+                        <input type="text" name="title" value={filters.title} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 focus:ring-uninunez-orange outline-none" />
                     </div>
                      <div>
                         <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Programa Académico</label>
@@ -386,8 +340,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                     </div>
                 </div>
                 <div className="flex justify-end items-center gap-4 mt-10 pt-6 border-t border-gray-100">
-                    <button onClick={handleClearFilters} className="text-[10px] font-black text-gray-400 hover:text-uninunez-onix px-4 uppercase tracking-[0.2em] transition-colors">Limpiar</button>
-                    <button onClick={handleApplyFilters} className="bg-uninunez-onix text-white px-10 py-3 rounded-xl text-[10px] font-black shadow-xl hover:bg-black transition-all uppercase tracking-[0.2em]">Ejecutar Análisis</button>
+                    <button onClick={() => loadReportData(filters)} className="bg-uninunez-onix text-white px-10 py-3 rounded-xl text-[10px] font-black shadow-xl hover:bg-black transition-all uppercase tracking-[0.2em]">Ejecutar Análisis</button>
                 </div>
             </div>
 
@@ -397,16 +350,6 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 {studentsPerProgramChartData && <ChartCard title="Población por Programa" type="pie" data={studentsPerProgramChartData} />}
             </div>
             
-            {teacherWorkloadChartData && (
-                <ChartCard 
-                    title="Carga Académica Docente (Top 10)" 
-                    type="bar" 
-                    data={teacherWorkloadChartData} 
-                    heightClass="h-96"
-                    options={{ scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }}
-                />
-            )}
-
             <div className="space-y-10 pt-4">
                 <ReportTableCard 
                     title="Matriz de Seguimiento de Proyectos" 
@@ -427,7 +370,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                             {projectStatus.map((row, index) => (
                                 <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
                                     {Object.entries(row).map(([key, val], i) => (
-                                        <td key={i} className={`px-6 py-5 text-[11px] leading-tight ${key === 'Título del Proyecto' ? 'font-bold text-uninunez-onix group-hover:text-uninunez-teal' : 'text-uninunez-ash'}`}>
+                                        <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
                                             {key === 'Enlace a Archivos' && val !== 'Sin enlace' ? (
                                                 <a href={String(val)} target="_blank" rel="noopener noreferrer" className="text-uninunez-teal font-black hover:underline">VER ARCHIVOS</a>
                                             ) : (
@@ -440,83 +383,6 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                         </tbody>
                     </table>
                 </ReportTableCard>
-                
-                {!isPublicView && (
-                    <div className="space-y-10 pb-10">
-                        <ReportTableCard
-                            title="Productividad Docente Detallada"
-                            description="Control institucional de participaciones desglosado por roles académicos."
-                            onExport={() => handleExport(teacherWorkload, 'productividad_docente_detallada')}
-                            hasData={teacherWorkload.length > 0}
-                        >
-                            <table className="w-full text-left border-collapse">
-                                <thead className="bg-gray-50 border-b">
-                                    <tr>
-                                        <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Docente</th>
-                                        <th className="px-4 py-4 text-[9px] font-black text-uninunez-orange uppercase tracking-widest text-center">Director</th>
-                                        <th className="px-4 py-4 text-[9px] font-black text-uninunez-orangeLight uppercase tracking-widest text-center">Co-Dir</th>
-                                        <th className="px-4 py-4 text-[9px] font-black text-uninunez-teal uppercase tracking-widest text-center">Eval</th>
-                                        <th className="px-6 py-4 text-[9px] font-black text-uninunez-onix uppercase tracking-widest text-center bg-gray-100">Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {teacherWorkload.map((row, index) => (
-                                        <tr key={index} className="hover:bg-gray-50/50">
-                                            <td className="px-6 py-4">
-                                                <div className="text-xs font-bold text-uninunez-onix leading-none">{row['Nombre del Docente']}</div>
-                                                <div className="text-[9px] text-gray-400 mt-1">{row['Email']}</div>
-                                            </td>
-                                            <td className="px-4 py-4 text-center">
-                                                <span className={`text-[10px] font-black ${row['Proyectos como Director'] > 0 ? 'text-uninunez-orange' : 'text-gray-200'}`}>
-                                                    {row['Proyectos como Director']}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-4 text-center">
-                                                <span className={`text-[10px] font-black ${row['Proyectos como Co-Director'] > 0 ? 'text-uninunez-orangeLight' : 'text-gray-200'}`}>
-                                                    {row['Proyectos como Co-Director']}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-4 text-center">
-                                                <span className={`text-[10px] font-black ${row['Proyectos como Evaluador'] > 0 ? 'text-uninunez-teal' : 'text-gray-200'}`}>
-                                                    {row['Proyectos como Evaluador']}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-center bg-gray-50/50 font-black text-xs text-uninunez-onix">
-                                                <span className="bg-uninunez-onix text-white px-2 py-0.5 rounded text-[10px]">
-                                                    {row['Total de Proyectos']}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </ReportTableCard>
-
-                        <ReportTableCard
-                            title="Pendientes por Vincular"
-                            description="Estudiantes que no cuentan con un registro de proyecto radicado."
-                            onExport={() => handleExport(unassignedStudents, 'estudiantes_pendientes')}
-                            hasData={unassignedStudents.length > 0}
-                        >
-                            <table className="w-full text-left">
-                                <thead className="bg-gray-50 border-b">
-                                    <tr>
-                                        <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Estudiante</th>
-                                        <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Programa</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {unassignedStudents.slice(0, 15).map((row, index) => (
-                                        <tr key={index}>
-                                            <td className="px-6 py-4 text-xs font-bold text-uninunez-onix">{row['Nombre del Estudiante']}</td>
-                                            <td className="px-6 py-4 text-[10px] font-black text-uninunez-teal uppercase">{row['Programa']}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </ReportTableCard>
-                    </div>
-                )}
             </div>
         </div>
     );
