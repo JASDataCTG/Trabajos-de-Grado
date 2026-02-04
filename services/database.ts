@@ -30,17 +30,17 @@ async function fetchCatalog(table: string) {
 }
 
 export const db = {
-    initializeDB: async () => {
+    initializeDB: async function() {
         if (!supabase) return;
         try {
             const { count } = await supabase!.from('statuses').select('*', { count: 'exact', head: true });
             if (count === 0) {
-                // Seed logic here if needed
+                // Seed logic if necessary
             }
         } catch (e) { console.error(e); }
     },
 
-    checkConnection: async () => {
+    checkConnection: async function() {
         if (!supabase) return false;
         try {
             const { error } = await supabase.from('statuses').select('id').limit(1);
@@ -48,7 +48,6 @@ export const db = {
         } catch { return false; }
     },
 
-    // --- Auxiliares para Notificaciones ---
     async getProjectContext(projectId: string) {
         const allStudents = await this.getStudents();
         const projectStudents = allStudents.filter(s => s.projectId === projectId);
@@ -57,7 +56,7 @@ export const db = {
         const ptForProject = allPT.filter(pt => pt.projectId === projectId);
         
         const allTeachers = await this.getTeachers();
-        const allRoles = await db.getTeacherRoles();
+        const allRoles = await this.getTeacherRoles();
         
         const teachersWithRoles = ptForProject.map(pt => ({
             teacher: allTeachers.find(t => t.id === pt.teacherId)!,
@@ -67,8 +66,7 @@ export const db = {
         return { students: projectStudents, teachers: teachersWithRoles };
     },
 
-    // --- Proyectos ---
-    getProjects: async (): Promise<Project[]> => {
+    getProjects: async function(): Promise<Project[]> {
         if (!supabase) return [];
         const { data } = await supabase.from('projects').select('*').order('presentation_date', { ascending: false });
         return (data || []).map(p => ({
@@ -80,8 +78,7 @@ export const db = {
         }));
     },
 
-    // Fix: Added missing getProjectById method to retrieve a single project by ID
-    getProjectById: async (id: string): Promise<Project | null> => {
+    getProjectById: async function(id: string): Promise<Project | null> {
         if (!supabase) return null;
         const { data, error } = await supabase.from('projects').select('*').eq('id', id).single();
         if (error || !data) return null;
@@ -94,7 +91,7 @@ export const db = {
         };
     },
 
-    addProject: async (p: Omit<Project, 'id'>) => {
+    addProject: async function(p: Omit<Project, 'id'>) {
         if (!supabase) throw new Error("Supabase no configurado");
         const id = generateId();
         const { error } = await supabase.from('projects').insert([{ 
@@ -105,7 +102,7 @@ export const db = {
         return { ...p, id } as Project;
     },
 
-    updateProject: async (p: Project) => {
+    updateProject: async function(p: Project) {
         if (!supabase) throw new Error("Supabase no configurado");
         const { data: oldProject } = await supabase.from('projects').select('status_id, final_grade').eq('id', p.id).single();
         const { error } = await supabase.from('projects').update({ 
@@ -118,8 +115,8 @@ export const db = {
         }).eq('id', p.id);
         if (error) throw error;
         if (oldProject && (oldProject.status_id !== p.statusId || oldProject.final_grade !== p.finalGrade)) {
-            const context = await db.getProjectContext(p.id);
-            const statuses = await db.getStatuses();
+            const context = await this.getProjectContext(p.id);
+            const statuses = await this.getStatuses();
             const statusName = statuses.find(s => s.id === p.statusId)?.name;
             notificationService.notifyProjectChange(
                 oldProject.final_grade !== p.finalGrade ? 'grade' : 'update',
@@ -129,9 +126,9 @@ export const db = {
         return p;
     },
 
-    deleteProject: async (id: string) => {
+    deleteProject: async function(id: string) {
         if (!supabase) return;
-        const context = await db.getProjectContext(id);
+        const context = await this.getProjectContext(id);
         const { data: project } = await supabase.from('projects').select('*').eq('id', id).single();
         await supabase.from('project_teachers').delete().eq('project_id', id);
         await supabase.from('students').update({ project_id: null }).eq('project_id', id);
@@ -141,19 +138,18 @@ export const db = {
         }
     },
 
-    // --- Estudiantes ---
-    getStudents: async (): Promise<Student[]> => {
+    getStudents: async function(): Promise<Student[]> {
         if (!supabase) return [];
         const { data } = await supabase.from('students').select('*').order('name', { ascending: true });
         return (data || []).map((s: any) => ({ id: s.id, name: s.name, email: s.email, cedula: s.cedula, projectId: s.project_id, programId: s.program_id, password: s.password }));
     },
-    getStudentById: async (id: string): Promise<Student | null> => {
+    getStudentById: async function(id: string): Promise<Student | null> {
         if (!supabase) return null;
         const { data } = await supabase.from('students').select('*').eq('id', id).single();
         if (!data) return null;
         return { id: data.id, name: data.name, email: data.email, cedula: data.cedula, projectId: data.project_id, programId: data.program_id, password: data.password };
     },
-    addStudent: async (s: Omit<Student, 'id'>) => {
+    addStudent: async function(s: Omit<Student, 'id'>) {
         if (!supabase) throw new Error("Supabase no configurado");
         const id = generateId();
         const userId = generateId();
@@ -162,7 +158,7 @@ export const db = {
         await supabase.from('users').insert([{ id: userId, username: s.name, password, role: 'student', student_id: id }]);
         return { ...s, id } as Student;
     },
-    updateStudent: async (s: Student) => {
+    updateStudent: async function(s: Student) {
         if (!supabase) throw new Error("Supabase no configurado");
         await supabase.from('students').update({ name: s.name, email: s.email, cedula: s.cedula, program_id: s.programId, project_id: s.projectId, password: s.password }).eq('id', s.id);
         if (s.password) {
@@ -171,18 +167,17 @@ export const db = {
         return s;
     },
 
-    // --- Docentes ---
-    getTeachers: async (): Promise<Teacher[]> => {
+    getTeachers: async function(): Promise<Teacher[]> {
         if (!supabase) return [];
         const { data } = await supabase.from('teachers').select('*').order('name', { ascending: true });
         return data || [];
     },
-    getTeacherById: async (id: string): Promise<Teacher | null> => {
+    getTeacherById: async function(id: string): Promise<Teacher | null> {
         if (!supabase) return null;
         const { data } = await supabase.from('teachers').select('*').eq('id', id).single();
         return data || null;
     },
-    addTeacher: async (t: Omit<Teacher, 'id'>) => {
+    addTeacher: async function(t: Omit<Teacher, 'id'>) {
         if (!supabase) throw new Error("Supabase no configurado");
         const id = generateId();
         const userId = generateId();
@@ -191,96 +186,92 @@ export const db = {
         await supabase.from('users').insert([{ id: userId, username: t.name, password, role: 'teacher', teacher_id: id }]);
         return { ...t, id } as Teacher;
     },
-    updateTeacher: async (t: Teacher) => {
+    updateTeacher: async function(t: Teacher) {
         if (!supabase) throw new Error("Supabase no configurado");
         await supabase.from('teachers').update({ name: t.name, email: t.email, cedula: t.cedula, password: t.password }).eq('id', t.id);
-        // Sincronizar con tabla de usuarios
         await supabase.from('users').update({ username: t.name, password: t.password || t.cedula }).eq('teacher_id', t.id);
         return t;
     },
-    updateTeacherPassword: async (id: string, newPassword: string) => {
+    updateTeacherPassword: async function(id: string, newPassword: string) {
         if (!supabase) return;
         await Promise.all([
             supabase.from('teachers').update({ password: newPassword }).eq('id', id),
             supabase.from('users').update({ password: newPassword }).eq('teacher_id', id)
         ]);
     },
-    updateStudentPassword: async (id: string, newPassword: string) => {
+    updateStudentPassword: async function(id: string, newPassword: string) {
         if (!supabase) return;
         await Promise.all([
             supabase.from('students').update({ password: newPassword }).eq('id', id),
             supabase.from('users').update({ password: newPassword }).eq('student_id', id)
         ]);
     },
-    deleteTeacher: async (id: string) => {
+    deleteTeacher: async function(id: string) {
         if (!supabase) return;
         await supabase.from('users').delete().eq('teacher_id', id);
         await supabase.from('teachers').delete().eq('id', id);
     },
 
-    // --- Usuarios y Autenticación ---
-    getUserByUsername: async (username: string): Promise<User | null> => {
+    getUserByUsername: async function(username: string): Promise<User | null> {
         if (!supabase) return null;
         const { data } = await supabase.from('users').select('*').eq('username', username).single();
         return data ? { ...data, teacherId: data.teacher_id, studentId: data.student_id } : null;
     },
-    getUsers: async (): Promise<User[]> => {
+    getUsers: async function(): Promise<User[]> {
         if (!supabase) return [];
         const { data } = await supabase.from('users').select('*');
         return (data || []).map((u: any) => ({ ...u, teacherId: u.teacher_id, studentId: u.student_id }));
     },
-    deleteUser: async (id: string) => {
+    deleteUser: async function(id: string) {
         if (supabase) await supabase.from('users').delete().eq('id', id);
     },
 
-    // --- Relación Proyecto-Docente ---
-    getProjectTeachers: async (): Promise<ProjectTeacher[]> => {
+    getProjectTeachers: async function(): Promise<ProjectTeacher[]> {
         if (!supabase) return [];
         const { data } = await supabase.from('project_teachers').select('*');
         return (data || []).map((pt: any) => ({ id: pt.id, projectId: pt.project_id, teacherId: pt.teacher_id, roleId: pt.role_id }));
     },
-    addProjectTeacher: async (pt: Omit<ProjectTeacher, "id">) => {
+    addProjectTeacher: async function(pt: Omit<ProjectTeacher, "id">) {
         if (!supabase) throw new Error("Supabase no configurado");
         const id = generateId();
         await supabase.from('project_teachers').insert([{ id, project_id: pt.projectId, teacher_id: pt.teacherId, role_id: pt.roleId }]);
         return { ...pt, id };
     },
-    deleteProjectTeachersByProject: async (projectId: string) => {
+    deleteProjectTeachersByProject: async function(projectId: string) {
         if (supabase) await supabase.from('project_teachers').delete().eq('project_id', projectId);
     },
 
-    // --- Catálogos (Con resiliencia de esquema) ---
-    getStatuses: async () => { 
+    getStatuses: async function() { 
         const data = await fetchCatalog('statuses');
         return data.map((d: any) => ({ ...d, sortOrder: d.sort_order }));
     },
-    getFormats: async () => { 
+    getFormats: async function() { 
         const data = await fetchCatalog('formats');
         return data.map((d: any) => ({ ...d, sortOrder: d.sort_order }));
     },
-    getTeacherRoles: async () => { 
+    getTeacherRoles: async function() { 
         const data = await fetchCatalog('teacher_roles');
         return data.map((d: any) => ({ ...d, sortOrder: d.sort_order }));
     },
-    getFaculties: async () => (await fetchCatalog('faculties')).map((f: any) => ({ ...f, sortOrder: f.sort_order })),
-    getPrograms: async () => (await fetchCatalog('programs')).map((p: any) => ({ id: p.id, name: p.name, facultyId: p.faculty_id, sortOrder: p.sort_order })),
+    getFaculties: async function() { return (await fetchCatalog('faculties')).map((f: any) => ({ ...f, sortOrder: f.sort_order })); },
+    getPrograms: async function() { return (await fetchCatalog('programs')).map((p: any) => ({ id: p.id, name: p.name, facultyId: p.faculty_id, sortOrder: p.sort_order })); },
     
-    addFaculty: async (f: any) => { const id = generateId(); await supabase!.from('faculties').insert([{ id, name: f.name, sort_order: f.sortOrder || 99 }]); return { id, ...f }; },
-    addProgram: async (p: any) => { const id = generateId(); await supabase!.from('programs').insert([{ id, name: p.name, faculty_id: p.facultyId, sort_order: p.sortOrder || 99 }]); return { id, ...p }; },
-    addStatus: async (p: any) => { const id = generateId(); await supabase!.from('statuses').insert([{ id, name: p.name, sort_order: p.sortOrder || 99 }]); return { ...p, id }; },
-    addFormat: async (p: any) => { const id = generateId(); await supabase!.from('formats').insert([{ id, name: p.name, sort_order: p.sortOrder || 99 }]); return { ...p, id }; },
-    addTeacherRole: async (p: any) => { const id = generateId(); await supabase!.from('teacher_roles').insert([{ id, name: p.name, sort_order: p.sortOrder || 99 }]); return { ...p, id }; },
+    addFaculty: async function(f: any) { const id = generateId(); await supabase!.from('faculties').insert([{ id, name: f.name, sort_order: f.sortOrder || 99 }]); return { id, ...f }; },
+    addProgram: async function(p: any) { const id = generateId(); await supabase!.from('programs').insert([{ id, name: p.name, faculty_id: p.facultyId, sort_order: p.sort_order || 99 }]); return { id, ...p }; },
+    addStatus: async function(p: any) { const id = generateId(); await supabase!.from('statuses').insert([{ id, name: p.name, sort_order: p.sort_order || 99 }]); return { ...p, id }; },
+    addFormat: async function(p: any) { const id = generateId(); await supabase!.from('formats').insert([{ id, name: p.name, sort_order: p.sort_order || 99 }]); return { ...p, id }; },
+    addTeacherRole: async function(p: any) { const id = generateId(); await supabase!.from('teacher_roles').insert([{ id, name: p.name, sort_order: p.sort_order || 99 }]); return { ...p, id }; },
     
-    updateFaculty: async (f: any) => { await supabase!.from('faculties').update({ name: f.name, sort_order: f.sortOrder }).eq('id', f.id); return f; },
-    updateProgram: async (p: any) => { await supabase!.from('programs').update({ name: p.name, faculty_id: p.facultyId, sort_order: p.sortOrder }).eq('id', p.id); return p; },
-    updateStatus: async (p: any) => { await supabase!.from('statuses').update({ name: p.name, sort_order: p.sortOrder }).eq('id', p.id); return p; },
-    updateFormat: async (p: any) => { await supabase!.from('formats').update({ name: p.name, sort_order: p.sortOrder }).eq('id', p.id); return p; },
-    updateTeacherRole: async (p: any) => { await supabase!.from('teacher_roles').update({ name: p.name, sort_order: p.sortOrder }).eq('id', p.id); return p; },
+    updateFaculty: async function(f: any) { await supabase!.from('faculties').update({ name: f.name, sort_order: f.sortOrder }).eq('id', f.id); return f; },
+    updateProgram: async function(p: any) { await supabase!.from('programs').update({ name: p.name, faculty_id: p.facultyId, sort_order: p.sort_order }).eq('id', p.id); return p; },
+    updateStatus: async function(p: any) { await supabase!.from('statuses').update({ name: p.name, sort_order: p.sortOrder }).eq('id', p.id); return p; },
+    updateFormat: async function(p: any) { await supabase!.from('formats').update({ name: p.name, sort_order: p.sortOrder }).eq('id', p.id); return p; },
+    updateTeacherRole: async function(p: any) { await supabase!.from('teacher_roles').update({ name: p.name, sort_order: p.sortOrder }).eq('id', p.id); return p; },
     
-    deleteFaculty: async (id: string) => { await supabase!.from('faculties').delete().eq('id', id); },
-    deleteProgram: async (id: string) => { await supabase!.from('programs').delete().eq('id', id); },
-    deleteStudent: async (id: string) => { await supabase!.from('users').delete().eq('student_id', id); await supabase!.from('students').delete().eq('id', id); },
-    deleteStatus: async (id: string) => { await supabase!.from('statuses').delete().eq('id', id); },
-    deleteFormat: async (id: string) => { await supabase!.from('formats').delete().eq('id', id); },
-    deleteTeacherRole: async (id: string) => { await supabase!.from('teacher_roles').delete().eq('id', id); }
+    deleteFaculty: async function(id: string) { await supabase!.from('faculties').delete().eq('id', id); },
+    deleteProgram: async function(id: string) { await supabase!.from('programs').delete().eq('id', id); },
+    deleteStudent: async function(id: string) { await supabase!.from('users').delete().eq('student_id', id); await supabase!.from('students').delete().eq('id', id); },
+    deleteStatus: async function(id: string) { await supabase!.from('statuses').delete().eq('id', id); },
+    deleteFormat: async function(id: string) { await supabase!.from('formats').delete().eq('id', id); },
+    deleteTeacherRole: async function(id: string) { await supabase!.from('teacher_roles').delete().eq('id', id); }
 };
