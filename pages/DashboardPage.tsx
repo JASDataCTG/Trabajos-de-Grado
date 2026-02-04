@@ -62,6 +62,13 @@ export const DashboardPage: React.FC = () => {
 
     const getStatusName = (id: string) => statuses.find(s => s.id === id)?.name || 'Pendiente';
 
+    // Cálculo dinámico del periodo académico
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-11
+    const periodLabel = currentMonth < 6 ? 'IP' : 'IIP';
+    const dynamicPeriod = `${periodLabel}-${currentYear}`;
+
     return (
         <div className="space-y-6 md:space-y-8 animate-fadeIn px-2 md:px-0">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -71,7 +78,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div className="text-left md:text-right bg-white p-3 rounded-xl border border-gray-100 md:bg-transparent md:p-0 md:border-0">
                     <p className="text-[9px] md:text-[10px] font-bold text-uninunez-orange uppercase tracking-widest">Periodo Académico</p>
-                    <p className="text-base md:text-lg font-bold text-uninunez-onix">2024 - Ciclo 2</p>
+                    <p className="text-base md:text-lg font-bold text-uninunez-onix">{dynamicPeriod}</p>
                 </div>
             </div>
             
