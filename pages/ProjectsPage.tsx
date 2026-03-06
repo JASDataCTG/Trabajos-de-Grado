@@ -240,9 +240,9 @@ const ProjectForm: React.FC<{
                                     type="text" 
                                     placeholder="Buscar por nombre o cédula..." 
                                     value={studentSearch}
-                                    onChange={(e) => { setStudentSearch(e.target.value); setShowStudentResults(true); }}
+                                    onChange={(e) => { setStudentSearch(e.target.value.toUpperCase()); setShowStudentResults(true); }}
                                     onFocus={() => setShowStudentResults(true)}
-                                    className="w-full px-4 py-2.5 text-xs border border-gray-200 rounded-xl focus:ring-1 focus:ring-uninunez-orange outline-none font-bold"
+                                    className="w-full px-4 py-2.5 text-xs border border-gray-200 rounded-xl focus:ring-1 focus:ring-uninunez-orange outline-none font-bold uppercase"
                                     autoComplete="off"
                                 />
                                 {showStudentResults && filteredStudentsList.length > 0 && (
@@ -292,9 +292,9 @@ const ProjectForm: React.FC<{
                                     type="text" 
                                     placeholder="Buscar docente..." 
                                     value={teacherSearch}
-                                    onChange={(e) => { setTeacherSearch(e.target.value); setShowTeacherResults(true); }}
+                                    onChange={(e) => { setTeacherSearch(e.target.value.toUpperCase()); setShowTeacherResults(true); }}
                                     onFocus={() => setShowTeacherResults(true)}
-                                    className="w-full px-4 py-2.5 text-xs border border-gray-200 rounded-xl outline-none font-bold"
+                                    className="w-full px-4 py-2.5 text-xs border border-gray-200 rounded-xl outline-none font-bold uppercase"
                                     autoComplete="off"
                                 />
                                 {showTeacherResults && filteredTeachersList.length > 0 && (

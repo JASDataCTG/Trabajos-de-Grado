@@ -208,7 +208,14 @@ export const TeachersPage: React.FC = () => {
                 <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); handleSave(Object.fromEntries(fd)); }} className="space-y-4">
                     <div>
                         <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Nombre Completo</label>
-                        <input name="name" defaultValue={editingTeacher?.name} placeholder="Ej: Dr. Fernando Núñez" className="w-full border border-gray-200 p-3 rounded-xl font-bold focus:ring-uninunez-orange focus:border-uninunez-orange text-sm outline-none" required />
+                        <input 
+                            name="name" 
+                            defaultValue={editingTeacher?.name} 
+                            placeholder="Ej: Dr. Fernando Núñez" 
+                            className="w-full border border-gray-200 p-3 rounded-xl font-bold focus:ring-uninunez-orange focus:border-uninunez-orange text-sm outline-none uppercase" 
+                            required 
+                            onChange={(e) => e.target.value = e.target.value.toUpperCase()}
+                        />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -217,7 +224,14 @@ export const TeachersPage: React.FC = () => {
                         </div>
                         <div>
                             <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Correo Electrónico</label>
-                            <input name="email" defaultValue={editingTeacher?.email} placeholder="email@uninunez.edu.co" className="w-full border border-gray-200 p-3 rounded-xl focus:ring-uninunez-orange focus:border-uninunez-orange text-sm outline-none" required />
+                            <input 
+                                name="email" 
+                                defaultValue={editingTeacher?.email} 
+                                placeholder="email@uninunez.edu.co" 
+                                className="w-full border border-gray-200 p-3 rounded-xl focus:ring-uninunez-orange focus:border-uninunez-orange text-sm outline-none lowercase" 
+                                required 
+                                onChange={(e) => e.target.value = e.target.value.toLowerCase()}
+                            />
                         </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-6 border-t mt-4">
