@@ -46,7 +46,8 @@ const ProjectForm: React.FC<{
 
         const initialData: Partial<Project> = {
             title: '', presentationDate: '', filesUrl: '',
-            statusId: statuses[0]?.id || '', formatId: formats[0]?.id || '',
+            statusId: project?.statusId || statuses.find(s => s.name.toLowerCase().includes('presentado'))?.id || statuses[0]?.id || '', 
+            formatId: project?.formatId || formats[0]?.id || '',
             isApprovedByDirector: false, writtenGradeReviewer1: null,
             presentationGradeReviewer1: null, writtenGradeReviewer2: null,
             presentationGradeReviewer2: null, finalGrade: null,
@@ -187,9 +188,24 @@ const ProjectForm: React.FC<{
                         <input type="date" name="presentationDate" value={formData.presentationDate || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50" disabled={!canEditDetails}/>
                     </div>
                     <div>
-                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Programa Académico</label>
+                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Programa Académico Principal</label>
                         <select name="programId" value={formData.programId || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50 font-bold text-uninunez-teal" disabled={!canEditDetails}>
                             {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Estado del Proyecto</label>
+                        <select name="statusId" value={formData.statusId || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50 font-bold" disabled={!canEditDetails}>
+                            {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Formato de Trabajo</label>
+                        <select name="formatId" value={formData.formatId || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50 font-bold" disabled={!canEditDetails}>
+                            {formats.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                         </select>
                     </div>
                 </div>
@@ -224,12 +240,19 @@ const ProjectForm: React.FC<{
             <div className="pt-4 border-t border-gray-100">
                 <h4 className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-4 ml-1">Integrantes (Estudiantes)</h4>
                 <div className="flex flex-wrap gap-2 mb-4">
-                    {assignedStudentIds.length > 0 ? assignedStudentIds.map(sid => (
-                        <div key={sid} className="flex items-center bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm animate-fadeIn">
-                            <span className="text-[10px] font-bold text-gray-700 mr-2">{getStudentName(sid)}</span>
-                            {canEditDetails && <button type="button" onClick={() => removeStudent(sid)} className="text-red-400 hover:text-red-600"><TrashIcon className="h-3.5 w-3.5"/></button>}
-                        </div>
-                    )) : <p className="text-[10px] text-gray-400 italic py-2">No hay estudiantes vinculados todavía.</p>}
+                    {assignedStudentIds.length > 0 ? assignedStudentIds.map(sid => {
+                        const student = allStudents.find(s => s.id === sid);
+                        const studentProgram = programs.find(p => p.id === student?.programId)?.name || 'N/A';
+                        return (
+                            <div key={sid} className="flex items-center bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm animate-fadeIn">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-gray-700">{student?.name || 'Desconocido'}</span>
+                                    <span className="text-[8px] font-black text-uninunez-teal uppercase tracking-tighter">{studentProgram}</span>
+                                </div>
+                                {canEditDetails && <button type="button" onClick={() => removeStudent(sid)} className="text-red-400 hover:text-red-600 ml-2"><TrashIcon className="h-3.5 w-3.5"/></button>}
+                            </div>
+                        );
+                    }) : <p className="text-[10px] text-gray-400 italic py-2">No hay estudiantes vinculados todavía.</p>}
                 </div>
 
                 {canEditDetails && (

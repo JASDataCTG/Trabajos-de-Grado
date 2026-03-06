@@ -138,6 +138,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
 
     const [allPrograms, setAllPrograms] = useState<Program[]>([]);
     const [allStatuses, setAllStatuses] = useState<Status[]>([]);
+    const [allFormats, setAllFormats] = useState<Format[]>([]);
     const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
 
     const loadReportData = useCallback(async (currentFilters: any) => {
@@ -159,6 +160,9 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         }
         if (currentFilters.statusId) {
             filteredProjects = filteredProjects.filter(p => p.statusId === currentFilters.statusId);
+        }
+        if (currentFilters.formatId) {
+            filteredProjects = filteredProjects.filter(p => p.formatId === currentFilters.formatId);
         }
         if (currentFilters.startDate) {
             filteredProjects = filteredProjects.filter(p => new Date(p.presentationDate) >= new Date(currentFilters.startDate));
@@ -265,14 +269,16 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
 
     useEffect(() => {
         const initData = async () => {
-            const [pr, st, te] = await Promise.all([
+            const [pr, st, te, fo] = await Promise.all([
                 db.getPrograms(),
                 db.getStatuses(),
-                db.getTeachers()
+                db.getTeachers(),
+                db.getFormats()
             ]);
             setAllPrograms(pr);
             setAllStatuses(st);
             setAllTeachers(te);
+            setAllFormats(fo);
             loadReportData({
                 title: '', programId: '', statusId: '',
                 formatId: '', teacherId: '', startDate: '', endDate: '',
@@ -329,6 +335,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                         <select name="statusId" value={filters.statusId} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 outline-none">
                             <option value="">TODOS LOS ESTADOS</option>
                             {allStatuses.map(s => <option key={s.id} value={s.id}>{s.name.toUpperCase()}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Formato de Trabajo</label>
+                        <select name="formatId" value={filters.formatId} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 outline-none">
+                            <option value="">TODOS LOS FORMATOS</option>
+                            {allFormats.map(f => <option key={f.id} value={f.id}>{f.name.toUpperCase()}</option>)}
                         </select>
                     </div>
                     <div>
