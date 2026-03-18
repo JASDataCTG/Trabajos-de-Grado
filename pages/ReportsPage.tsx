@@ -8,7 +8,10 @@ import { arrayToCsv } from '../utils/csv';
 // Informa a TypeScript sobre la variable global Chart de la CDN
 declare var Chart: any;
 
+import { Modal } from '../components/Modal';
+
 interface ProjectStatusReport {
+    'id': string;
     'Título del Proyecto': string;
     'Estado': string;
     'Formato': string;
@@ -20,6 +23,7 @@ interface ProjectStatusReport {
 }
 
 interface TeacherWorkloadReport {
+    'id': string;
     'Nombre del Docente': string;
     'Email': string;
     'Proyectos como Director': number;
@@ -28,7 +32,16 @@ interface TeacherWorkloadReport {
     'Total de Proyectos': number;
 }
 
+interface ProgramSummaryReport {
+    'id': string;
+    'Programa': string;
+    'Total Proyectos': number;
+    'Estudiantes Vinculados': number;
+    'Estudiantes Sin Proyecto': number;
+}
+
 interface UnassignedStudentsReport {
+    'id': string;
     'Nombre del Estudiante': string;
     'Email': string;
     'Programa': string;
@@ -119,13 +132,15 @@ const ChartCard: React.FC<{ title: string; type: 'pie' | 'doughnut' | 'bar'; dat
 export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }) => {
     const [projectStatus, setProjectStatus] = useState<ProjectStatusReport[]>([]);
     const [teacherWorkload, setTeacherWorkload] = useState<TeacherWorkloadReport[]>([]);
+    const [programSummary, setProgramSummary] = useState<ProgramSummaryReport[]>([]);
     const [unassignedStudents, setUnassignedStudents] = useState<UnassignedStudentsReport[]>([]);
 
     const [projectStatusChartData, setProjectStatusChartData] = useState<any>(null);
     const [studentAssignmentChartData, setStudentAssignmentChartData] = useState<any>(null);
     const [teacherWorkloadChartData, setTeacherWorkloadChartData] = useState<any>(null);
     const [studentsPerProgramChartData, setStudentsPerProgramChartData] = useState<any>(null);
-    
+    const [projectsPerProgramChartData, setProjectsPerProgramChartData] = useState<any>(null);
+
     const [filters, setFilters] = useState({
         title: '',
         programId: '',
@@ -140,9 +155,19 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
     const [allStatuses, setAllStatuses] = useState<Status[]>([]);
     const [allFormats, setAllFormats] = useState<Format[]>([]);
     const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
+    const [allStudents, setAllStudents] = useState<Student[]>([]);
+    const [allProjects, setAllProjects] = useState<Project[]>([]);
+    const [allProjectTeachers, setAllProjectTeachers] = useState<any[]>([]);
+    const [allRoles, setAllRoles] = useState<any[]>([]);
+
+    const [detailModal, setDetailModal] = useState<{
+        type: 'project' | 'teacher' | 'program' | 'student';
+        id: string;
+        title: string;
+    } | null>(null);
 
     const loadReportData = useCallback(async (currentFilters: any) => {
-        const [allProjects, allStudents, allTeachers, roles, statuses, formats, projectTeachers, programs] = await Promise.all([
+        const [projects, students, teachers, roles, statuses, formats, projectTeachers, programs] = await Promise.all([
             db.getProjects(),
             db.getStudents(),
             db.getTeachers(),
@@ -153,7 +178,16 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             db.getPrograms()
         ]);
 
-        let filteredProjects = allProjects;
+        setAllProjects(projects);
+        setAllStudents(students);
+        setAllTeachers(teachers);
+        setAllPrograms(programs);
+        setAllStatuses(statuses);
+        setAllFormats(formats);
+        setAllProjectTeachers(projectTeachers);
+        setAllRoles(roles);
+
+        let filteredProjects = projects;
 
         if (currentFilters.title) {
             filteredProjects = filteredProjects.filter(p => p.title.toLowerCase().includes(currentFilters.title.toLowerCase()));
@@ -177,7 +211,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             filteredProjects = filteredProjects.filter(p => projectIdsForTeacher.includes(p.id));
         }
         if (currentFilters.programId) {
-            const studentProjectIds = allStudents
+            const studentProjectIds = students
                 .filter(s => s.programId === currentFilters.programId && s.projectId)
                 .map(s => s.projectId);
             filteredProjects = filteredProjects.filter(p => p.programId === currentFilters.programId || studentProjectIds.includes(p.id));
@@ -185,21 +219,22 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
 
         const filteredProjectIds = new Set(filteredProjects.map(p => p.id));
         
-        const projectStatusData = filteredProjects.map(p => {
-            const assignedStudents = allStudents.filter(s => s.projectId === p.id);
+        const projectStatusData: ProjectStatusReport[] = filteredProjects.map(p => {
+            const assignedStudents = students.filter(s => s.projectId === p.id);
             const studentNames = assignedStudents.map(s => s.name).join(', ');
             const studentPrograms = [...new Set(assignedStudents.map(s => programs.find(prog => prog.id === (s.programId || p.programId))?.name || 'N/A'))].join(', ');
             
             const assignedTeachers = projectTeachers
                 .filter(pt => pt.projectId === p.id)
                 .map(pt => {
-                    const t = allTeachers.find(teach => teach.id === pt.teacherId);
+                    const t = teachers.find(teach => teach.id === pt.teacherId);
                     const r = roles.find(rol => rol.id === pt.roleId);
                     return `${t?.name || 'N/A'} [${r?.name || 'N/A'}]`;
                 })
                 .join('; ');
             
             return {
+                'id': p.id,
                 'Título del Proyecto': p.title, 
                 'Estado': statuses.find(s => s.id === p.statusId)?.name || 'N/A', 
                 'Formato': formats.find(f => f.id === p.formatId)?.name || 'N/A',
@@ -212,7 +247,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         });
         setProjectStatus(projectStatusData);
 
-        const workloadData = allTeachers.filter(t => !currentFilters.teacherId || t.id === currentFilters.teacherId).map(teacher => {
+        const workloadData: TeacherWorkloadReport[] = teachers.filter(t => !currentFilters.teacherId || t.id === currentFilters.teacherId).map(teacher => {
             const assignments = projectTeachers.filter(pt => pt.teacherId === teacher.id && filteredProjectIds.has(pt.projectId));
             let directorCount = 0, coDirectorCount = 0, evaluatorCount = 0;
             assignments.forEach(assignment => {
@@ -222,14 +257,30 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 else if (roleName.includes('evaluador')) evaluatorCount++;
             });
             return {
+                'id': teacher.id,
                 'Nombre del Docente': teacher.name, 'Email': teacher.email, 'Proyectos como Director': directorCount,
                 'Proyectos como Co-Director': coDirectorCount, 'Proyectos como Evaluador': evaluatorCount, 'Total de Proyectos': assignments.length,
             };
-        });
+        }).filter(t => t['Total de Proyectos'] > 0).sort((a, b) => b['Total de Proyectos'] - a['Total de Proyectos']);
         setTeacherWorkload(workloadData);
+
+        const programSummaryData: ProgramSummaryReport[] = programs.map(p => {
+            const projectsInProgram = projects.filter(proj => proj.programId === p.id);
+            const studentsInProgram = students.filter(s => s.programId === p.id);
+            const linkedStudents = studentsInProgram.filter(s => s.projectId);
+            return {
+                'id': p.id,
+                'Programa': p.name,
+                'Total Proyectos': projectsInProgram.length,
+                'Estudiantes Vinculados': linkedStudents.length,
+                'Estudiantes Sin Proyecto': studentsInProgram.length - linkedStudents.length
+            };
+        }).sort((a, b) => b['Total Proyectos'] - a['Total Proyectos']);
+        setProgramSummary(programSummaryData);
         
-        const unassignedStudentsList = allStudents.filter(s => !s.projectId && (!currentFilters.programId || s.programId === currentFilters.programId));
+        const unassignedStudentsList = students.filter(s => !s.projectId && (!currentFilters.programId || s.programId === currentFilters.programId));
         setUnassignedStudents(unassignedStudentsList.map(s => ({ 
+                'id': s.id,
                 'Nombre del Estudiante': s.name, 
                 'Email': s.email, 
                 'Programa': programs.find(p => p.id === s.programId)?.name || 'N/A' 
@@ -242,7 +293,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             datasets: [{ label: 'Proyectos', data: statusCounts.map(s => s.count), backgroundColor: uninunezColors, borderColor: '#ffffff', borderWidth: 2 }]
         });
         
-        const studentUniverse = currentFilters.programId ? allStudents.filter(s => s.programId === currentFilters.programId) : allStudents;
+        const studentUniverse = currentFilters.programId ? students.filter(s => s.programId === currentFilters.programId) : students;
         setStudentAssignmentChartData({
             labels: ['Vinculados', 'Sin Proyecto'],
             datasets: [{ data: [studentUniverse.length - unassignedStudentsList.length, unassignedStudentsList.length], backgroundColor: ['#249A8C', '#E5E7EB'], borderColor: '#ffffff', borderWidth: 2 }]
@@ -250,11 +301,20 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
 
         const studentsPerProgramCounts = programs.map(program => ({
             name: program.name,
-            count: allStudents.filter(s => s.programId === program.id).length
+            count: students.filter(s => s.programId === program.id).length
         }));
         setStudentsPerProgramChartData({
             labels: studentsPerProgramCounts.map(p => p.name),
             datasets: [{ label: 'Estudiantes', data: studentsPerProgramCounts.map(p => p.count), backgroundColor: uninunezColors, borderColor: '#ffffff', borderWidth: 2 }]
+        });
+
+        const projectsPerProgramCounts = programs.map(program => ({
+            name: program.name,
+            count: projects.filter(p => p.programId === program.id).length
+        }));
+        setProjectsPerProgramChartData({
+            labels: projectsPerProgramCounts.map(p => p.name),
+            datasets: [{ label: 'Proyectos', data: projectsPerProgramCounts.map(p => p.count), backgroundColor: uninunezColors, borderColor: '#ffffff', borderWidth: 2 }]
         });
 
         setTeacherWorkloadChartData({
@@ -301,7 +361,173 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
     
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFilters(prev => ({ ...prev, [name]: value }));
+        const newFilters = { ...filters, [name]: value };
+        setFilters(newFilters);
+        loadReportData(newFilters);
+    };
+
+    const showRelatedInfo = (type: 'project' | 'teacher' | 'program' | 'student', id: string, title: string) => {
+        setDetailModal({ type, id, title });
+    };
+
+    const renderRelatedInfo = () => {
+        if (!detailModal) return null;
+
+        const { type, id } = detailModal;
+
+        if (type === 'project') {
+            const project = allProjects.find(p => p.id === id);
+            if (!project) return <p>Proyecto no encontrado.</p>;
+            const projectStudents = allStudents.filter(s => s.projectId === id);
+            const projectTeachers = allProjectTeachers.filter(rel => rel.projectId === id);
+            const status = allStatuses.find(s => s.id === project.statusId)?.name || 'N/A';
+            const format = allFormats.find(f => f.id === project.formatId)?.name || 'N/A';
+            const program = allPrograms.find(p => p.id === project.programId)?.name || 'N/A';
+
+            return (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-50 p-4 rounded-2xl">
+                            <p className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Estado</p>
+                            <p className="text-sm font-bold text-uninunez-onix">{status}</p>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-2xl">
+                            <p className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Formato</p>
+                            <p className="text-sm font-bold text-uninunez-onix">{format}</p>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-2xl col-span-2">
+                            <p className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Programa Principal</p>
+                            <p className="text-sm font-bold text-uninunez-teal">{program}</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-3 ml-1">Estudiantes Vinculados</h4>
+                        <div className="space-y-2">
+                            {projectStudents.map(s => (
+                                <div key={s.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                    <span className="text-sm font-bold text-uninunez-onix">{s.name}</span>
+                                    <span className="text-[10px] font-black text-uninunez-teal uppercase">{allPrograms.find(p => p.id === s.programId)?.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-3 ml-1">Equipo de Docentes</h4>
+                        <div className="space-y-2">
+                            {projectTeachers.map(rel => {
+                                const t = allTeachers.find(teach => teach.id === rel.teacherId);
+                                const r = allRoles.find(role => role.id === rel.roleId);
+                                return (
+                                    <div key={rel.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                        <span className="text-sm font-bold text-uninunez-onix">{t?.name}</span>
+                                        <span className="text-[10px] font-black text-uninunez-orange uppercase">{r?.name}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="bg-uninunez-teal/5 p-5 rounded-2xl border border-uninunez-teal/10">
+                        <h4 className="text-[10px] font-black text-uninunez-teal uppercase tracking-widest mb-3">Calificaciones</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <p className="text-[9px] font-bold text-uninunez-ash uppercase mb-1">Evaluador 1</p>
+                                <p className="text-xs font-black">Escrito: {project.writtenGradeReviewer1 || '-'} | Sust: {project.presentationGradeReviewer1 || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-bold text-uninunez-ash uppercase mb-1">Evaluador 2</p>
+                                <p className="text-xs font-black">Escrito: {project.writtenGradeReviewer2 || '-'} | Sust: {project.presentationGradeReviewer2 || '-'}</p>
+                            </div>
+                            <div className="col-span-2 pt-2 border-t border-uninunez-teal/20">
+                                <p className="text-[10px] font-black text-uninunez-teal uppercase">Nota Final: {project.finalGrade?.toFixed(2) || '0.00'}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        if (type === 'teacher') {
+            const teacherProjects = allProjectTeachers.filter(rel => rel.teacherId === id);
+            return (
+                <div className="space-y-4">
+                    <p className="text-sm text-uninunez-ash mb-4">Proyectos en los que participa este docente:</p>
+                    {teacherProjects.length > 0 ? teacherProjects.map(rel => {
+                        const p = allProjects.find(proj => proj.id === rel.projectId);
+                        const r = allRoles.find(role => role.id === rel.roleId);
+                        return (
+                            <div key={rel.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:border-uninunez-teal transition-all">
+                                <p className="text-sm font-bold text-uninunez-onix mb-1">{p?.title}</p>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-black text-uninunez-orange uppercase">{r?.name}</span>
+                                    <span className="text-[10px] font-black text-uninunez-teal uppercase">{allStatuses.find(s => s.id === p?.statusId)?.name}</span>
+                                </div>
+                            </div>
+                        );
+                    }) : <p className="text-center py-10 italic text-gray-400">No hay proyectos asociados.</p>}
+                </div>
+            );
+        }
+
+        if (type === 'program') {
+            const projectsInProgram = allProjects.filter(p => p.programId === id);
+            const studentsInProgram = allStudents.filter(s => s.programId === id);
+            return (
+                <div className="space-y-6">
+                    <div>
+                        <h4 className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-3 ml-1">Proyectos del Programa ({projectsInProgram.length})</h4>
+                        <div className="space-y-2">
+                            {projectsInProgram.map(p => (
+                                <div key={p.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                    <p className="text-xs font-bold text-uninunez-onix">{p.title}</p>
+                                    <p className="text-[9px] font-black text-uninunez-teal uppercase mt-1">{allStatuses.find(s => s.id === p.statusId)?.name}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <h4 className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-3 ml-1">Estudiantes del Programa ({studentsInProgram.length})</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {studentsInProgram.map(s => (
+                                <div key={s.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                    <p className="text-xs font-bold text-uninunez-onix">{s.name}</p>
+                                    <p className="text-[9px] font-medium text-uninunez-ash">{s.projectId ? 'VINCULADO' : 'SIN PROYECTO'}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        if (type === 'student') {
+            const student = allStudents.find(s => s.id === id);
+            const project = allProjects.find(p => p.id === student?.projectId);
+            return (
+                <div className="space-y-4">
+                    <div className="bg-gray-50 p-4 rounded-2xl">
+                        <p className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Programa</p>
+                        <p className="text-sm font-bold text-uninunez-onix">{allPrograms.find(p => p.id === student?.programId)?.name}</p>
+                    </div>
+                    {project ? (
+                        <div className="bg-uninunez-teal/5 p-5 rounded-2xl border border-uninunez-teal/10">
+                            <p className="text-[10px] font-black text-uninunez-teal uppercase mb-2">Proyecto Vinculado</p>
+                            <p className="text-sm font-bold text-uninunez-onix mb-2">{project.title}</p>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black text-uninunez-ash uppercase">Estado: {allStatuses.find(s => s.id === project.statusId)?.name}</span>
+                                <span className="text-[10px] font-black text-uninunez-orange uppercase">Nota: {project.finalGrade?.toFixed(2) || '0.00'}</span>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-center py-10 italic text-gray-400 bg-gray-50 rounded-2xl">Este estudiante no tiene un proyecto vinculado actualmente.</p>
+                    )}
+                </div>
+            );
+        }
+
+        return null;
     };
 
     return (
@@ -357,12 +583,15 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                 {projectStatusChartData && <ChartCard title="Distribución por Estado" type="pie" data={projectStatusChartData} />}
+                {projectsPerProgramChartData && <ChartCard title="Proyectos por Programa" type="pie" data={projectsPerProgramChartData} />}
                 {studentAssignmentChartData && <ChartCard title="Estatus de Integración" type="doughnut" data={studentAssignmentChartData} />}
                 {studentsPerProgramChartData && <ChartCard title="Población por Programa" type="pie" data={studentsPerProgramChartData} />}
             </div>
             
+            <ChartCard title="Carga Académica (Top 10 Docentes)" type="bar" data={teacherWorkloadChartData} />
+
             <div className="space-y-10 pt-4">
                 <ReportTableCard 
                     title="Matriz de Seguimiento de Proyectos" 
@@ -374,15 +603,16 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                     <table className="w-full text-left">
                         <thead className="bg-gray-50/80 border-b border-gray-100">
                             <tr>
-                                {projectStatus.length > 0 && Object.keys(projectStatus[0]).map(key => (
+                                {projectStatus.length > 0 && Object.keys(projectStatus[0]).filter(k => k !== 'id').map(key => (
                                     <th key={key} className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{key}</th>
                                 ))}
+                                <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                             {projectStatus.map((row, index) => (
                                 <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
-                                    {Object.entries(row).map(([key, val], i) => (
+                                    {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => (
                                         <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
                                             {key === 'Enlace a Archivos' && val !== 'Sin enlace' ? (
                                                 <a href={String(val)} target="_blank" rel="noopener noreferrer" className="text-uninunez-teal font-black hover:underline">VER ARCHIVOS</a>
@@ -391,12 +621,119 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                             )}
                                         </td>
                                     ))}
+                                    <td className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                        <button onClick={() => showRelatedInfo('project', row.id, row['Título del Proyecto'])} className="text-uninunez-teal font-black hover:underline text-[9px] uppercase tracking-widest">Ver Relacionados</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </ReportTableCard>
+
+                <ReportTableCard 
+                    title="Resumen de Proyectos por Programa" 
+                    description="Consolidado de proyectos y vinculación estudiantil por cada programa académico."
+                    onExport={() => handleExport(programSummary, 'resumen_programas')}
+                    hasData={programSummary.length > 0}
+                >
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50/80 border-b border-gray-100">
+                            <tr>
+                                {programSummary.length > 0 && Object.keys(programSummary[0]).filter(k => k !== 'id').map(key => (
+                                    <th key={key} className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{key}</th>
+                                ))}
+                                <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {programSummary.map((row, index) => (
+                                <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
+                                    {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => (
+                                        <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash font-bold">
+                                            {val}
+                                        </td>
+                                    ))}
+                                    <td className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                        <button onClick={() => showRelatedInfo('program', row.id, row['Programa'])} className="text-uninunez-teal font-black hover:underline text-[9px] uppercase tracking-widest">Ver Relacionados</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </ReportTableCard>
+
+                <ReportTableCard 
+                    title="Carga Académica por Docente" 
+                    description="Distribución de roles (Director, Co-Director, Evaluador) por docente."
+                    onExport={() => handleExport(teacherWorkload, 'carga_docentes')}
+                    hasData={teacherWorkload.length > 0}
+                >
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50/80 border-b border-gray-100">
+                            <tr>
+                                {teacherWorkload.length > 0 && Object.keys(teacherWorkload[0]).filter(k => k !== 'id').map(key => (
+                                    <th key={key} className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{key}</th>
+                                ))}
+                                <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {teacherWorkload.map((row, index) => (
+                                <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
+                                    {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => (
+                                        <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                            {val}
+                                        </td>
+                                    ))}
+                                    <td className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                        <button onClick={() => showRelatedInfo('teacher', row.id, row['Nombre del Docente'])} className="text-uninunez-teal font-black hover:underline text-[9px] uppercase tracking-widest">Ver Relacionados</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </ReportTableCard>
+
+                <ReportTableCard 
+                    title="Estudiantes sin Proyecto Vinculado" 
+                    description="Listado de estudiantes que aún no han sido asignados a un trabajo de grado."
+                    onExport={() => handleExport(unassignedStudents, 'estudiantes_sin_proyecto')}
+                    hasData={unassignedStudents.length > 0}
+                >
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50/80 border-b border-gray-100">
+                            <tr>
+                                {unassignedStudents.length > 0 && Object.keys(unassignedStudents[0]).filter(k => k !== 'id').map(key => (
+                                    <th key={key} className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{key}</th>
+                                ))}
+                                <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {unassignedStudents.map((row, index) => (
+                                <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
+                                    {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => (
+                                        <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                            {val}
+                                        </td>
+                                    ))}
+                                    <td className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                        <button onClick={() => showRelatedInfo('student', row.id, row['Nombre del Estudiante'])} className="text-uninunez-teal font-black hover:underline text-[9px] uppercase tracking-widest">Ver Relacionados</button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </ReportTableCard>
             </div>
+
+            <Modal 
+                isOpen={!!detailModal} 
+                onClose={() => setDetailModal(null)} 
+                title={detailModal?.title || 'Información Relacionada'}
+            >
+                {renderRelatedInfo()}
+            </Modal>
         </div>
     );
 };
