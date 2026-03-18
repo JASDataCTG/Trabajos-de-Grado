@@ -284,9 +284,16 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             let directorCount = 0, coDirectorCount = 0, evaluatorCount = 0;
             assignments.forEach(assignment => {
                 const roleName = roles.find(r => r.id === assignment.roleId)?.name.toLowerCase() || '';
-                if ((roleName.includes('director') || roleName.includes('asesor')) && !roleName.includes('co-director') && !roleName.includes('codirector')) directorCount++;
-                else if (roleName.includes('co-director') || roleName.includes('codirector')) coDirectorCount++;
-                else evaluatorCount++;
+                
+                // Clasificación precisa basada en los roles del sistema
+                const isCoDirector = roleName.includes('co-director') || roleName.includes('codirector') || roleName.includes('coasesor') || roleName.includes('cotutor');
+                const isDirector = (roleName.includes('director') || roleName.includes('asesor') || roleName.includes('tutor')) && !isCoDirector;
+                const isEvaluator = roleName.includes('evaluador') || roleName.includes('jurado') || roleName.includes('revisor') || roleName.includes('lector');
+
+                if (isDirector) directorCount++;
+                else if (isCoDirector) coDirectorCount++;
+                else if (isEvaluator) evaluatorCount++;
+                else evaluatorCount++; 
             });
             return {
                 'id': teacher.id,
@@ -314,9 +321,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 }
                 
                 const roleName = roles.find(r => r.id === assignment.roleId)?.name.toLowerCase() || '';
-                if ((roleName.includes('director') || roleName.includes('asesor')) && !roleName.includes('co-director') && !roleName.includes('codirector')) {
+                
+                const isCoDirector = roleName.includes('co-director') || roleName.includes('codirector') || roleName.includes('coasesor') || roleName.includes('cotutor');
+                const isDirector = (roleName.includes('director') || roleName.includes('asesor') || roleName.includes('tutor')) && !isCoDirector;
+
+                if (isDirector) {
                     programGroups[programId].director++;
-                } else if (roleName.includes('co-director') || roleName.includes('codirector')) {
+                } else if (isCoDirector) {
                     programGroups[programId].coDirector++;
                 } else {
                     programGroups[programId].evaluator++;
