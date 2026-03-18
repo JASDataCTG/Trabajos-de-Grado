@@ -129,11 +129,24 @@ const ChartCard: React.FC<{ title: string; type: 'pie' | 'doughnut' | 'bar'; dat
     );
 };
 
+const KpiCard: React.FC<{ title: string; value: number | string; icon: React.ReactNode; color: string }> = ({ title, value, icon, color }) => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center gap-4">
+        <div className={`p-4 rounded-lg ${color} text-white shadow-lg`}>
+            {icon}
+        </div>
+        <div>
+            <p className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest">{title}</p>
+            <p className="text-3xl font-black text-uninunez-onix mt-1">{value}</p>
+        </div>
+    </div>
+);
+
 export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }) => {
     const [projectStatus, setProjectStatus] = useState<ProjectStatusReport[]>([]);
     const [teacherWorkload, setTeacherWorkload] = useState<TeacherWorkloadReport[]>([]);
     const [programSummary, setProgramSummary] = useState<ProgramSummaryReport[]>([]);
     const [unassignedStudents, setUnassignedStudents] = useState<UnassignedStudentsReport[]>([]);
+    const [kpis, setKpis] = useState({ totalProjects: 0, totalTeachers: 0, totalStudents: 0, totalPrograms: 0 });
 
     const [projectStatusChartData, setProjectStatusChartData] = useState<any>(null);
     const [studentAssignmentChartData, setStudentAssignmentChartData] = useState<any>(null);
@@ -219,6 +232,14 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
 
         const filteredProjectIds = new Set(filteredProjects.map(p => p.id));
         
+        // KPI Data
+        setKpis({
+            totalProjects: filteredProjects.length,
+            totalTeachers: teachers.length,
+            totalStudents: students.length,
+            totalPrograms: programs.length
+        });
+
         const projectStatusData: ProjectStatusReport[] = filteredProjects.map(p => {
             const assignedStudents = students.filter(s => s.projectId === p.id);
             const studentNames = assignedStudents.map(s => s.name).join(', ');
@@ -252,9 +273,9 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             let directorCount = 0, coDirectorCount = 0, evaluatorCount = 0;
             assignments.forEach(assignment => {
                 const roleName = roles.find(r => r.id === assignment.roleId)?.name.toLowerCase() || '';
-                if (roleName.includes('director') && !roleName.includes('co-director')) directorCount++;
-                else if (roleName.includes('co-director')) coDirectorCount++;
-                else if (roleName.includes('evaluador')) evaluatorCount++;
+                if (roleName.includes('director') && !roleName.includes('co-director') && !roleName.includes('codirector')) directorCount++;
+                else if (roleName.includes('co-director') || roleName.includes('codirector')) coDirectorCount++;
+                else evaluatorCount++;
             });
             return {
                 'id': teacher.id,
@@ -265,9 +286,9 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         setTeacherWorkload(workloadData);
 
         const programSummaryData: ProgramSummaryReport[] = programs.map(p => {
-            const projectsInProgram = projects.filter(proj => proj.programId === p.id);
+            const projectsInProgram = filteredProjects.filter(proj => proj.programId === p.id);
             const studentsInProgram = students.filter(s => s.programId === p.id);
-            const linkedStudents = studentsInProgram.filter(s => s.projectId);
+            const linkedStudents = studentsInProgram.filter(s => s.projectId && filteredProjectIds.has(s.projectId));
             return {
                 'id': p.id,
                 'Programa': p.name,
@@ -275,7 +296,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 'Estudiantes Vinculados': linkedStudents.length,
                 'Estudiantes Sin Proyecto': studentsInProgram.length - linkedStudents.length
             };
-        }).sort((a, b) => b['Total Proyectos'] - a['Total Proyectos']);
+        }).filter(p => p['Total Proyectos'] > 0 || p['Estudiantes Vinculados'] > 0).sort((a, b) => b['Total Proyectos'] - a['Total Proyectos']);
         setProgramSummary(programSummaryData);
         
         const unassignedStudentsList = students.filter(s => !s.projectId && (!currentFilters.programId || s.programId === currentFilters.programId));
@@ -581,6 +602,33 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 <div className="flex justify-end items-center gap-4 mt-10 pt-6 border-t border-gray-100">
                     <button onClick={() => loadReportData(filters)} className="bg-uninunez-onix text-white px-10 py-3 rounded-xl text-[10px] font-black shadow-xl hover:bg-black transition-all uppercase tracking-[0.2em]">Ejecutar Análisis</button>
                 </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <KpiCard 
+                    title="Total Proyectos" 
+                    value={kpis.totalProjects} 
+                    icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
+                    color="bg-uninunez-orange"
+                />
+                <KpiCard 
+                    title="Docentes Vinculados" 
+                    value={kpis.totalTeachers} 
+                    icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>}
+                    color="bg-uninunez-teal"
+                />
+                <KpiCard 
+                    title="Estudiantes Activos" 
+                    value={kpis.totalStudents} 
+                    icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 14l9-5-9-5-9 5 9 5z" /><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" /></svg>}
+                    color="bg-uninunez-jade"
+                />
+                <KpiCard 
+                    title="Programas Académicos" 
+                    value={kpis.totalPrograms} 
+                    icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
+                    color="bg-uninunez-onix"
+                />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
