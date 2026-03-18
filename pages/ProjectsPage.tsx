@@ -4,7 +4,7 @@ import { db } from '../services/database';
 import { Project, Student, Teacher, TeacherRole, Status, Format, ProjectTeacher, Program } from '../types';
 import { Modal } from '../components/Modal';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
-import { PlusIcon, EditIcon, TrashIcon } from '../components/Icons';
+import { PlusIcon, EditIcon, TrashIcon, SearchIcon } from '../components/Icons';
 import { useAuth } from '../contexts/AuthContext';
 
 const ProjectForm: React.FC<{
@@ -384,6 +384,7 @@ export const ProjectsPage: React.FC = () => {
     const [editingProject, setEditingProject] = useState<Project | null>(null);
     const [deletingProject, setDeletingProject] = useState<Project | null>(null);
     const [userPerms, setUserPerms] = useState<Record<string, any>>({});
+    const [searchTerm, setSearchTerm] = useState('');
 
     const loadData = useCallback(async () => {
         setIsLoading(true);
@@ -465,6 +466,24 @@ export const ProjectsPage: React.FC = () => {
             setDeletingProject(null); 
         } 
     };
+
+    const filteredProjects = useMemo(() => {
+        if (!searchTerm.trim()) return projects;
+        const term = searchTerm.toLowerCase();
+        return projects.filter(p => {
+            const titleMatch = p.title.toLowerCase().includes(term);
+            const authorsMatch = students
+                .filter(s => s.projectId === p.id)
+                .some(s => s.name.toLowerCase().includes(term));
+            const teachersMatch = projectTeachers
+                .filter(pt => pt.projectId === p.id)
+                .some(pt => {
+                    const teacher = teachers.find(t => t.id === pt.teacherId);
+                    return teacher?.name.toLowerCase().includes(term);
+                });
+            return titleMatch || authorsMatch || teachersMatch;
+        });
+    }, [projects, searchTerm, students, teachers, projectTeachers]);
     
     return (
         <div className="space-y-6">
@@ -473,14 +492,28 @@ export const ProjectsPage: React.FC = () => {
                     <h1 className="text-3xl font-black text-uninunez-onix font-display uppercase tracking-tight">Banco de Proyectos</h1>
                     <p className="text-uninunez-ash text-sm font-medium">Gestión administrativa del ciclo de grado.</p>
                 </div>
-                {isAdmin && (
-                    <button 
-                        onClick={() => { setEditingProject(null); setIsModalOpen(true); }} 
-                        className="bg-uninunez-orange text-white px-8 py-3.5 rounded-2xl flex items-center text-[11px] font-black uppercase tracking-widest shadow-2xl hover:bg-uninunez-orangeLight transition-all active:scale-95"
-                    >
-                        <PlusIcon className="h-5 w-5 mr-2"/> Nuevo Registro
-                    </button>
-                )}
+                <div className="flex flex-col sm:flex-row gap-3 items-center">
+                    <div className="relative w-full sm:w-72 group">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <SearchIcon className="h-4 w-4 text-gray-400 group-focus-within:text-uninunez-orange transition-colors" />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Buscar por título o autor..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="block w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-uninunez-orange/20 focus:border-uninunez-orange transition-all shadow-sm"
+                        />
+                    </div>
+                    {isAdmin && (
+                        <button 
+                            onClick={() => { setEditingProject(null); setIsModalOpen(true); }} 
+                            className="w-full sm:w-auto bg-uninunez-orange text-white px-8 py-3.5 rounded-2xl flex items-center justify-center text-[11px] font-black uppercase tracking-widest shadow-2xl hover:bg-uninunez-orangeLight transition-all active:scale-95 whitespace-nowrap"
+                        >
+                            <PlusIcon className="h-5 w-5 mr-2"/> Nuevo Registro
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="bg-white shadow-sm border border-gray-100 rounded-[2rem] overflow-hidden min-h-[400px]">
@@ -500,7 +533,7 @@ export const ProjectsPage: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {projects.map(p => (
+                                {filteredProjects.length > 0 ? filteredProjects.map(p => (
                                     <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
                                         <td className="px-8 py-6">
                                             {p.filesUrl ? (
@@ -529,7 +562,17 @@ export const ProjectsPage: React.FC = () => {
                                             </div>
                                         </td>
                                     </tr>
-                                ))}
+                                )) : (
+                                    <tr>
+                                        <td colSpan={4} className="px-8 py-20 text-center">
+                                            <div className="flex flex-col items-center gap-2">
+                                                <SearchIcon className="h-10 w-10 text-gray-200" />
+                                                <p className="text-gray-400 font-bold text-sm">No se encontraron proyectos que coincidan con tu búsqueda.</p>
+                                                <button onClick={() => setSearchTerm('')} className="text-uninunez-orange text-xs font-black uppercase tracking-widest hover:underline mt-2">Limpiar búsqueda</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
