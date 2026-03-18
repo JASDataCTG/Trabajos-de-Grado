@@ -47,6 +47,16 @@ interface UnassignedStudentsReport {
     'Programa': string;
 }
 
+interface TeacherProgramWorkloadReport {
+    'id': string;
+    'Docente': string;
+    'Programa': string;
+    'Director': number;
+    'Co-Director': number;
+    'Evaluador': number;
+    'Total': number;
+}
+
 interface ReportsPageProps {
     isPublicView?: boolean;
 }
@@ -144,6 +154,7 @@ const KpiCard: React.FC<{ title: string; value: number | string; icon: React.Rea
 export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }) => {
     const [projectStatus, setProjectStatus] = useState<ProjectStatusReport[]>([]);
     const [teacherWorkload, setTeacherWorkload] = useState<TeacherWorkloadReport[]>([]);
+    const [teacherProgramWorkload, setTeacherProgramWorkload] = useState<TeacherProgramWorkloadReport[]>([]);
     const [programSummary, setProgramSummary] = useState<ProgramSummaryReport[]>([]);
     const [unassignedStudents, setUnassignedStudents] = useState<UnassignedStudentsReport[]>([]);
     const [kpis, setKpis] = useState({ totalProjects: 0, totalTeachers: 0, totalStudents: 0, totalPrograms: 0 });
@@ -273,7 +284,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             let directorCount = 0, coDirectorCount = 0, evaluatorCount = 0;
             assignments.forEach(assignment => {
                 const roleName = roles.find(r => r.id === assignment.roleId)?.name.toLowerCase() || '';
-                if (roleName.includes('director') && !roleName.includes('co-director') && !roleName.includes('codirector')) directorCount++;
+                if ((roleName.includes('director') || roleName.includes('asesor')) && !roleName.includes('co-director') && !roleName.includes('codirector')) directorCount++;
                 else if (roleName.includes('co-director') || roleName.includes('codirector')) coDirectorCount++;
                 else evaluatorCount++;
             });
@@ -284,6 +295,49 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             };
         }).filter(t => t['Total de Proyectos'] > 0).sort((a, b) => b['Total de Proyectos'] - a['Total de Proyectos']);
         setTeacherWorkload(workloadData);
+
+        // New Report: Projects per Teacher and Program
+        const teacherProgramData: TeacherProgramWorkloadReport[] = [];
+        teachers.filter(t => !currentFilters.teacherId || t.id === currentFilters.teacherId).forEach(teacher => {
+            const teacherAssignments = projectTeachers.filter(pt => pt.teacherId === teacher.id && filteredProjectIds.has(pt.projectId));
+            
+            // Group assignments by program
+            const programGroups: { [programId: string]: { director: number, coDirector: number, evaluator: number, total: number } } = {};
+            
+            teacherAssignments.forEach(assignment => {
+                const project = projects.find(p => p.id === assignment.projectId);
+                if (!project) return;
+                
+                const programId = project.programId;
+                if (!programGroups[programId]) {
+                    programGroups[programId] = { director: 0, coDirector: 0, evaluator: 0, total: 0 };
+                }
+                
+                const roleName = roles.find(r => r.id === assignment.roleId)?.name.toLowerCase() || '';
+                if ((roleName.includes('director') || roleName.includes('asesor')) && !roleName.includes('co-director') && !roleName.includes('codirector')) {
+                    programGroups[programId].director++;
+                } else if (roleName.includes('co-director') || roleName.includes('codirector')) {
+                    programGroups[programId].coDirector++;
+                } else {
+                    programGroups[programId].evaluator++;
+                }
+                programGroups[programId].total++;
+            });
+            
+            Object.entries(programGroups).forEach(([programId, counts]) => {
+                const program = programs.find(pr => pr.id === programId);
+                teacherProgramData.push({
+                    'id': `${teacher.id}_${programId}`,
+                    'Docente': teacher.name,
+                    'Programa': program?.name || 'N/A',
+                    'Director': counts.director,
+                    'Co-Director': counts.coDirector,
+                    'Evaluador': counts.evaluator,
+                    'Total': counts.total
+                });
+            });
+        });
+        setTeacherProgramWorkload(teacherProgramData.sort((a, b) => a.Docente.localeCompare(b.Docente)));
 
         const programSummaryData: ProgramSummaryReport[] = programs.map(p => {
             const projectsInProgram = filteredProjects.filter(proj => proj.programId === p.id);
@@ -735,6 +789,39 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                     ))}
                                     <td className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
                                         <button onClick={() => showRelatedInfo('teacher', row.id, row['Nombre del Docente'])} className="text-uninunez-teal font-black hover:underline text-[9px] uppercase tracking-widest">Ver Relacionados</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </ReportTableCard>
+
+                <ReportTableCard 
+                    title="Proyectos por Docente y Programa" 
+                    description="Desglose detallado de la participación docente por cada programa académico."
+                    onExport={() => handleExport(teacherProgramWorkload, 'docentes_por_programa')}
+                    hasData={teacherProgramWorkload.length > 0}
+                >
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50/80 border-b border-gray-100">
+                            <tr>
+                                {teacherProgramWorkload.length > 0 && Object.keys(teacherProgramWorkload[0]).filter(k => k !== 'id').map(key => (
+                                    <th key={key} className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{key}</th>
+                                ))}
+                                <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {teacherProgramWorkload.map((row, index) => (
+                                <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
+                                    {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => (
+                                        <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                            {val}
+                                        </td>
+                                    ))}
+                                    <td className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                        {/* Usamos el ID del docente que es la primera parte del ID compuesto */}
+                                        <button onClick={() => showRelatedInfo('teacher', row.id.split('_')[0], row['Docente'])} className="text-uninunez-teal font-black hover:underline text-[9px] uppercase tracking-widest">Ver Relacionados</button>
                                     </td>
                                 </tr>
                             ))}
