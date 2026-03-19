@@ -268,8 +268,9 @@ export const SettingsPage: React.FC = () => {
             else if(type === 'role') await db.addTeacherRole({ name });
             else if(type === 'program') await db.addProgram({ name, facultyId: facultyId || '' });
             await loadData();
-        } catch (error) {
-            alert("Error al crear el registro.");
+        } catch (error: any) {
+            console.error("Error al crear registro:", error);
+            alert("Error al crear el registro: " + (error.message || "Error desconocido"));
         }
     };
     
@@ -282,8 +283,9 @@ export const SettingsPage: React.FC = () => {
             else if(type === 'role') await db.updateTeacherRole(item as TeacherRole);
             else if(type === 'program') await db.updateProgram(item as Program);
             await loadData();
-        } catch (error) {
-            alert("Error al actualizar el registro.");
+        } catch (error: any) {
+            console.error("Error al actualizar registro:", error);
+            alert("Error al actualizar el registro: " + (error.message || "Error desconocido"));
         }
     };
 
