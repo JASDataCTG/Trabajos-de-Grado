@@ -263,17 +263,72 @@ export const db = {
     getFaculties: async function() { return (await fetchCatalog('faculties')).map((f: any) => ({ ...f, sortOrder: f.sort_order })); },
     getPrograms: async function() { return (await fetchCatalog('programs')).map((p: any) => ({ id: p.id, name: p.name, facultyId: p.faculty_id, sortOrder: p.sort_order })); },
     
-    addFaculty: async function(f: any) { const id = generateId(); await supabase!.from('faculties').insert([{ id, name: f.name, sort_order: f.sortOrder || 99 }]); return { id, ...f }; },
-    addProgram: async function(p: any) { const id = generateId(); await supabase!.from('programs').insert([{ id, name: p.name, faculty_id: p.facultyId, sort_order: p.sort_order || 99 }]); return { id, ...p }; },
-    addStatus: async function(p: any) { const id = generateId(); await supabase!.from('statuses').insert([{ id, name: p.name, sort_order: p.sort_order || 99 }]); return { ...p, id }; },
-    addFormat: async function(p: any) { const id = generateId(); await supabase!.from('formats').insert([{ id, name: p.name, sort_order: p.sort_order || 99 }]); return { ...p, id }; },
-    addTeacherRole: async function(p: any) { const id = generateId(); await supabase!.from('teacher_roles').insert([{ id, name: p.name, sort_order: p.sort_order || 99 }]); return { ...p, id }; },
+    addFaculty: async function(f: any) { 
+        if (!supabase) throw new Error("Supabase no configurado");
+        const id = generateId(); 
+        const { error } = await supabase.from('faculties').insert([{ id, name: f.name, sort_order: f.sortOrder || 99 }]); 
+        if (error) throw error;
+        return { id, ...f }; 
+    },
+    addProgram: async function(p: any) { 
+        if (!supabase) throw new Error("Supabase no configurado");
+        const id = generateId(); 
+        const { error } = await supabase.from('programs').insert([{ id, name: p.name, faculty_id: p.facultyId, sort_order: p.sortOrder || 99 }]); 
+        if (error) throw error;
+        return { id, ...p }; 
+    },
+    addStatus: async function(p: any) { 
+        if (!supabase) throw new Error("Supabase no configurado");
+        const id = generateId(); 
+        const { error } = await supabase.from('statuses').insert([{ id, name: p.name, sort_order: p.sortOrder || 99 }]); 
+        if (error) throw error;
+        return { ...p, id }; 
+    },
+    addFormat: async function(p: any) { 
+        if (!supabase) throw new Error("Supabase no configurado");
+        const id = generateId(); 
+        const { error } = await supabase.from('formats').insert([{ id, name: p.name, sort_order: p.sortOrder || 99 }]); 
+        if (error) throw error;
+        return { ...p, id }; 
+    },
+    addTeacherRole: async function(p: any) { 
+        if (!supabase) throw new Error("Supabase no configurado");
+        const id = generateId(); 
+        const { error } = await supabase.from('teacher_roles').insert([{ id, name: p.name, sort_order: p.sortOrder || 99 }]); 
+        if (error) throw error;
+        return { ...p, id }; 
+    },
     
-    updateFaculty: async function(f: any) { await supabase!.from('faculties').update({ name: f.name, sort_order: f.sortOrder }).eq('id', f.id); return f; },
-    updateProgram: async function(p: any) { await supabase!.from('programs').update({ name: p.name, faculty_id: p.facultyId, sort_order: p.sort_order }).eq('id', p.id); return p; },
-    updateStatus: async function(p: any) { await supabase!.from('statuses').update({ name: p.name, sort_order: p.sortOrder }).eq('id', p.id); return p; },
-    updateFormat: async function(p: any) { await supabase!.from('formats').update({ name: p.name, sort_order: p.sortOrder }).eq('id', p.id); return p; },
-    updateTeacherRole: async function(p: any) { await supabase!.from('teacher_roles').update({ name: p.name, sort_order: p.sortOrder }).eq('id', p.id); return p; },
+    updateFaculty: async function(f: any) { 
+        if (!supabase) throw new Error("Supabase no configurado");
+        const { error } = await supabase.from('faculties').update({ name: f.name, sort_order: f.sortOrder }).eq('id', f.id); 
+        if (error) throw error;
+        return f; 
+    },
+    updateProgram: async function(p: any) { 
+        if (!supabase) throw new Error("Supabase no configurado");
+        const { error } = await supabase.from('programs').update({ name: p.name, faculty_id: p.facultyId, sort_order: p.sortOrder }).eq('id', p.id); 
+        if (error) throw error;
+        return p; 
+    },
+    updateStatus: async function(p: any) { 
+        if (!supabase) throw new Error("Supabase no configurado");
+        const { error } = await supabase.from('statuses').update({ name: p.name, sort_order: p.sortOrder }).eq('id', p.id); 
+        if (error) throw error;
+        return p; 
+    },
+    updateFormat: async function(p: any) { 
+        if (!supabase) throw new Error("Supabase no configurado");
+        const { error } = await supabase.from('formats').update({ name: p.name, sort_order: p.sortOrder }).eq('id', p.id); 
+        if (error) throw error;
+        return p; 
+    },
+    updateTeacherRole: async function(p: any) { 
+        if (!supabase) throw new Error("Supabase no configurado");
+        const { error } = await supabase.from('teacher_roles').update({ name: p.name, sort_order: p.sortOrder }).eq('id', p.id); 
+        if (error) throw error;
+        return p; 
+    },
     
     deleteFaculty: async function(id: string) { if (supabase) await supabase.from('faculties').delete().eq('id', id); },
     deleteProgram: async function(id: string) { if (supabase) await supabase.from('programs').delete().eq('id', id); },
