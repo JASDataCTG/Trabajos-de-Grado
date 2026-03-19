@@ -17,36 +17,22 @@ interface SettingsListProps<T extends Entity> {
     onAdd: (name: string, extraId?: string) => void;
     onUpdate: (item: T) => void;
     onDelete: (item: T) => void;
-    onReorder: (items: T[]) => void;
     isLoading?: boolean;
     type: EntityType;
 }
 
-const SettingsList = <T extends {id: string; name: string, facultyId?: string, sortOrder?: number}>({ 
-    title, items, placeholder, faculties, onAdd, onUpdate, onDelete, onReorder, isLoading, type 
+const SettingsList = <T extends {id: string; name: string, facultyId?: string}>({ 
+    title, items, placeholder, faculties, onAdd, onUpdate, onDelete, isLoading, type 
 }: SettingsListProps<T>) => {
     const { isAdmin } = useAuth();
     const [newItemName, setNewItemName] = useState('');
     const [selectedFacultyId, setSelectedFacultyId] = useState('');
     const [editingItem, setEditingItem] = useState<T | null>(null);
-    const [isManualOrder, setIsManualOrder] = useState(false);
 
-    // Determinar si los items ya tienen un orden personalizado para activar el modo manual por defecto
-    useEffect(() => {
-        if (items && items.length > 0) {
-            const hasCustomOrder = items.some(item => item.sortOrder !== undefined && item.sortOrder < 99);
-            if (hasCustomOrder) setIsManualOrder(true);
-        }
-    }, [items]); // Escuchar cambios en items directamente
-
-    // Lógica de ordenación según el modo seleccionado
+    // Lógica de ordenación alfabética
     const sortedItems = useMemo(() => {
-        const list = [...items];
-        if (isManualOrder) {
-            return list.sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99) || a.name.localeCompare(b.name));
-        }
-        return list.sort((a, b) => a.name.localeCompare(b.name));
-    }, [items, isManualOrder]);
+        return [...items].sort((a, b) => a.name.localeCompare(b.name));
+    }, [items]);
 
     const handleAdd = () => {
         if (newItemName.trim()) {
@@ -67,54 +53,16 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string, s
         }
     }
 
-    const moveItem = (index: number, direction: 'up' | 'down') => {
-        const newItems = [...sortedItems];
-        const targetIndex = direction === 'up' ? index - 1 : index + 1;
-        
-        if (targetIndex < 0 || targetIndex >= newItems.length) return;
-
-        // Intercambiar elementos
-        const temp = newItems[index];
-        newItems[index] = newItems[targetIndex];
-        newItems[targetIndex] = temp;
-
-        // Reasignar sortOrder basado en la nueva posición (1-based index)
-        const updatedItems = newItems.map((item, idx) => ({
-            ...item,
-            sortOrder: idx + 1
-        }));
-
-        onReorder(updatedItems);
-    };
-
     return (
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full overflow-hidden transition-all hover:shadow-md min-h-[400px]">
-            {/* Header con Selector de Orden */}
+            {/* Header */}
             <div className="p-5 bg-gray-50/50 border-b border-gray-100">
-                <div className="flex justify-between items-start mb-3">
-                    <h2 className="text-[10px] font-black text-uninunez-onix uppercase tracking-[0.2em] font-display">{title}</h2>
-                    {isAdmin && (
-                        <div className="flex bg-white rounded-lg p-0.5 border border-gray-200 shadow-sm">
-                            <button 
-                                onClick={() => setIsManualOrder(false)}
-                                className={`px-2 py-1 text-[8px] font-black rounded-md transition-all ${!isManualOrder ? 'bg-uninunez-teal text-white shadow-sm' : 'text-gray-400 hover:text-uninunez-teal'}`}
-                            >
-                                A-Z
-                            </button>
-                            <button 
-                                onClick={() => setIsManualOrder(true)}
-                                className={`px-2 py-1 text-[8px] font-black rounded-md transition-all ${isManualOrder ? 'bg-uninunez-orange text-white shadow-sm' : 'text-gray-400 hover:text-uninunez-orange'}`}
-                            >
-                                MANUAL
-                            </button>
-                        </div>
-                    )}
-                </div>
-                <p className="text-[8px] text-uninunez-ash font-bold uppercase tracking-widest flex items-center gap-1">
+                <h2 className="text-[10px] font-black text-uninunez-onix uppercase tracking-[0.2em] font-display">{title}</h2>
+                <p className="text-[8px] text-uninunez-ash font-bold uppercase tracking-widest flex items-center gap-1 mt-2">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d={isManualOrder ? "M4 6h16M4 12h16M4 18h16" : "M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"} />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                     </svg>
-                    Orden {isManualOrder ? 'Personalizado' : 'Alfabético'}
+                    Orden Alfabético
                 </p>
             </div>
             
@@ -164,26 +112,6 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string, s
                             sortedItems.map((item, index) => (
                                 <li key={item.id} className="group flex justify-between items-center bg-gray-50/40 hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 p-3 rounded-xl transition-all">
                                     <div className="flex items-center gap-3">
-                                        {isAdmin && isManualOrder && (
-                                            <div className="flex flex-col border-r pr-2 border-gray-200">
-                                                <button 
-                                                    onClick={() => moveItem(index, 'up')} 
-                                                    disabled={index === 0}
-                                                    className="p-1 text-gray-400 hover:text-uninunez-orange disabled:opacity-20 transition-colors"
-                                                    title="Subir"
-                                                >
-                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 15l7-7 7 7" /></svg>
-                                                </button>
-                                                <button 
-                                                    onClick={() => moveItem(index, 'down')} 
-                                                    disabled={index === sortedItems.length - 1}
-                                                    className="p-1 text-gray-400 hover:text-uninunez-orange disabled:opacity-20 transition-colors"
-                                                    title="Bajar"
-                                                >
-                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M19 9l-7 7-7-7" /></svg>
-                                                </button>
-                                            </div>
-                                        )}
                                         <div className="flex flex-col">
                                             {editingItem?.id === item.id && isAdmin ? (
                                                 <input 
@@ -289,32 +217,6 @@ export const SettingsPage: React.FC = () => {
         }
     };
 
-    const handleReorder = async (type: EntityType, items: Entity[]) => {
-        if (!isAdmin) return;
-        
-        // Actualización optimista de la UI inmediata
-        if(type === 'faculty') setFaculties(items as Faculty[]);
-        else if(type === 'status') setStatuses(items as Status[]);
-        else if(type === 'format') setFormats(items as Format[]);
-        else if(type === 'role') setRoles(items as TeacherRole[]);
-        else if(type === 'program') setPrograms(items as Program[]);
-
-        try {
-            // Persistir masivamente los nuevos índices de orden
-            await Promise.all(items.map(item => {
-                if(type === 'faculty') return db.updateFaculty(item as Faculty);
-                if(type === 'status') return db.updateStatus(item as Status);
-                if(type === 'format') return db.updateFormat(item as Format);
-                if(type === 'role') return db.updateTeacherRole(item as TeacherRole);
-                if(type === 'program') return db.updateProgram(item as Program);
-                return Promise.resolve();
-            }));
-        } catch (error) {
-            console.error("Error persistiendo orden personalizado:", error);
-            loadData(); // Revertir en caso de error de red
-        }
-    };
-
     const checkAndSetDelete = (type: EntityType, item: Entity) => {
         setDeletingItem({ item, type });
     };
@@ -351,7 +253,6 @@ export const SettingsPage: React.FC = () => {
                     onAdd={(n) => handleAdd('faculty', n)}
                     onUpdate={(i) => handleUpdate('faculty', i)}
                     onDelete={(i) => checkAndSetDelete('faculty', i)}
-                    onReorder={(items) => handleReorder('faculty', items)}
                 />
                 <SettingsList
                     type="program"
@@ -363,7 +264,6 @@ export const SettingsPage: React.FC = () => {
                     onAdd={(n, fid) => handleAdd('program', n, fid)}
                     onUpdate={(i) => handleUpdate('program', i)}
                     onDelete={(i) => checkAndSetDelete('program', i)}
-                    onReorder={(items) => handleReorder('program', items)}
                 />
                 <SettingsList
                     type="status"
@@ -374,7 +274,6 @@ export const SettingsPage: React.FC = () => {
                     onAdd={(n) => handleAdd('status', n)}
                     onUpdate={(i) => handleUpdate('status', i)}
                     onDelete={(i) => checkAndSetDelete('status', i)}
-                    onReorder={(items) => handleReorder('status', items)}
                 />
                 <SettingsList
                     type="format"
@@ -385,7 +284,6 @@ export const SettingsPage: React.FC = () => {
                     onAdd={(n) => handleAdd('format', n)}
                     onUpdate={(i) => handleUpdate('format', i)}
                     onDelete={(i) => checkAndSetDelete('format', i)}
-                    onReorder={(items) => handleReorder('format', items)}
                 />
                 <SettingsList
                     type="role"
@@ -396,7 +294,6 @@ export const SettingsPage: React.FC = () => {
                     onAdd={(n) => handleAdd('role', n)}
                     onUpdate={(i) => handleUpdate('role', i)}
                     onDelete={(i) => checkAndSetDelete('role', i)}
-                    onReorder={(items) => handleReorder('role', items)}
                 />
             </div>
 
