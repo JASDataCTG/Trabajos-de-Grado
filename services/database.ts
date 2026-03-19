@@ -74,7 +74,8 @@ export const db = {
             statusId: p.status_id, formatId: p.format_id, programId: p.program_id,
             isApprovedByDirector: p.is_approved_by_director, finalGrade: p.final_grade,
             writtenGradeReviewer1: p.written_grade_reviewer1, presentationGradeReviewer1: p.presentation_grade_reviewer1,
-            writtenGradeReviewer2: p.written_grade_reviewer2, presentationGradeReviewer2: p.presentation_grade_reviewer2
+            writtenGradeReviewer2: p.written_grade_reviewer2, presentationGradeReviewer2: p.presentation_grade_reviewer2,
+            observation: p.observation || ''
         }));
     },
 
@@ -87,7 +88,8 @@ export const db = {
             statusId: data.status_id, formatId: data.format_id, programId: data.program_id,
             isApprovedByDirector: data.is_approved_by_director, finalGrade: data.final_grade,
             writtenGradeReviewer1: data.written_grade_reviewer1, presentationGradeReviewer1: data.presentation_grade_reviewer1,
-            writtenGradeReviewer2: data.written_grade_reviewer2, presentationGradeReviewer2: data.presentation_grade_reviewer2
+            writtenGradeReviewer2: data.written_grade_reviewer2, presentationGradeReviewer2: data.presentation_grade_reviewer2,
+            observation: data.observation || ''
         };
     },
 
@@ -96,7 +98,8 @@ export const db = {
         const id = generateId();
         const { error } = await supabase.from('projects').insert([{ 
             id, title: p.title, presentation_date: p.presentationDate, files_url: p.filesUrl, 
-            status_id: p.statusId, format_id: p.formatId, program_id: p.programId 
+            status_id: p.statusId, format_id: p.formatId, program_id: p.programId,
+            observation: p.observation || ''
         }]);
         if (error) throw error;
         return { ...p, id } as Project;
@@ -111,7 +114,8 @@ export const db = {
             final_grade: p.finalGrade, written_grade_reviewer1: p.writtenGradeReviewer1, 
             presentation_grade_reviewer1: p.presentationGradeReviewer1, 
             written_grade_reviewer2: p.writtenGradeReviewer2, 
-            presentation_grade_reviewer2: p.presentationGradeReviewer2 
+            presentation_grade_reviewer2: p.presentationGradeReviewer2,
+            observation: p.observation || ''
         }).eq('id', p.id);
         if (error) throw error;
         
