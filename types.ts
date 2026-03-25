@@ -28,7 +28,6 @@ export interface Project {
   writtenGradeReviewer2: number | null;
   presentationGradeReviewer2: number | null;
   finalGrade: number | null;
-  observation: string;
 }
 
 export interface Program {

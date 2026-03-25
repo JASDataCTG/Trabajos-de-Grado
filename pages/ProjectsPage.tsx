@@ -45,7 +45,7 @@ const ProjectForm: React.FC<{
         }
 
         const initialData: Partial<Project> = {
-            title: '', presentationDate: '', filesUrl: '', observation: '',
+            title: '', presentationDate: '', filesUrl: '',
             statusId: project?.statusId || statuses.find(s => s.name.toLowerCase().includes('presentado'))?.id || statuses[0]?.id || '', 
             formatId: project?.formatId || formats[0]?.id || '',
             isApprovedByDirector: false, writtenGradeReviewer1: null,
@@ -87,7 +87,7 @@ const ProjectForm: React.FC<{
         return null;
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
         let finalValue: any = value;
         if (type === 'number') {
@@ -180,11 +180,6 @@ const ProjectForm: React.FC<{
                 <div>
                     <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">URL de Archivos (Drive/Dropbox)</label>
                     <input type="url" name="filesUrl" value={formData.filesUrl || ''} onChange={handleChange} placeholder="https://..." className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-teal focus:border-uninunez-teal text-xs text-uninunez-teal font-mono disabled:bg-gray-50" disabled={!canEditDetails} autoComplete="off" />
-                </div>
-
-                <div>
-                    <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Observación del Proyecto</label>
-                    <textarea name="observation" value={formData.observation || ''} onChange={handleChange} rows={3} className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50" disabled={!canEditDetails} placeholder="Añadir notas u observaciones relevantes..." />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -477,7 +472,6 @@ export const ProjectsPage: React.FC = () => {
         const term = searchTerm.toLowerCase();
         return projects.filter(p => {
             const titleMatch = p.title.toLowerCase().includes(term);
-            const observationMatch = p.observation?.toLowerCase().includes(term);
             const authorsMatch = students
                 .filter(s => s.projectId === p.id)
                 .some(s => s.name.toLowerCase().includes(term));
@@ -487,7 +481,7 @@ export const ProjectsPage: React.FC = () => {
                     const teacher = teachers.find(t => t.id === pt.teacherId);
                     return teacher?.name.toLowerCase().includes(term);
                 });
-            return titleMatch || observationMatch || authorsMatch || teachersMatch;
+            return titleMatch || authorsMatch || teachersMatch;
         });
     }, [projects, searchTerm, students, teachers, projectTeachers]);
     
