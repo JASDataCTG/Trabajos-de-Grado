@@ -90,7 +90,10 @@ const ProjectForm: React.FC<{
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
         let finalValue: any = value;
-        if (type === 'number') {
+        
+        if (name === 'title') {
+            finalValue = value.toUpperCase();
+        } else if (type === 'number') {
             if (value === '') finalValue = null;
             else {
                 const num = parseFloat(value);
@@ -174,7 +177,7 @@ const ProjectForm: React.FC<{
             <div className="space-y-4">
                 <div>
                     <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Título Institucional</label>
-                    <input type="text" name="title" value={formData.title || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50 font-bold" disabled={!canEditDetails} autoComplete="off" />
+                    <input type="text" name="title" value={formData.title || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50 font-bold uppercase" disabled={!canEditDetails} autoComplete="off" />
                 </div>
                 
                 <div>
