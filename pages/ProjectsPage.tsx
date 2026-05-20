@@ -49,6 +49,31 @@ const ProjectForm: React.FC<{
         }
     }, [project?.id]);
 
+    const combinedHistory = useMemo(() => {
+        const combined = [...historyEntries];
+        if (project?.id && formData.formatId) {
+            const hasCurrentInHistory = combined.some(h => h.formatId === formData.formatId);
+            if (!hasCurrentInHistory) {
+                combined.push({
+                    id: 'current_active_temp',
+                    projectId: project.id,
+                    formatId: formData.formatId,
+                    statusId: formData.statusId || '',
+                    presentationDate: formData.presentationDate || '',
+                    filesUrl: formData.filesUrl || '',
+                    writtenGradeReviewer1: formData.writtenGradeReviewer1 ?? null,
+                    presentationGradeReviewer1: formData.presentationGradeReviewer1 ?? null,
+                    writtenGradeReviewer2: formData.writtenGradeReviewer2 ?? null,
+                    presentationGradeReviewer2: formData.presentationGradeReviewer2 ?? null,
+                    finalGrade: formData.finalGrade ?? null,
+                    createdAt: new Date().toISOString()
+                });
+            }
+        }
+        // Ordenar por fecha cronológica para la línea de tiempo
+        return combined.sort((a, b) => new Date(a.presentationDate).getTime() - new Date(b.presentationDate).getTime());
+    }, [historyEntries, project?.id, formData.formatId, formData.statusId, formData.presentationDate, formData.filesUrl, formData.writtenGradeReviewer1, formData.presentationGradeReviewer1, formData.writtenGradeReviewer2, formData.presentationGradeReviewer2, formData.finalGrade]);
+
     useEffect(() => {
         if (formats.length > 0 && statuses.length > 0) {
             setHistoryForm(prev => ({
@@ -294,7 +319,7 @@ const ProjectForm: React.FC<{
     }, [teachers, teacherSearch]);
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6 max-h-[75vh] overflow-y-auto pr-2 scrollbar-thin">
+        <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-4">
                 <div>
                     <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Título Institucional</label>
@@ -477,7 +502,7 @@ const ProjectForm: React.FC<{
                         </div>
                     )}
 
-                    {historyEntries.length === 0 ? (
+                    {combinedHistory.length === 0 ? (
                         <p className="text-[11px] text-uninunez-ash text-center py-4 bg-gray-50 rounded-xl font-medium">Ningún formato anterior registrado en el historial.</p>
                     ) : (
                         <div className="overflow-x-auto border border-gray-100 rounded-xl shadow-inner max-h-48 overflow-y-auto">
@@ -492,10 +517,10 @@ const ProjectForm: React.FC<{
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
-                                    {historyEntries.map(entry => (
+                                    {combinedHistory.map(entry => (
                                         <tr key={entry.id} className="hover:bg-gray-50/50 transition-colors">
                                             <td className="px-4 py-2.5 font-bold text-uninunez-onix">{formats.find(f => f.id === entry.formatId)?.name || 'Desconocido'}</td>
-                                            <td className="px-4 py-2.5 font-medium text-uninunez-ash">{entry.presentationDate}</td>
+                                            <td className="px-4 py-2.5 font-medium text-uninunez-ash">{entry.presentationDate || 'S/D'}</td>
                                             <td className="px-4 py-2.5">
                                                 <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
                                                     (statuses.find(s => s.id === entry.statusId)?.name || '').toLowerCase().includes('aprobado') ? 'bg-green-100 text-green-800' :
@@ -514,13 +539,17 @@ const ProjectForm: React.FC<{
                                             </td>
                                             {canEditDetails && (
                                                 <td className="px-4 py-2.5 text-center">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleDeleteHistoryEntry(entry.id)}
-                                                        className="text-red-400 hover:text-red-600 p-1"
-                                                    >
-                                                        <TrashIcon className="w-3.5 h-3.5" />
-                                                    </button>
+                                                    {entry.id !== 'current_active_temp' ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteHistoryEntry(entry.id)}
+                                                            className="text-red-400 hover:text-red-600 p-1"
+                                                        >
+                                                            <TrashIcon className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-[8px] font-black text-uninunez-orange uppercase tracking-wider bg-uninunez-orange/10 px-1.5 py-0.5 rounded">Activo</span>
+                                                    )}
                                                 </td>
                                             )}
                                         </tr>
@@ -756,6 +785,31 @@ export const ProjectsPage: React.FC = () => {
         try {
             let savedProject: Project;
             if (editingProject) {
+                // Si el formato de trabajo o el estado han cambiado, asegurar de que guardamos el avance del formato ANTERIOR (ej. formato 111) antes del cambio a 115
+                if (editingProject.formatId !== projectData.formatId || editingProject.statusId !== projectData.statusId) {
+                    try {
+                        const existingHistoryForOld = await db.getProjectFormatHistory(editingProject.id);
+                        const foundOld = existingHistoryForOld.find(h => h.formatId === editingProject.formatId);
+                        if (!foundOld) {
+                            await db.saveProjectFormatHistoryEntry({
+                                id: Date.now().toString(36) + Math.random().toString(36).substring(2),
+                                projectId: editingProject.id,
+                                formatId: editingProject.formatId,
+                                statusId: editingProject.statusId,
+                                presentationDate: editingProject.presentationDate,
+                                filesUrl: editingProject.filesUrl || '',
+                                writtenGradeReviewer1: editingProject.writtenGradeReviewer1,
+                                presentationGradeReviewer1: editingProject.presentationGradeReviewer1,
+                                writtenGradeReviewer2: editingProject.writtenGradeReviewer2,
+                                presentationGradeReviewer2: editingProject.presentationGradeReviewer2,
+                                finalGrade: editingProject.finalGrade,
+                                createdAt: new Date().toISOString()
+                            });
+                        }
+                    } catch (e) {
+                        console.error("No se pudo pre-salvar formato histórico antiguo:", e);
+                    }
+                }
                 savedProject = await db.updateProject({ ...editingProject, ...projectData } as Project);
             } else {
                 savedProject = await db.addProject(projectData as Omit<Project, 'id'>);

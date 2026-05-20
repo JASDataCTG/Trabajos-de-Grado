@@ -545,58 +545,89 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                     {/* HISTORIAL Y LÍNEA DE TIEMPO DE AVANCES */}
                     <div className="bg-white p-5 rounded-2xl border border-gray-200">
                         <h4 className="text-[10px] font-black text-uninunez-onix uppercase tracking-widest mb-4">Línea de Tiempo de Avances (Formatos)</h4>
-                        {selectedProjectHistory.length === 0 ? (
-                            <p className="text-xs text-uninunez-ash italic font-medium py-2">Ningún registro de avance previo en el historial.</p>
-                        ) : (
-                            <div className="relative pl-6 border-l border-uninunez-orange/30 space-y-5">
-                                {selectedProjectHistory.map((entry, idx) => {
-                                    const entryFormat = allFormats.find(f => f.id === entry.formatId)?.name || 'N/A';
-                                    const entryStatus = allStatuses.find(s => s.id === entry.statusId)?.name || 'N/A';
-                                    const isApproved = entryStatus.toLowerCase().includes('aprobado');
-                                    const isRejected = entryStatus.toLowerCase().includes('rechazado');
+                        {(() => {
+                            const combined = [...selectedProjectHistory];
+                            if (project) {
+                                const hasCurrentInHistory = combined.some(h => h.formatId === project.formatId);
+                                if (!hasCurrentInHistory) {
+                                    combined.push({
+                                        id: 'current_active',
+                                        projectId: project.id,
+                                        formatId: project.formatId,
+                                        statusId: project.statusId,
+                                        presentationDate: project.presentationDate,
+                                        filesUrl: project.filesUrl || '',
+                                        writtenGradeReviewer1: project.writtenGradeReviewer1,
+                                        presentationGradeReviewer1: project.presentationGradeReviewer1,
+                                        writtenGradeReviewer2: project.writtenGradeReviewer2,
+                                        presentationGradeReviewer2: project.presentationGradeReviewer2,
+                                        finalGrade: project.finalGrade,
+                                        createdAt: new Date().toISOString()
+                                    });
+                                }
+                            }
+                            const projectHistoryTimeline = combined.sort((a, b) => new Date(a.presentationDate).getTime() - new Date(b.presentationDate).getTime());
 
-                                    return (
-                                        <div key={entry.id} className="relative animate-fadeIn">
-                                            {/* Circulo de Conexión de Línea */}
-                                            <div className="absolute -left-[31px] top-1 w-[11px] h-[11px] rounded-full bg-uninunez-orange border-2 border-white ring-2 ring-uninunez-orange/20 animate-pulse"></div>
-                                            
-                                            <div className="bg-gray-50 border border-gray-100 p-3.5 rounded-xl space-y-1.5 shadow-sm">
-                                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                                    <span className="text-[9px] font-black font-mono text-uninunez-ash">{entry.presentationDate}</span>
-                                                    <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
-                                                        isApproved ? 'bg-green-100 text-green-800' :
-                                                        isRejected ? 'bg-red-100 text-red-800' :
-                                                        'bg-amber-100 text-amber-800'
-                                                    }`}>
-                                                        {entryStatus}
-                                                    </span>
-                                                </div>
-                                                <p className="text-xs font-bold text-uninunez-onix">{entryFormat}</p>
+                            if (projectHistoryTimeline.length === 0) {
+                                return <p className="text-xs text-uninunez-ash italic font-medium py-2">Ningún registro de avance previo en el historial.</p>;
+                            }
+
+                            return (
+                                <div className="relative pl-6 border-l border-uninunez-orange/30 space-y-5">
+                                    {projectHistoryTimeline.map((entry, idx) => {
+                                        const entryFormat = allFormats.find(f => f.id === entry.formatId)?.name || 'N/A';
+                                        const entryStatus = allStatuses.find(s => s.id === entry.statusId)?.name || 'N/A';
+                                        const isApproved = entryStatus.toLowerCase().includes('aprobado');
+                                        const isRejected = entryStatus.toLowerCase().includes('rechazado');
+
+                                        return (
+                                            <div key={entry.id} className="relative animate-fadeIn">
+                                                {/* Circulo de Conexión de Línea */}
+                                                <div className="absolute -left-[31px] top-1 w-[11px] h-[11px] rounded-full bg-uninunez-orange border-2 border-white ring-2 ring-uninunez-orange/20"></div>
                                                 
-                                                {entry.filesUrl && (
-                                                    <div className="pt-0.5">
-                                                        <a 
-                                                            href={entry.filesUrl} 
-                                                            target="_blank" 
-                                                            rel="referrerPolicy='no-referrer' noopener noreferrer" 
-                                                            className="inline-flex items-center gap-1 text-[9px] font-black text-uninunez-teal hover:underline uppercase tracking-wider"
-                                                        >
-                                                            📂 Ver Archivos de esta Entrega
-                                                        </a>
+                                                <div className="bg-gray-50 border border-gray-100 p-3.5 rounded-xl space-y-1.5 shadow-sm">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <span className="text-[9px] font-black font-mono text-uninunez-ash">{entry.presentationDate || 'S/D'}</span>
+                                                        <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
+                                                            isApproved ? 'bg-green-100 text-green-800' :
+                                                            isRejected ? 'bg-red-100 text-red-800' :
+                                                            'bg-amber-100 text-amber-800'
+                                                        }`}>
+                                                            {entryStatus}
+                                                        </span>
                                                     </div>
-                                                )}
+                                                    <p className="text-xs font-bold text-uninunez-onix">
+                                                        {entryFormat}
+                                                        {entry.id === 'current_active' && (
+                                                            <span className="ml-2 text-[8px] font-black text-uninunez-orange uppercase bg-uninunez-orange/10 px-1.5 py-0.5 rounded">Estado Activo</span>
+                                                        )}
+                                                    </p>
+                                                    
+                                                    {entry.filesUrl && (
+                                                        <div className="pt-0.5">
+                                                            <a 
+                                                                href={entry.filesUrl} 
+                                                                target="_blank" 
+                                                                rel="referrerPolicy='no-referrer' noopener noreferrer" 
+                                                                className="inline-flex items-center gap-1 text-[9px] font-black text-uninunez-teal hover:underline uppercase tracking-wider"
+                                                            >
+                                                                📂 Ver Archivos de esta Entrega
+                                                            </a>
+                                                        </div>
+                                                    )}
 
-                                                {entry.finalGrade !== null && entry.finalGrade !== undefined && (
-                                                    <div className="pt-1.5 border-t border-gray-100 text-[9px]">
-                                                        <span className="font-bold text-uninunez-ash uppercase">Nota Evaluada:</span> <span className="font-black text-uninunez-orange">{entry.finalGrade.toFixed(2)}</span>
-                                                    </div>
-                                                )}
+                                                    {entry.finalGrade !== null && entry.finalGrade !== undefined && (
+                                                        <div className="pt-1.5 border-t border-gray-100 text-[9px]">
+                                                            <span className="font-bold text-uninunez-ash uppercase">Nota Evaluada:</span> <span className="font-black text-uninunez-orange">{entry.finalGrade.toFixed(2)}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
             );
