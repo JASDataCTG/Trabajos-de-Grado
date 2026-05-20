@@ -38,6 +38,8 @@ const ProjectForm: React.FC<{
     const [showTeacherResults, setShowTeacherResults] = useState(false);
     const [showTitleSuggestions, setShowTitleSuggestions] = useState(false);
 
+    const hasInitializedRef = useRef<string | null>(null);
+
     const uniqueTitles = useMemo(() => {
         const titles = (existingProjects || [])
             .map(p => p.title)
@@ -55,6 +57,12 @@ const ProjectForm: React.FC<{
     }, [formData.title, uniqueTitles]);
 
     useEffect(() => {
+        const currentProjectId = project?.id || 'new';
+        if (hasInitializedRef.current === currentProjectId) {
+            return;
+        }
+        hasInitializedRef.current = currentProjectId;
+
         let inferredProgramId = project?.programId;
         if (!inferredProgramId && initialStudentIds.length > 0) {
              const student = allStudents.find(s => s.id === initialStudentIds[0]);
