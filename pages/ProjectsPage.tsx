@@ -22,7 +22,8 @@ const ProjectForm: React.FC<{
     canEditDetails: boolean;
     gradeInfo: { canGrade: boolean, reviewerRole: string | null };
     existingProjects: Project[];
-}> = ({ project, onSave, onClose, statuses, formats, programs, teachers, allStudents, roles, initialAssignments, initialStudentIds, canEditDetails, gradeInfo, existingProjects }) => {
+    allProjectTeachers: ProjectTeacher[];
+}> = ({ project, onSave, onClose, statuses, formats, programs, teachers, allStudents, roles, initialAssignments, initialStudentIds, canEditDetails, gradeInfo, existingProjects, allProjectTeachers }) => {
     const { isAdmin } = useAuth();
     const [formData, setFormData] = useState<Partial<Project>>({});
     const [assignments, setAssignments] = useState<Array<{teacherId: string, roleId: string, tempId: number}>>([]);
@@ -217,25 +218,46 @@ const ProjectForm: React.FC<{
                                     <li 
                                         key={idx} 
                                         onMouseDown={() => { 
-                                            setFormData(prev => ({ ...prev, title: t }));
                                             const matchingP = existingProjects.find(p => p.title === t);
                                             if (matchingP) {
-                                                if (matchingP.programId) {
-                                                    setFormData(prev => ({ ...prev, programId: matchingP.programId }));
-                                                }
+                                                setFormData(prev => ({ 
+                                                    ...prev, 
+                                                    title: t,
+                                                    filesUrl: matchingP.filesUrl || '',
+                                                    presentationDate: matchingP.presentationDate || '',
+                                                    programId: matchingP.programId || prev.programId || '',
+                                                    statusId: matchingP.statusId || prev.statusId || '',
+                                                    formatId: matchingP.formatId || prev.formatId || ''
+                                                }));
+
                                                 const relatedStudentIds = allStudents
                                                     .filter(s => s.projectId === matchingP.id)
                                                     .map(s => s.id);
                                                 if (relatedStudentIds.length > 0) {
                                                     setAssignedStudentIds(relatedStudentIds);
                                                 }
+
+                                                if (allProjectTeachers) {
+                                                    const relatedTeachers = allProjectTeachers
+                                                        .filter(pt => pt.projectId === matchingP.id)
+                                                        .map(pt => ({
+                                                            teacherId: pt.teacherId,
+                                                            roleId: pt.roleId,
+                                                            tempId: Math.random()
+                                                        }));
+                                                    if (relatedTeachers.length > 0) {
+                                                        setAssignments(relatedTeachers);
+                                                    }
+                                                }
+                                            } else {
+                                                setFormData(prev => ({ ...prev, title: t }));
                                             }
                                             setShowTitleSuggestions(false);
                                         }}
                                         className="px-4 py-3 hover:bg-uninunez-orange/5 cursor-pointer border-b border-gray-50 last:border-0"
                                     >
                                         <div className="text-[11px] font-bold text-uninunez-onix uppercase">{t}</div>
-                                        <div className="text-[9px] text-uninunez-teal font-black uppercase mt-0.5">Asociar con Integrantes Originales</div>
+                                        <div className="text-[9px] text-uninunez-teal font-black uppercase mt-0.5">Auto-rellenar Datos, Integrantes y Docentes</div>
                                     </li>
                                 ))}
                             </ul>
@@ -662,6 +684,7 @@ export const ProjectsPage: React.FC = () => {
                         canEditDetails={editingProject ? (isAdmin || userPerms[editingProject.id]?.canEdit) : true} 
                         gradeInfo={editingProject ? userPerms[editingProject.id]?.grade : {canGrade: false, reviewerRole: null}} 
                         existingProjects={projects}
+                        allProjectTeachers={projectTeachers}
                     />
                 )}
             </Modal>
