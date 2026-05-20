@@ -21,7 +21,8 @@ const ProjectForm: React.FC<{
     initialStudentIds: string[];
     canEditDetails: boolean;
     gradeInfo: { canGrade: boolean, reviewerRole: string | null };
-}> = ({ project, onSave, onClose, statuses, formats, programs, teachers, allStudents, roles, initialAssignments, initialStudentIds, canEditDetails, gradeInfo }) => {
+    existingProjects: Project[];
+}> = ({ project, onSave, onClose, statuses, formats, programs, teachers, allStudents, roles, initialAssignments, initialStudentIds, canEditDetails, gradeInfo, existingProjects }) => {
     const { isAdmin } = useAuth();
     const [formData, setFormData] = useState<Partial<Project>>({});
     const [assignments, setAssignments] = useState<Array<{teacherId: string, roleId: string, tempId: number}>>([]);
@@ -34,6 +35,23 @@ const ProjectForm: React.FC<{
     const [teacherSearch, setTeacherSearch] = useState('');
     const [showStudentResults, setShowStudentResults] = useState(false);
     const [showTeacherResults, setShowTeacherResults] = useState(false);
+    const [showTitleSuggestions, setShowTitleSuggestions] = useState(false);
+
+    const uniqueTitles = useMemo(() => {
+        const titles = (existingProjects || [])
+            .map(p => p.title)
+            .filter(Boolean);
+        return Array.from(new Set(titles));
+    }, [existingProjects]);
+
+    const filteredTitleSuggestions = useMemo(() => {
+        const term = (formData.title || '').trim().toLowerCase();
+        if (!term || term.length < 2) return [];
+        return uniqueTitles.filter(title => 
+            title.toLowerCase().includes(term) && 
+            title.toLowerCase() !== term
+        ).slice(0, 5);
+    }, [formData.title, uniqueTitles]);
 
     useEffect(() => {
         let inferredProgramId = project?.programId;
@@ -177,7 +195,52 @@ const ProjectForm: React.FC<{
             <div className="space-y-4">
                 <div>
                     <label className="block text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1 ml-1">Título Institucional</label>
-                    <input type="text" name="title" value={formData.title || ''} onChange={handleChange} required className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50 font-bold uppercase" disabled={!canEditDetails} autoComplete="off" />
+                    <div className="relative">
+                        <input 
+                            type="text" 
+                            name="title" 
+                            value={formData.title || ''} 
+                            onChange={handleChange} 
+                            onFocus={() => setShowTitleSuggestions(true)}
+                            onBlur={() => {
+                                // Slightly delay blur so onMouseDown can focus and select
+                                setTimeout(() => setShowTitleSuggestions(false), 200);
+                            }}
+                            required 
+                            className="block w-full px-4 py-2.5 border border-gray-300 rounded-xl shadow-sm focus:ring-uninunez-orange focus:border-uninunez-orange text-sm disabled:bg-gray-50 font-bold uppercase transition-all" 
+                            disabled={!canEditDetails} 
+                            autoComplete="off" 
+                        />
+                        {showTitleSuggestions && filteredTitleSuggestions.length > 0 && (
+                            <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto">
+                                {filteredTitleSuggestions.map((t, idx) => (
+                                    <li 
+                                        key={idx} 
+                                        onMouseDown={() => { 
+                                            setFormData(prev => ({ ...prev, title: t }));
+                                            const matchingP = existingProjects.find(p => p.title === t);
+                                            if (matchingP) {
+                                                if (matchingP.programId) {
+                                                    setFormData(prev => ({ ...prev, programId: matchingP.programId }));
+                                                }
+                                                const relatedStudentIds = allStudents
+                                                    .filter(s => s.projectId === matchingP.id)
+                                                    .map(s => s.id);
+                                                if (relatedStudentIds.length > 0) {
+                                                    setAssignedStudentIds(relatedStudentIds);
+                                                }
+                                            }
+                                            setShowTitleSuggestions(false);
+                                        }}
+                                        className="px-4 py-3 hover:bg-uninunez-orange/5 cursor-pointer border-b border-gray-50 last:border-0"
+                                    >
+                                        <div className="text-[11px] font-bold text-uninunez-onix uppercase">{t}</div>
+                                        <div className="text-[9px] text-uninunez-teal font-black uppercase mt-0.5">Asociar con Integrantes Originales</div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
                 </div>
                 
                 <div>
@@ -598,6 +661,7 @@ export const ProjectsPage: React.FC = () => {
                         initialStudentIds={editingProject ? students.filter(s => s.projectId === editingProject.id).map(s => s.id) : []}
                         canEditDetails={editingProject ? (isAdmin || userPerms[editingProject.id]?.canEdit) : true} 
                         gradeInfo={editingProject ? userPerms[editingProject.id]?.grade : {canGrade: false, reviewerRole: null}} 
+                        existingProjects={projects}
                     />
                 )}
             </Modal>
