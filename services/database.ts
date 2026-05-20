@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status, Program, User, Faculty } from '../types';
+import { Project, Student, Teacher, ProjectTeacher, Format, TeacherRole, Status, Program, User, Faculty, ProjectFormatHistory } from '../types';
 import { notificationService } from './notificationService';
 
 const getEnv = (key: string): string => {
@@ -332,5 +332,97 @@ export const db = {
     deleteStudent: async function(id: string) { if (supabase) { await supabase.from('users').delete().eq('student_id', id); await supabase.from('students').delete().eq('id', id); } },
     deleteStatus: async function(id: string) { if (supabase) await supabase.from('statuses').delete().eq('id', id); },
     deleteFormat: async function(id: string) { if (supabase) await supabase.from('formats').delete().eq('id', id); },
-    deleteTeacherRole: async function(id: string) { if (supabase) await supabase.from('teacher_roles').delete().eq('id', id); }
+    deleteTeacherRole: async function(id: string) { if (supabase) await supabase.from('teacher_roles').delete().eq('id', id); },
+
+    // --- HISTORIAL DE FORMATOS PRESENTADOS ---
+    getProjectFormatHistory: async function(projectId: string): Promise<ProjectFormatHistory[]> {
+        const localHistory = this.getFormatHistoriesLocal();
+        const filtered = localHistory.filter(h => h.projectId === projectId);
+        
+        if (supabase) {
+            try {
+                const { data, error } = await supabase
+                    .from('project_format_history')
+                    .select('*')
+                    .eq('project_id', projectId)
+                    .order('created_at', { ascending: true });
+                if (!error && data && data.length > 0) {
+                    return data.map((d: any) => ({
+                        id: d.id,
+                        projectId: d.project_id || d.projectId,
+                        formatId: d.format_id || d.formatId,
+                        statusId: d.status_id || d.statusId,
+                        presentationDate: d.presentation_date || d.presentationDate,
+                        filesUrl: d.files_url || d.filesUrl,
+                        writtenGradeReviewer1: d.written_grade_reviewer1 !== undefined ? d.written_grade_reviewer1 : d.writtenGradeReviewer1,
+                        presentationGradeReviewer1: d.presentation_grade_reviewer1 !== undefined ? d.presentation_grade_reviewer1 : d.presentationGradeReviewer1,
+                        writtenGradeReviewer2: d.written_grade_reviewer2 !== undefined ? d.written_grade_reviewer2 : d.writtenGradeReviewer2,
+                        presentationGradeReviewer2: d.presentation_grade_reviewer2 !== undefined ? d.presentation_grade_reviewer2 : d.presentationGradeReviewer2,
+                        finalGrade: d.final_grade !== undefined ? d.final_grade : d.finalGrade,
+                        createdAt: d.created_at || d.createdAt
+                    }));
+                }
+            } catch (err) {
+                console.warn("Error consultando project_format_history en Supabase, usando local:", err);
+            }
+        }
+        return filtered.sort((a, b) => new Date(a.presentationDate).getTime() - new Date(b.presentationDate).getTime());
+    },
+
+    getFormatHistoriesLocal: function(): ProjectFormatHistory[] {
+        try {
+            const data = localStorage.getItem('uninunez_format_histories');
+            return data ? JSON.parse(data) : [];
+        } catch {
+            return [];
+        }
+    },
+
+    saveProjectFormatHistoryEntry: async function(entry: ProjectFormatHistory): Promise<ProjectFormatHistory> {
+        const localHistory = this.getFormatHistoriesLocal();
+        const idx = localHistory.findIndex(h => h.id === entry.id);
+        if (idx !== -1) {
+            localHistory[idx] = entry;
+        } else {
+            localHistory.push(entry);
+        }
+        localStorage.setItem('uninunez_format_histories', JSON.stringify(localHistory));
+
+        if (supabase) {
+            try {
+                const dbEntry = {
+                    id: entry.id,
+                    project_id: entry.projectId,
+                    format_id: entry.formatId,
+                    status_id: entry.statusId,
+                    presentation_date: entry.presentationDate,
+                    files_url: entry.filesUrl,
+                    written_grade_reviewer1: entry.writtenGradeReviewer1,
+                    presentation_grade_reviewer1: entry.presentationGradeReviewer1,
+                    written_grade_reviewer2: entry.writtenGradeReviewer2,
+                    presentation_grade_reviewer2: entry.presentationGradeReviewer2,
+                    final_grade: entry.finalGrade,
+                    created_at: entry.createdAt || new Date().toISOString()
+                };
+                await supabase.from('project_format_history').upsert([dbEntry]);
+            } catch (err) {
+                console.warn("No se pudo upsertar en project_format_history de Supabase:", err);
+            }
+        }
+        return entry;
+    },
+
+    deleteProjectFormatHistoryEntry: async function(id: string): Promise<void> {
+        const localHistory = this.getFormatHistoriesLocal();
+        const filtered = localHistory.filter(h => h.id !== id);
+        localStorage.setItem('uninunez_format_histories', JSON.stringify(filtered));
+
+        if (supabase) {
+            try {
+                await supabase.from('project_format_history').delete().eq('id', id);
+            } catch (err) {
+                console.warn("No se pudo borrar en project_format_history de Supabase:", err);
+            }
+        }
+    }
 };

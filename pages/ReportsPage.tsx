@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import React from 'react';
 import { db } from '../services/database';
-import { Project, Student, Teacher, Status, Format, Program } from '../types';
+import { Project, Student, Teacher, Status, Format, Program, ProjectFormatHistory } from '../types';
 import { arrayToCsv } from '../utils/csv';
 
 // Informa a TypeScript sobre la variable global Chart de la CDN
@@ -189,6 +189,16 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         id: string;
         title: string;
     } | null>(null);
+
+    const [selectedProjectHistory, setSelectedProjectHistory] = useState<ProjectFormatHistory[]>([]);
+
+    useEffect(() => {
+        if (detailModal && detailModal.type === 'project') {
+            db.getProjectFormatHistory(detailModal.id).then(setSelectedProjectHistory);
+        } else {
+            setSelectedProjectHistory([]);
+        }
+    }, [detailModal]);
 
     const loadReportData = useCallback(async (currentFilters: any) => {
         const [projects, students, teachers, roles, statuses, formats, projectTeachers, programs] = await Promise.all([
@@ -530,6 +540,63 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                 <p className="text-[10px] font-black text-uninunez-teal uppercase">Nota Final: {project.finalGrade?.toFixed(2) || '0.00'}</p>
                             </div>
                         </div>
+                    </div>
+
+                    {/* HISTORIAL Y LÍNEA DE TIEMPO DE AVANCES */}
+                    <div className="bg-white p-5 rounded-2xl border border-gray-200">
+                        <h4 className="text-[10px] font-black text-uninunez-onix uppercase tracking-widest mb-4">Línea de Tiempo de Avances (Formatos)</h4>
+                        {selectedProjectHistory.length === 0 ? (
+                            <p className="text-xs text-uninunez-ash italic font-medium py-2">Ningún registro de avance previo en el historial.</p>
+                        ) : (
+                            <div className="relative pl-6 border-l border-uninunez-orange/30 space-y-5">
+                                {selectedProjectHistory.map((entry, idx) => {
+                                    const entryFormat = allFormats.find(f => f.id === entry.formatId)?.name || 'N/A';
+                                    const entryStatus = allStatuses.find(s => s.id === entry.statusId)?.name || 'N/A';
+                                    const isApproved = entryStatus.toLowerCase().includes('aprobado');
+                                    const isRejected = entryStatus.toLowerCase().includes('rechazado');
+
+                                    return (
+                                        <div key={entry.id} className="relative animate-fadeIn">
+                                            {/* Circulo de Conexión de Línea */}
+                                            <div className="absolute -left-[31px] top-1 w-[11px] h-[11px] rounded-full bg-uninunez-orange border-2 border-white ring-2 ring-uninunez-orange/20 animate-pulse"></div>
+                                            
+                                            <div className="bg-gray-50 border border-gray-100 p-3.5 rounded-xl space-y-1.5 shadow-sm">
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                    <span className="text-[9px] font-black font-mono text-uninunez-ash">{entry.presentationDate}</span>
+                                                    <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
+                                                        isApproved ? 'bg-green-100 text-green-800' :
+                                                        isRejected ? 'bg-red-100 text-red-800' :
+                                                        'bg-amber-100 text-amber-800'
+                                                    }`}>
+                                                        {entryStatus}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs font-bold text-uninunez-onix">{entryFormat}</p>
+                                                
+                                                {entry.filesUrl && (
+                                                    <div className="pt-0.5">
+                                                        <a 
+                                                            href={entry.filesUrl} 
+                                                            target="_blank" 
+                                                            rel="referrerPolicy='no-referrer' noopener noreferrer" 
+                                                            className="inline-flex items-center gap-1 text-[9px] font-black text-uninunez-teal hover:underline uppercase tracking-wider"
+                                                        >
+                                                            📂 Ver Archivos de esta Entrega
+                                                        </a>
+                                                    </div>
+                                                )}
+
+                                                {entry.finalGrade !== null && entry.finalGrade !== undefined && (
+                                                    <div className="pt-1.5 border-t border-gray-100 text-[9px]">
+                                                        <span className="font-bold text-uninunez-ash uppercase">Nota Evaluada:</span> <span className="font-black text-uninunez-orange">{entry.finalGrade.toFixed(2)}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </div>
             );

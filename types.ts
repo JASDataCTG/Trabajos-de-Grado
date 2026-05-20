@@ -30,6 +30,21 @@ export interface Project {
   finalGrade: number | null;
 }
 
+export interface ProjectFormatHistory {
+  id: string;
+  projectId: string;
+  formatId: string;
+  statusId: string;
+  presentationDate: string;
+  filesUrl: string;
+  writtenGradeReviewer1: number | null;
+  presentationGradeReviewer1: number | null;
+  writtenGradeReviewer2: number | null;
+  presentationGradeReviewer2: number | null;
+  finalGrade: number | null;
+  createdAt?: string;
+}
+
 export interface Program {
   id: string;
   name: string;

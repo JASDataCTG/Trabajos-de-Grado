@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { db } from '../services/database';
-import { Project, Student, Teacher, TeacherRole, Status, Format, ProjectTeacher, Program } from '../types';
+import { Project, Student, Teacher, TeacherRole, Status, Format, ProjectTeacher, Program, ProjectFormatHistory } from '../types';
 import { Modal } from '../components/Modal';
 import { ConfirmationDialog } from '../components/ConfirmationDialog';
 import { PlusIcon, EditIcon, TrashIcon, SearchIcon } from '../components/Icons';
@@ -31,6 +31,100 @@ const ProjectForm: React.FC<{
     const [newAssignment, setNewAssignment] = useState({ teacherId: '', roleId: '' });
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+
+    const [historyEntries, setHistoryEntries] = useState<ProjectFormatHistory[]>([]);
+    const [showAddHistory, setShowAddHistory] = useState(false);
+    const [historyForm, setHistoryForm] = useState({
+        formatId: formats[0]?.id || '',
+        statusId: statuses[0]?.id || '',
+        presentationDate: '',
+        filesUrl: ''
+    });
+
+    useEffect(() => {
+        if (project?.id) {
+            db.getProjectFormatHistory(project.id).then(setHistoryEntries);
+        } else {
+            setHistoryEntries([]);
+        }
+    }, [project?.id]);
+
+    useEffect(() => {
+        if (formats.length > 0 && statuses.length > 0) {
+            setHistoryForm(prev => ({
+                ...prev,
+                formatId: formats[0].id,
+                statusId: statuses[0].id
+            }));
+        }
+    }, [formats, statuses]);
+
+    const handleAddHistoryEntry = async () => {
+        if (!historyForm.presentationDate) {
+            alert("La fecha de radicación es obligatoria para el historial.");
+            return;
+        }
+        if (!project?.id) {
+            alert("Guarde primero el proyecto principal para asociar el historial.");
+            return;
+        }
+        const newEntry: ProjectFormatHistory = {
+            id: Date.now().toString(36) + Math.random().toString(36).substring(2),
+            projectId: project.id,
+            formatId: historyForm.formatId,
+            statusId: historyForm.statusId,
+            presentationDate: historyForm.presentationDate,
+            filesUrl: historyForm.filesUrl,
+            writtenGradeReviewer1: null,
+            presentationGradeReviewer1: null,
+            writtenGradeReviewer2: null,
+            presentationGradeReviewer2: null,
+            finalGrade: null,
+            createdAt: new Date().toISOString()
+        };
+        await db.saveProjectFormatHistoryEntry(newEntry);
+        const updated = await db.getProjectFormatHistory(project.id);
+        setHistoryEntries(updated);
+        setShowAddHistory(false);
+        setHistoryForm({
+            formatId: formats[0]?.id || '',
+            statusId: statuses[0]?.id || '',
+            presentationDate: '',
+            filesUrl: ''
+        });
+    };
+
+    const handleDeleteHistoryEntry = async (id: string) => {
+        if (confirm("¿Estás seguro de eliminar este registro histórico?")) {
+            await db.deleteProjectFormatHistoryEntry(id);
+            if (project?.id) {
+                const updated = await db.getProjectFormatHistory(project.id);
+                setHistoryEntries(updated);
+            }
+        }
+    };
+
+    const isEvaluationEnabled = useMemo(() => {
+        const currentFormatObj = formats.find(f => f.id === formData.formatId);
+        if (currentFormatObj && (
+            currentFormatObj.name.toLowerCase().includes('115') || 
+            currentFormatObj.name.toLowerCase().includes('articulo final') || 
+            currentFormatObj.name.toLowerCase().includes('artículo final')
+        )) {
+            return true;
+        }
+
+        return historyEntries.some(entry => {
+            const entryFormatObj = formats.find(f => f.id === entry.formatId);
+            if (entryFormatObj) {
+                const nameLower = entryFormatObj.name.toLowerCase();
+                return nameLower.includes('115') || 
+                       nameLower.includes('articulo final') || 
+                       nameLower.includes('artículo final');
+            }
+            return false;
+        });
+    }, [formData.formatId, historyEntries, formats]);
 
     const [studentSearch, setStudentSearch] = useState('');
     const [teacherSearch, setTeacherSearch] = useState('');
@@ -177,8 +271,8 @@ const ProjectForm: React.FC<{
         return found ? found.name : 'Estudiante no encontrado';
     };
 
-    const canGradeReviewer1 = isAdmin || (gradeInfo.canGrade && gradeInfo.reviewerRole?.toLowerCase().includes('1'));
-    const canGradeReviewer2 = isAdmin || (gradeInfo.canGrade && gradeInfo.reviewerRole?.toLowerCase().includes('2'));
+    const canGradeReviewer1 = isEvaluationEnabled && (isAdmin || (gradeInfo.canGrade && gradeInfo.reviewerRole?.toLowerCase().includes('1')));
+    const canGradeReviewer2 = isEvaluationEnabled && (isAdmin || (gradeInfo.canGrade && gradeInfo.reviewerRole?.toLowerCase().includes('2')));
 
     // Búsqueda en tiempo real para Estudiantes
     const filteredStudentsList = useMemo(() => {
@@ -307,7 +401,143 @@ const ProjectForm: React.FC<{
                 </div>
             </div>
 
+            {/* HISTORIAL DE FORMATOS PRESENTADOS */}
+            {project?.id && (
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                    <div className="flex justify-between items-center border-b pb-3">
+                        <div>
+                            <h4 className="text-[10px] font-black text-uninunez-onix uppercase tracking-widest">Historial de Formatos</h4>
+                            <p className="text-[9px] text-uninunez-ash font-medium mt-0.5">Avances de formatos presentados para este proyecto.</p>
+                        </div>
+                        {canEditDetails && (
+                            <button
+                                type="button"
+                                onClick={() => setShowAddHistory(!showAddHistory)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-uninunez-teal/10 hover:bg-uninunez-teal/20 text-uninunez-teal text-[10px] font-black uppercase tracking-wider transition-all"
+                            >
+                                <PlusIcon className="w-3.5 h-3.5" />
+                                {showAddHistory ? 'Cancelar' : 'Agregar Avance'}
+                            </button>
+                        )}
+                    </div>
+
+                    {showAddHistory && (
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3 animate-fadeIn">
+                            <p className="text-[9px] font-black text-uninunez-teal uppercase tracking-widest">Registrar Avance Histórico</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-[8px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Formato</label>
+                                    <select
+                                        value={historyForm.formatId}
+                                        onChange={(e) => setHistoryForm(prev => ({ ...prev, formatId: e.target.value }))}
+                                        className="w-full text-xs border rounded-lg p-2 font-bold bg-white"
+                                    >
+                                        {formats.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[8px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Estado</label>
+                                    <select
+                                        value={historyForm.statusId}
+                                        onChange={(e) => setHistoryForm(prev => ({ ...prev, statusId: e.target.value }))}
+                                        className="w-full text-xs border rounded-lg p-2 font-bold bg-white"
+                                    >
+                                        {statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[8px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Fecha de Radicación</label>
+                                    <input
+                                        type="date"
+                                        value={historyForm.presentationDate}
+                                        onChange={(e) => setHistoryForm(prev => ({ ...prev, presentationDate: e.target.value }))}
+                                        className="w-full text-xs border rounded-lg p-2 bg-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[8px] font-black text-uninunez-ash uppercase tracking-widest mb-1">URL de Archivos</label>
+                                    <input
+                                        type="url"
+                                        placeholder="https://..."
+                                        value={historyForm.filesUrl}
+                                        onChange={(e) => setHistoryForm(prev => ({ ...prev, filesUrl: e.target.value }))}
+                                        className="w-full text-xs border rounded-lg p-2 font-mono bg-white"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={handleAddHistoryEntry}
+                                    className="px-4 py-2 bg-uninunez-teal text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-md hover:bg-uninunez-tealLight transition-all"
+                                >
+                                    Guardar en Historial
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {historyEntries.length === 0 ? (
+                        <p className="text-[11px] text-uninunez-ash text-center py-4 bg-gray-50 rounded-xl font-medium">Ningún formato anterior registrado en el historial.</p>
+                    ) : (
+                        <div className="overflow-x-auto border border-gray-100 rounded-xl shadow-inner max-h-48 overflow-y-auto">
+                            <table className="w-full text-left text-xs">
+                                <thead className="bg-gray-50 text-[9px] font-black text-uninunez-ash uppercase tracking-wider border-b border-gray-100">
+                                    <tr>
+                                        <th className="px-4 py-2.5">Formato</th>
+                                        <th className="px-4 py-2.5">Fecha</th>
+                                        <th className="px-4 py-2.5">Estado</th>
+                                        <th className="px-4 py-2.5">Archivos</th>
+                                        {canEditDetails && <th className="px-4 py-2.5 text-center">Acciones</th>}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {historyEntries.map(entry => (
+                                        <tr key={entry.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-4 py-2.5 font-bold text-uninunez-onix">{formats.find(f => f.id === entry.formatId)?.name || 'Desconocido'}</td>
+                                            <td className="px-4 py-2.5 font-medium text-uninunez-ash">{entry.presentationDate}</td>
+                                            <td className="px-4 py-2.5">
+                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                    (statuses.find(s => s.id === entry.statusId)?.name || '').toLowerCase().includes('aprobado') ? 'bg-green-100 text-green-800' :
+                                                    (statuses.find(s => s.id === entry.statusId)?.name || '').toLowerCase().includes('rechazado') ? 'bg-red-100 text-red-800' :
+                                                    'bg-amber-100 text-amber-800'
+                                                }`}>
+                                                    {statuses.find(s => s.id === entry.statusId)?.name || 'Desconocido'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-2.5">
+                                                {entry.filesUrl ? (
+                                                    <a href={entry.filesUrl} target="_blank" rel="referrerPolicy='no-referrer' noopener noreferrer" className="text-uninunez-teal font-black hover:underline tracking-widest text-[9px]">VER ARCHIVOS</a>
+                                                ) : (
+                                                    <span className="text-gray-300 font-mono">-</span>
+                                                )}
+                                            </td>
+                                            {canEditDetails && (
+                                                <td className="px-4 py-2.5 text-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteHistoryEntry(entry.id)}
+                                                        className="text-red-400 hover:text-red-600 p-1"
+                                                    >
+                                                        <TrashIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
             <div className="bg-uninunez-onix/5 p-5 rounded-2xl border border-uninunez-onix/10 space-y-4">
+                {!isEvaluationEnabled && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3.5 text-xs font-bold leading-relaxed shadow-sm">
+                        ⚠️ La evaluación y asignación de calificaciones están bloqueadas. Solo se activan cuando el proyecto o su historial reflejan el <span className="font-extrabold text-uninunez-orange">Formato 115 (Artículo Final)</span>.
+                    </div>
+                )}
                 <div className="flex justify-between items-center border-b border-uninunez-onix/10 pb-3">
                     <h4 className="text-[10px] font-black text-uninunez-onix uppercase tracking-widest">Calificaciones</h4>
                     <div className="flex items-center gap-2">
@@ -529,6 +759,29 @@ export const ProjectsPage: React.FC = () => {
                 savedProject = await db.updateProject({ ...editingProject, ...projectData } as Project);
             } else {
                 savedProject = await db.addProject(projectData as Omit<Project, 'id'>);
+            }
+
+            // Guardar automáticamente en el historial de formatos presentados
+            if (savedProject && savedProject.id) {
+                const existingHistory = await db.getProjectFormatHistory(savedProject.id);
+                // Si ya existe una entrada de historial para este mismo formatId en este proyecto, la actualizamos; de lo contrario, creamos una nueva.
+                const found = existingHistory.find(h => h.formatId === savedProject.formatId);
+                const historyEntryId = found ? found.id : (Date.now().toString(36) + Math.random().toString(36).substring(2));
+                
+                await db.saveProjectFormatHistoryEntry({
+                    id: historyEntryId,
+                    projectId: savedProject.id,
+                    formatId: savedProject.formatId,
+                    statusId: savedProject.statusId,
+                    presentationDate: savedProject.presentationDate,
+                    filesUrl: savedProject.filesUrl,
+                    writtenGradeReviewer1: savedProject.writtenGradeReviewer1,
+                    presentationGradeReviewer1: savedProject.presentationGradeReviewer1,
+                    writtenGradeReviewer2: savedProject.writtenGradeReviewer2,
+                    presentationGradeReviewer2: savedProject.presentationGradeReviewer2,
+                    finalGrade: savedProject.finalGrade,
+                    createdAt: found ? found.createdAt : new Date().toISOString()
+                });
             }
 
             if (!editingProject || isAdmin || userPerms[savedProject.id]?.canEdit) {
