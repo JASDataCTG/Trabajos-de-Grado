@@ -24,7 +24,7 @@ const ProjectForm: React.FC<{
     existingProjects: Project[];
     allProjectTeachers: ProjectTeacher[];
 }> = ({ project, onSave, onClose, statuses, formats, programs, teachers, allStudents, roles, initialAssignments, initialStudentIds, canEditDetails, gradeInfo, existingProjects, allProjectTeachers }) => {
-    const { isAdmin } = useAuth();
+    const { user, isAdmin } = useAuth();
     const [formData, setFormData] = useState<Partial<Project>>({});
     const [assignments, setAssignments] = useState<Array<{teacherId: string, roleId: string, tempId: number}>>([]);
     const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>([]);
@@ -129,27 +129,7 @@ const ProjectForm: React.FC<{
         }
     };
 
-    const isEvaluationEnabled = useMemo(() => {
-        const currentFormatObj = formats.find(f => f.id === formData.formatId);
-        if (currentFormatObj && (
-            currentFormatObj.name.toLowerCase().includes('115') || 
-            currentFormatObj.name.toLowerCase().includes('articulo final') || 
-            currentFormatObj.name.toLowerCase().includes('artículo final')
-        )) {
-            return true;
-        }
-
-        return historyEntries.some(entry => {
-            const entryFormatObj = formats.find(f => f.id === entry.formatId);
-            if (entryFormatObj) {
-                const nameLower = entryFormatObj.name.toLowerCase();
-                return nameLower.includes('115') || 
-                       nameLower.includes('articulo final') || 
-                       nameLower.includes('artículo final');
-            }
-            return false;
-        });
-    }, [formData.formatId, historyEntries, formats]);
+    const isEvaluationEnabled = true;
 
     const [studentSearch, setStudentSearch] = useState('');
     const [teacherSearch, setTeacherSearch] = useState('');
@@ -296,8 +276,50 @@ const ProjectForm: React.FC<{
         return found ? found.name : 'Estudiante no encontrado';
     };
 
-    const canGradeReviewer1 = isEvaluationEnabled && (isAdmin || (gradeInfo.canGrade && gradeInfo.reviewerRole?.toLowerCase().includes('1')));
-    const canGradeReviewer2 = isEvaluationEnabled && (isAdmin || (gradeInfo.canGrade && gradeInfo.reviewerRole?.toLowerCase().includes('2')));
+    const userReviewerIndex = useMemo(() => {
+        if (!user || !user.teacherId || !project?.id) return null;
+        
+        // Find all assignments for this project
+        const projectAssignments = allProjectTeachers.filter(pt => pt.projectId === project.id);
+        
+        // Find those corresponding to evaluator/jury/reviewer role
+        const evaluatorAssignments = projectAssignments.filter(pt => {
+            const roleName = roles.find(rol => rol.id === pt.roleId)?.name || '';
+            return roleName && (
+                roleName.toLowerCase().includes('evaluador') || 
+                roleName.toLowerCase().includes('jurado') || 
+                roleName.toLowerCase().includes('revisor')
+            );
+        });
+        
+        // Let's check list of user's roles on this project
+        const userSpecificAssignments = evaluatorAssignments.filter(ea => ea.teacherId === user.teacherId);
+        if (userSpecificAssignments.length === 0) return null;
+        
+        // Check if role contains '1' or '2'
+        const hasRol1 = userSpecificAssignments.some(ea => {
+            const rName = roles.find(rol => rol.id === ea.roleId)?.name || '';
+            return rName.includes('1');
+        });
+        const hasRol2 = userSpecificAssignments.some(ea => {
+            const rName = roles.find(rol => rol.id === ea.roleId)?.name || '';
+            return rName.includes('2');
+        });
+        
+        if (hasRol1) return 1;
+        if (hasRol2) return 2;
+        
+        // If it doesn't specify '1' or '2' explicitly, sort deterministicly by teacherName/ID or ID to map them
+        const sortedEvaluators = [...evaluatorAssignments].sort((a, b) => a.teacherId.localeCompare(b.teacherId));
+        const userIndex = sortedEvaluators.findIndex(ea => ea.teacherId === user.teacherId);
+        if (userIndex !== -1) {
+            return userIndex + 1; // 1 or 2
+        }
+        return null;
+    }, [user, project?.id, allProjectTeachers, roles]);
+
+    const canGradeReviewer1 = isAdmin || userReviewerIndex === 1;
+    const canGradeReviewer2 = isAdmin || userReviewerIndex === 2;
 
     // Búsqueda en tiempo real para Estudiantes
     const filteredStudentsList = useMemo(() => {
@@ -724,7 +746,7 @@ const ProjectForm: React.FC<{
 };
 
 export const ProjectsPage: React.FC = () => {
-    const { isAdmin, canEditProject, canGradeProject } = useAuth();
+    const { user, isAdmin, canEditProject, canGradeProject } = useAuth();
     const [projects, setProjects] = useState<Project[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -756,10 +778,41 @@ export const ProjectsPage: React.FC = () => {
             ]);
             
             const perms: any = {};
-            for(const project of p) {
-                perms[project.id] = { 
-                    canEdit: await canEditProject(project.id), 
-                    grade: await canGradeProject(project.id) 
+            for (const project of p) {
+                if (!user) {
+                    perms[project.id] = { canEdit: false, grade: { canGrade: false, reviewerRole: null } };
+                    continue;
+                }
+                if (isAdmin) {
+                    perms[project.id] = { canEdit: true, grade: { canGrade: true, reviewerRole: 'admin' } };
+                    continue;
+                }
+                if (user.role !== 'teacher' || !user.teacherId) {
+                    perms[project.id] = { canEdit: false, grade: { canGrade: false, reviewerRole: null } };
+                    continue;
+                }
+                
+                const userAssignments = pt.filter(
+                    ptEntry => ptEntry.projectId === project.id && ptEntry.teacherId === user.teacherId
+                );
+                
+                const userRoles = userAssignments.map(assignment => {
+                    return r.find(rol => rol.id === assignment.roleId)?.name || '';
+                }).filter(Boolean);
+                
+                const canEdit = userRoles.some(role => role.toLowerCase().includes('director'));
+                const reviewerRole = userRoles.find(role => 
+                    role.toLowerCase().includes('evaluador') || 
+                    role.toLowerCase().includes('jurado') || 
+                    role.toLowerCase().includes('revisor')
+                );
+                
+                perms[project.id] = {
+                    canEdit: canEdit,
+                    grade: {
+                        canGrade: !!reviewerRole,
+                        reviewerRole: reviewerRole || null
+                    }
                 };
             }
             
@@ -777,7 +830,7 @@ export const ProjectsPage: React.FC = () => {
         } finally { 
             setIsLoading(false); 
         }
-    }, [canEditProject, canGradeProject]);
+    }, [user, isAdmin]);
 
     useEffect(() => { loadData(); }, [loadData]);
 
