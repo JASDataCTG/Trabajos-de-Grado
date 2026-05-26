@@ -57,6 +57,17 @@ interface TeacherProgramWorkloadReport {
     'Total': number;
 }
 
+interface TeacherProjectsDetailReport {
+    'id': string;
+    'Nombre del Docente': string;
+    'Email del Docente': string;
+    'Título del Proyecto': string;
+    'Rol Asignado': string;
+    'Estado del Proyecto': string;
+    'Formato del Proyecto': string;
+    'Fecha de Radicación': string;
+}
+
 interface ReportsPageProps {
     isPublicView?: boolean;
 }
@@ -155,6 +166,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
     const [projectStatus, setProjectStatus] = useState<ProjectStatusReport[]>([]);
     const [teacherWorkload, setTeacherWorkload] = useState<TeacherWorkloadReport[]>([]);
     const [teacherProgramWorkload, setTeacherProgramWorkload] = useState<TeacherProgramWorkloadReport[]>([]);
+    const [teacherProjectsDetail, setTeacherProjectsDetail] = useState<TeacherProjectsDetailReport[]>([]);
     const [programSummary, setProgramSummary] = useState<ProgramSummaryReport[]>([]);
     const [unassignedStudents, setUnassignedStudents] = useState<UnassignedStudentsReport[]>([]);
     const [kpis, setKpis] = useState({ totalProjects: 0, totalTeachers: 0, totalStudents: 0, totalPrograms: 0 });
@@ -412,6 +424,44 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             labels: projectsPerProgramCounts.map(p => p.name),
             datasets: [{ label: 'Proyectos', data: projectsPerProgramCounts.map(p => p.count), backgroundColor: uninunezColors, borderColor: '#ffffff', borderWidth: 2 }]
         });
+
+        // Compile detailed assignments list of teachers and projects (Tutor, Co-tutor, Reviewer etc.)
+        const teacherProjectsDetailData: TeacherProjectsDetailReport[] = [];
+        projectTeachers.forEach(ptEntry => {
+            // Must belong to a filtered project
+            if (!filteredProjectIds.has(ptEntry.projectId)) return;
+            
+            // If teacherId filter is active, must match
+            if (currentFilters.teacherId && ptEntry.teacherId !== currentFilters.teacherId) return;
+
+            const teacher = teachers.find(t => t.id === ptEntry.teacherId);
+            const project = projects.find(p => p.id === ptEntry.projectId);
+            const role = roles.find(r => r.id === ptEntry.roleId);
+            
+            if (teacher && project) {
+                const statusName = statuses.find(s => s.id === project.statusId)?.name || 'N/A';
+                const formatName = formats.find(f => f.id === project.formatId)?.name || 'N/A';
+                
+                teacherProjectsDetailData.push({
+                    'id': `${project.id}_${teacher.id}`,
+                    'Nombre del Docente': teacher.name,
+                    'Email del Docente': teacher.email || 'N/A',
+                    'Título del Proyecto': project.title,
+                    'Rol Asignado': role?.name || 'N/A',
+                    'Estado del Proyecto': statusName,
+                    'Formato del Proyecto': formatName,
+                    'Fecha de Radicación': project.presentationDate || 'N/A'
+                });
+            }
+        });
+
+        teacherProjectsDetailData.sort((a, b) => {
+            const cmpTeacher = a['Nombre del Docente'].localeCompare(b['Nombre del Docente']);
+            if (cmpTeacher !== 0) return cmpTeacher;
+            return a['Rol Asignado'].localeCompare(b['Rol Asignado']);
+        });
+
+        setTeacherProjectsDetail(teacherProjectsDetailData);
 
         setTeacherWorkloadChartData({
             labels: workloadData.slice(0, 10).map(w => w['Nombre del Docente']),
@@ -834,6 +884,52 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                     ))}
                                     <td className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
                                         <button onClick={() => showRelatedInfo('project', row.id, row['Título del Proyecto'])} className="text-uninunez-teal font-black hover:underline text-[9px] uppercase tracking-widest">Ver Relacionados</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </ReportTableCard>
+
+                <ReportTableCard 
+                    title="Proyectos a Cargo por Docente y Rol" 
+                    description="Relación detallada de proyectos asignados a cada docente (Tutores, Cotutores y Revisores/Evaluadores/Jurados)."
+                    onExport={() => handleExport(teacherProjectsDetail, 'proyectos_a_cargo_docentes')}
+                    hasData={teacherProjectsDetail.length > 0}
+                    showExport={!isPublicView}
+                >
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50/80 border-b border-gray-100">
+                            <tr>
+                                {teacherProjectsDetail.length > 0 && Object.keys(teacherProjectsDetail[0]).filter(k => k !== 'id').map(key => (
+                                    <th key={key} className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{key}</th>
+                                ))}
+                                <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {teacherProjectsDetail.map((row, index) => (
+                                <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
+                                    {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => (
+                                        <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                            {String(val)}
+                                        </td>
+                                    ))}
+                                    <td className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash whitespace-nowrap">
+                                        <div className="flex gap-4">
+                                            <button 
+                                                onClick={() => showRelatedInfo('project', row.id.split('_')[0], row['Título del Proyecto'])} 
+                                                className="text-uninunez-teal font-black hover:underline text-[9px] uppercase tracking-widest"
+                                            >
+                                                Ver Proyecto
+                                            </button>
+                                            <button 
+                                                onClick={() => showRelatedInfo('teacher', row.id.split('_')[1], row['Nombre del Docente'])} 
+                                                className="text-uninunez-orange font-black hover:underline text-[9px] uppercase tracking-widest"
+                                            >
+                                                Ver Docente
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
