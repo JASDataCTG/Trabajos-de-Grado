@@ -694,7 +694,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                         const r = allRoles.find(role => role.id === rel.roleId);
                         return (
                             <div key={rel.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:border-uninunez-teal transition-all">
-                                <p className="text-sm font-bold text-uninunez-onix mb-1">{p?.title}</p>
+                                {p?.filesUrl && p.filesUrl !== 'Sin enlace' ? (
+                                    <a href={p.filesUrl} target="_blank" rel="noopener noreferrer" className="block text-sm font-bold text-uninunez-onix hover:text-uninunez-teal hover:underline mb-1">
+                                        {p?.title}
+                                    </a>
+                                ) : (
+                                    <p className="text-sm font-bold text-uninunez-onix mb-1">{p?.title}</p>
+                                )}
                                 <div className="flex justify-between items-center">
                                     <span className="text-[10px] font-black text-uninunez-orange uppercase">{r?.name}</span>
                                     <span className="text-[10px] font-black text-uninunez-teal uppercase">{allStatuses.find(s => s.id === p?.statusId)?.name}</span>
@@ -716,7 +722,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                         <div className="space-y-2">
                             {projectsInProgram.map(p => (
                                 <div key={p.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                                    <p className="text-xs font-bold text-uninunez-onix">{p.title}</p>
+                                    {p.filesUrl && p.filesUrl !== 'Sin enlace' ? (
+                                        <a href={p.filesUrl} target="_blank" rel="noopener noreferrer" className="block text-xs font-bold text-uninunez-onix hover:text-uninunez-teal hover:underline mb-1">
+                                            {p.title}
+                                        </a>
+                                    ) : (
+                                        <p className="text-xs font-bold text-uninunez-onix mb-1">{p.title}</p>
+                                    )}
                                     <p className="text-[9px] font-black text-uninunez-teal uppercase mt-1">{allStatuses.find(s => s.id === p.statusId)?.name}</p>
                                 </div>
                             ))}
@@ -749,7 +761,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                     {project ? (
                         <div className="bg-uninunez-teal/5 p-5 rounded-2xl border border-uninunez-teal/10">
                             <p className="text-[10px] font-black text-uninunez-teal uppercase mb-2">Proyecto Vinculado</p>
-                            <p className="text-sm font-bold text-uninunez-onix mb-2">{project.title}</p>
+                            {project.filesUrl && project.filesUrl !== 'Sin enlace' ? (
+                                <a href={project.filesUrl} target="_blank" rel="noopener noreferrer" className="block text-sm font-bold text-uninunez-onix hover:text-uninunez-teal hover:underline mb-2">
+                                    {project.title}
+                                </a>
+                            ) : (
+                                <p className="text-sm font-bold text-uninunez-onix mb-2">{project.title}</p>
+                            )}
                             <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-black text-uninunez-ash uppercase">Estado: {allStatuses.find(s => s.id === project.statusId)?.name}</span>
                                 <span className="text-[10px] font-black text-uninunez-orange uppercase">Nota: {project.finalGrade?.toFixed(2) || '0.00'}</span>
@@ -938,15 +956,26 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                             <tbody className="divide-y divide-gray-50">
                                 {projectStatus.map((row, index) => (
                                     <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
-                                        {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => (
-                                            <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
-                                                {key === 'Enlace a Archivos' && val !== 'Sin enlace' ? (
-                                                    <a href={String(val)} target="_blank" rel="noopener noreferrer" className="text-uninunez-teal font-black hover:underline">VER ARCHIVOS</a>
-                                                ) : (
-                                                    String(val)
-                                                )}
-                                            </td>
-                                        ))}
+                                        {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => {
+                                            if (key === 'Título del Proyecto' && row['Enlace a Archivos'] && row['Enlace a Archivos'] !== 'Sin enlace') {
+                                                return (
+                                                    <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                                        <a href={String(row['Enlace a Archivos'])} target="_blank" rel="noopener noreferrer" className="text-uninunez-teal font-bold hover:underline">
+                                                            {String(val)}
+                                                        </a>
+                                                    </td>
+                                                );
+                                            }
+                                            return (
+                                                <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                                    {key === 'Enlace a Archivos' && val !== 'Sin enlace' ? (
+                                                        <a href={String(val)} target="_blank" rel="noopener noreferrer" className="text-uninunez-teal font-black hover:underline">VER ARCHIVOS</a>
+                                                    ) : (
+                                                        String(val)
+                                                    )}
+                                                </td>
+                                            );
+                                        })}
                                         <td className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
                                             <button onClick={() => showRelatedInfo('project', row.id, row['Título del Proyecto'])} className="text-uninunez-teal font-black hover:underline text-[9px] uppercase tracking-widest">Ver Relacionados</button>
                                         </td>
@@ -980,11 +1009,26 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                             <tbody className="divide-y divide-gray-50">
                                 {teacherProjectsDetail.map((row, index) => (
                                     <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
-                                        {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => (
-                                            <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
-                                                {String(val)}
-                                            </td>
-                                        ))}
+                                        {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => {
+                                            if (key === 'Título del Proyecto') {
+                                                const projId = row.id.split('_')[0];
+                                                const project = allProjects.find(p => p.id === projId);
+                                                if (project && project.filesUrl && project.filesUrl !== 'Sin enlace') {
+                                                    return (
+                                                        <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                                            <a href={project.filesUrl} target="_blank" rel="noopener noreferrer" className="text-uninunez-teal font-bold hover:underline">
+                                                                {String(val)}
+                                                            </a>
+                                                        </td>
+                                                    );
+                                                }
+                                            }
+                                            return (
+                                                <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                                    {String(val)}
+                                                </td>
+                                            );
+                                        })}
                                         <td className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash whitespace-nowrap">
                                             <div className="flex gap-4">
                                                 <button 
