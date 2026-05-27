@@ -478,7 +478,12 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         setTeacherProjectsDetail(teacherProjectsDetailData);
 
         const gradedProjectsData: GradedProjectsReport[] = filteredProjects
-            .filter(p => p.finalGrade !== null && p.finalGrade !== undefined)
+            .filter(p => {
+                const formatName = formats.find(f => f.id === p.formatId)?.name || '';
+                const fUpper = formatName.toUpperCase();
+                const is115OrArticle = fUpper.includes('115') || fUpper.includes('ARTÍCULO') || fUpper.includes('ARTICULO');
+                return (p.finalGrade !== null && p.finalGrade !== undefined) && is115OrArticle;
+            })
             .map(p => {
                 const programName = programs.find(pr => pr.id === p.programId)?.name || 'N/A';
                 const formatName = formats.find(f => f.id === p.formatId)?.name || 'N/A';
@@ -1027,6 +1032,16 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             {/* TAB: PROYECTOS CALIFICADOS */}
             {activeTab === 'graded-projects' && (
                 <div className="space-y-6 animate-fadeIn">
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-5 text-xs font-bold leading-relaxed shadow-sm flex items-start gap-3">
+                        <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <div>
+                            <span className="font-extrabold text-uninunez-orange uppercase tracking-wide block mb-1">Nota Importante para Revisores / Evaluadores:</span>
+                            Los formatos <span className="underline decoration-amber-400">111 (Anteproyecto)</span> no se evalúan con notas cuantitativas ni reciben calificaciones. Únicamente son evaluados y calificados de manera definitiva aquellos proyectos que se encuentran bajo el <span className="underline decoration-amber-400">Formato 115 y Artículo Final</span>.
+                        </div>
+                    </div>
+
                     <ReportTableCard 
                         title="Proyectos Calificados" 
                         description="Trabajos de grado que ya cuentan con calificaciones registradas, incluyendo el desglose de evaluaciones por jurado y el promedio definitivo."
