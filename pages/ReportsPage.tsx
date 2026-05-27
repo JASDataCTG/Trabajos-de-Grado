@@ -68,6 +68,18 @@ interface TeacherProjectsDetailReport {
     'Fecha de Radicación': string;
 }
 
+interface GradedProjectsReport {
+    'id': string;
+    'Título del Proyecto': string;
+    'Formato del Proyecto': string;
+    'Programa Académico': string;
+    'Evaluador 1 - Escrito': string;
+    'Evaluador 1 - Sustentación': string;
+    'Evaluador 2 - Escrito': string;
+    'Evaluador 2 - Sustentación': string;
+    'Nota Final': string;
+}
+
 interface ReportsPageProps {
     isPublicView?: boolean;
 }
@@ -164,6 +176,7 @@ const KpiCard: React.FC<{ title: string; value: number | string; icon: React.Rea
 
 export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }) => {
     const [projectStatus, setProjectStatus] = useState<ProjectStatusReport[]>([]);
+    const [gradedProjects, setGradedProjects] = useState<GradedProjectsReport[]>([]);
     const [teacherWorkload, setTeacherWorkload] = useState<TeacherWorkloadReport[]>([]);
     const [teacherProgramWorkload, setTeacherProgramWorkload] = useState<TeacherProgramWorkloadReport[]>([]);
     const [teacherProjectsDetail, setTeacherProjectsDetail] = useState<TeacherProjectsDetailReport[]>([]);
@@ -203,7 +216,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
     } | null>(null);
 
     const [selectedProjectHistory, setSelectedProjectHistory] = useState<ProjectFormatHistory[]>([]);
-    const [activeTab, setActiveTab] = useState<'visual' | 'projects' | 'teachers-roles' | 'programs' | 'workload' | 'unassigned'>('visual');
+    const [activeTab, setActiveTab] = useState<'visual' | 'projects' | 'graded-projects' | 'teachers-roles' | 'programs' | 'workload' | 'unassigned'>('visual');
 
     useEffect(() => {
         if (detailModal && detailModal.type === 'project') {
@@ -463,6 +476,25 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         });
 
         setTeacherProjectsDetail(teacherProjectsDetailData);
+
+        const gradedProjectsData: GradedProjectsReport[] = filteredProjects
+            .filter(p => p.finalGrade !== null && p.finalGrade !== undefined)
+            .map(p => {
+                const programName = programs.find(pr => pr.id === p.programId)?.name || 'N/A';
+                const formatName = formats.find(f => f.id === p.formatId)?.name || 'N/A';
+                return {
+                    'id': p.id,
+                    'Título del Proyecto': p.title,
+                    'Formato del Proyecto': formatName,
+                    'Programa Académico': programName,
+                    'Evaluador 1 - Escrito': p.writtenGradeReviewer1 !== null ? p.writtenGradeReviewer1.toFixed(2) : '---',
+                    'Evaluador 1 - Sustentación': p.presentationGradeReviewer1 !== null ? p.presentationGradeReviewer1.toFixed(2) : '---',
+                    'Evaluador 2 - Escrito': p.writtenGradeReviewer2 !== null ? p.writtenGradeReviewer2.toFixed(2) : '---',
+                    'Evaluador 2 - Sustentación': p.presentationGradeReviewer2 !== null ? p.presentationGradeReviewer2.toFixed(2) : '---',
+                    'Nota Final': p.finalGrade !== null ? p.finalGrade.toFixed(2) : '---'
+                };
+            });
+        setGradedProjects(gradedProjectsData);
 
         setTeacherWorkloadChartData({
             labels: workloadData.slice(0, 10).map(w => w['Nombre del Docente']),
@@ -850,6 +882,11 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                         </svg>
                     )},
+                    { id: 'graded-projects', label: 'Proyectos Calificados', icon: (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    )},
                     { id: 'teachers-roles', label: 'Proyectos a Cargo', icon: (
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -981,6 +1018,76 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                         </td>
                                     </tr>
                                 ))}
+                            </tbody>
+                        </table>
+                    </ReportTableCard>
+                </div>
+            )}
+
+            {/* TAB: PROYECTOS CALIFICADOS */}
+            {activeTab === 'graded-projects' && (
+                <div className="space-y-6 animate-fadeIn">
+                    <ReportTableCard 
+                        title="Proyectos Calificados" 
+                        description="Trabajos de grado que ya cuentan con calificaciones registradas, incluyendo el desglose de evaluaciones por jurado y el promedio definitivo."
+                        onExport={() => handleExport(gradedProjects, 'proyectos_calificados')}
+                        hasData={gradedProjects.length > 0}
+                        showExport={!isPublicView}
+                    >
+                        <table className="w-full text-left">
+                            <thead className="bg-gray-50/80 border-b border-gray-100">
+                                <tr>
+                                    {gradedProjects.length > 0 && Object.keys(gradedProjects[0]).filter(k => k !== 'id').map(key => (
+                                        <th key={key} className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{key}</th>
+                                    ))}
+                                    <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {gradedProjects.map((row, index) => {
+                                    const originalProject = allProjects.find(p => p.id === row.id);
+                                    return (
+                                        <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
+                                            {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => {
+                                                if (key === 'Título del Proyecto' && originalProject?.filesUrl && originalProject.filesUrl !== 'Sin enlace') {
+                                                    return (
+                                                        <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                                            <a href={originalProject.filesUrl} target="_blank" rel="noopener noreferrer" className="text-uninunez-teal font-bold hover:underline">
+                                                                {String(val)}
+                                                            </a>
+                                                        </td>
+                                                    );
+                                                }
+                                                if (key === 'Nota Final') {
+                                                    const scoreNum = parseFloat(String(val));
+                                                    const isLow = isNaN(scoreNum) || scoreNum < 3.0;
+                                                    return (
+                                                        <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                                            <span className={`px-2.5 py-1 text-xs font-black rounded-lg ${isLow ? 'bg-red-50 text-red-600' : 'bg-jade/10 text-uninunez-jade'}`}>
+                                                                {String(val)}
+                                                            </span>
+                                                        </td>
+                                                    );
+                                                }
+                                                return (
+                                                    <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
+                                                        {String(val)}
+                                                    </td>
+                                                );
+                                            })}
+                                            <td className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash whitespace-nowrap">
+                                                <button onClick={() => showRelatedInfo('project', row.id, row['Título del Proyecto'])} className="text-uninunez-teal font-black hover:underline text-[9px] uppercase tracking-widest">Ver Relacionados</button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {gradedProjects.length === 0 && (
+                                    <tr>
+                                        <td colSpan={10} className="px-6 py-10 text-center text-sm font-medium text-uninunez-ash">
+                                            No se encontraron proyectos calificados con los filtros seleccionados.
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </ReportTableCard>
