@@ -854,12 +854,12 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             </div>
 
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 md:p-8">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     <div>
                         <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Título / Clave</label>
                         <input type="text" name="title" value={filters.title} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 focus:ring-uninunez-orange outline-none" />
                     </div>
-                     <div>
+                    <div>
                         <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Programa Académico</label>
                         <select name="programId" value={filters.programId} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 outline-none">
                             <option value="">TODOS LOS PROGRAMAS</option>
@@ -893,6 +893,14 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                             <option value="">TODOS LOS ROLES</option>
                             {allRoles.map(r => <option key={r.id} value={r.id}>{r.name.toUpperCase()}</option>)}
                         </select>
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Fecha Desde (Radicación)</label>
+                        <input type="date" name="startDate" value={filters.startDate || ''} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 focus:ring-uninunez-orange outline-none h-[46px]" />
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Fecha Hasta (Radicación)</label>
+                        <input type="date" name="endDate" value={filters.endDate || ''} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 focus:ring-uninunez-orange outline-none h-[46px]" />
                     </div>
                 </div>
                 <div className="flex justify-end items-center gap-4 mt-10 pt-6 border-t border-gray-100">
