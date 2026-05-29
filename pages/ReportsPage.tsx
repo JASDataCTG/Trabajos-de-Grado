@@ -321,7 +321,11 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         setProjectStatus(projectStatusData);
 
         const workloadData: TeacherWorkloadReport[] = teachers.filter(t => !currentFilters.teacherId || t.id === currentFilters.teacherId).map(teacher => {
-            const assignments = projectTeachers.filter(pt => pt.teacherId === teacher.id && filteredProjectIds.has(pt.projectId));
+            const assignments = projectTeachers.filter(pt => 
+                pt.teacherId === teacher.id && 
+                filteredProjectIds.has(pt.projectId) &&
+                (!currentFilters.roleId || pt.roleId === currentFilters.roleId)
+            );
             let directorCount = 0, coDirectorCount = 0, evaluatorCount = 0;
             assignments.forEach(assignment => {
                 const roleName = roles.find(r => r.id === assignment.roleId)?.name.toLowerCase() || '';
@@ -347,7 +351,11 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         // New Report: Projects per Teacher and Program
         const teacherProgramData: TeacherProgramWorkloadReport[] = [];
         teachers.filter(t => !currentFilters.teacherId || t.id === currentFilters.teacherId).forEach(teacher => {
-            const teacherAssignments = projectTeachers.filter(pt => pt.teacherId === teacher.id && filteredProjectIds.has(pt.projectId));
+            const teacherAssignments = projectTeachers.filter(pt => 
+                pt.teacherId === teacher.id && 
+                filteredProjectIds.has(pt.projectId) &&
+                (!currentFilters.roleId || pt.roleId === currentFilters.roleId)
+            );
             
             // Group assignments by program
             const programGroups: { [programId: string]: { director: number, coDirector: number, evaluator: number, total: number } } = {};
@@ -452,6 +460,9 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             
             // If teacherId filter is active, must match
             if (currentFilters.teacherId && ptEntry.teacherId !== currentFilters.teacherId) return;
+
+            // If roleId filter is active, must match
+            if (currentFilters.roleId && ptEntry.roleId !== currentFilters.roleId) return;
 
             const teacher = teachers.find(t => t.id === ptEntry.teacherId);
             const project = projects.find(p => p.id === ptEntry.projectId);
