@@ -196,6 +196,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         statusId: '',
         formatId: '',
         teacherId: '',
+        roleId: '',
         startDate: '',
         endDate: '',
     });
@@ -264,9 +265,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         if (currentFilters.endDate) {
             filteredProjects = filteredProjects.filter(p => new Date(p.presentationDate) <= new Date(currentFilters.endDate));
         }
-        if (currentFilters.teacherId) {
+        if (currentFilters.teacherId || currentFilters.roleId) {
             const projectIdsForTeacher = projectTeachers
-                .filter(pt => pt.teacherId === currentFilters.teacherId)
+                .filter(pt => {
+                    const matchTeacher = !currentFilters.teacherId || pt.teacherId === currentFilters.teacherId;
+                    const matchRole = !currentFilters.roleId || pt.roleId === currentFilters.roleId;
+                    return matchTeacher && matchRole;
+                })
                 .map(pt => pt.projectId);
             filteredProjects = filteredProjects.filter(p => projectIdsForTeacher.includes(p.id));
         }
@@ -548,6 +553,21 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         const newFilters = { ...filters, [name]: value };
         setFilters(newFilters);
         loadReportData(newFilters);
+    };
+
+    const handleClearFilters = () => {
+        const resetFilters = {
+            title: '',
+            programId: '',
+            statusId: '',
+            formatId: '',
+            teacherId: '',
+            roleId: '',
+            startDate: '',
+            endDate: '',
+        };
+        setFilters(resetFilters);
+        loadReportData(resetFilters);
     };
 
     const showRelatedInfo = (type: 'project' | 'teacher' | 'program' | 'student', id: string, title: string) => {
@@ -834,7 +854,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             </div>
 
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 md:p-8">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
                     <div>
                         <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Título / Clave</label>
                         <input type="text" name="title" value={filters.title} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 focus:ring-uninunez-orange outline-none" />
@@ -867,8 +887,16 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                             {allTeachers.map(t => <option key={t.id} value={t.id}>{t.name.toUpperCase()}</option>)}
                         </select>
                     </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Rol del Docente</label>
+                        <select name="roleId" value={filters.roleId} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 outline-none">
+                            <option value="">TODOS LOS ROLES</option>
+                            {allRoles.map(r => <option key={r.id} value={r.id}>{r.name.toUpperCase()}</option>)}
+                        </select>
+                    </div>
                 </div>
                 <div className="flex justify-end items-center gap-4 mt-10 pt-6 border-t border-gray-100">
+                    <button onClick={handleClearFilters} className="text-[10px] font-black text-gray-400 hover:text-uninunez-onix px-4 uppercase tracking-[0.2em] transition-colors">Limpiar Filtros</button>
                     <button onClick={() => loadReportData(filters)} className="bg-uninunez-onix text-white px-10 py-3 rounded-xl text-[10px] font-black shadow-xl hover:bg-black transition-all uppercase tracking-[0.2em]">Ejecutar Análisis</button>
                 </div>
             </div>
