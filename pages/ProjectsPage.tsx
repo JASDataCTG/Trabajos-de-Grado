@@ -34,6 +34,8 @@ const ProjectForm: React.FC<{
 
     const [historyEntries, setHistoryEntries] = useState<ProjectFormatHistory[]>([]);
     const [showAddHistory, setShowAddHistory] = useState(false);
+    const [editingHistoryEntry, setEditingHistoryEntry] = useState<ProjectFormatHistory | null>(null);
+    const [syncProjectStatus, setSyncProjectStatus] = useState(true);
     const [historyForm, setHistoryForm] = useState({
         formatId: formats[0]?.id || '',
         statusId: statuses[0]?.id || '',
@@ -84,7 +86,7 @@ const ProjectForm: React.FC<{
         }
     }, [formats, statuses]);
 
-    const handleAddHistoryEntry = async () => {
+    const handleSaveHistoryEntry = async () => {
         if (!historyForm.presentationDate) {
             alert("La fecha de radicación es obligatoria para el historial.");
             return;
@@ -93,24 +95,40 @@ const ProjectForm: React.FC<{
             alert("Guarde primero el proyecto principal para asociar el historial.");
             return;
         }
-        const newEntry: ProjectFormatHistory = {
-            id: Date.now().toString(36) + Math.random().toString(36).substring(2),
+
+        const targetId = editingHistoryEntry ? editingHistoryEntry.id : (Date.now().toString(36) + Math.random().toString(36).substring(2));
+
+        const entryToSave: ProjectFormatHistory = {
+            id: targetId,
             projectId: project.id,
             formatId: historyForm.formatId,
             statusId: historyForm.statusId,
             presentationDate: historyForm.presentationDate,
             filesUrl: historyForm.filesUrl,
-            writtenGradeReviewer1: null,
-            presentationGradeReviewer1: null,
-            writtenGradeReviewer2: null,
-            presentationGradeReviewer2: null,
-            finalGrade: null,
-            createdAt: new Date().toISOString()
+            writtenGradeReviewer1: editingHistoryEntry ? editingHistoryEntry.writtenGradeReviewer1 : null,
+            presentationGradeReviewer1: editingHistoryEntry ? editingHistoryEntry.presentationGradeReviewer1 : null,
+            writtenGradeReviewer2: editingHistoryEntry ? editingHistoryEntry.writtenGradeReviewer2 : null,
+            presentationGradeReviewer2: editingHistoryEntry ? editingHistoryEntry.presentationGradeReviewer2 : null,
+            finalGrade: editingHistoryEntry ? editingHistoryEntry.finalGrade : null,
+            createdAt: editingHistoryEntry?.createdAt || new Date().toISOString()
         };
-        await db.saveProjectFormatHistoryEntry(newEntry);
+
+        await db.saveProjectFormatHistoryEntry(entryToSave);
+
+        if (syncProjectStatus) {
+            setFormData(prev => ({
+                ...prev,
+                statusId: historyForm.statusId,
+                formatId: historyForm.formatId,
+                presentationDate: historyForm.presentationDate,
+                filesUrl: historyForm.filesUrl || prev.filesUrl
+            }));
+        }
+
         const updated = await db.getProjectFormatHistory(project.id);
         setHistoryEntries(updated);
         setShowAddHistory(false);
+        setEditingHistoryEntry(null);
         setHistoryForm({
             formatId: formats[0]?.id || '',
             statusId: statuses[0]?.id || '',
@@ -459,7 +477,27 @@ const ProjectForm: React.FC<{
                         {canEditDetails && (
                             <button
                                 type="button"
-                                onClick={() => setShowAddHistory(!showAddHistory)}
+                                onClick={() => {
+                                    if (showAddHistory) {
+                                        setShowAddHistory(false);
+                                        setEditingHistoryEntry(null);
+                                        setHistoryForm({
+                                            formatId: formats[0]?.id || '',
+                                            statusId: statuses[0]?.id || '',
+                                            presentationDate: '',
+                                            filesUrl: ''
+                                        });
+                                    } else {
+                                        setShowAddHistory(true);
+                                        setEditingHistoryEntry(null);
+                                        setHistoryForm({
+                                            formatId: formats[0]?.id || '',
+                                            statusId: statuses[0]?.id || '',
+                                            presentationDate: '',
+                                            filesUrl: ''
+                                        });
+                                    }
+                                }}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-uninunez-teal/10 hover:bg-uninunez-teal/20 text-uninunez-teal text-[10px] font-black uppercase tracking-wider transition-all"
                             >
                                 <PlusIcon className="w-3.5 h-3.5" />
@@ -470,7 +508,9 @@ const ProjectForm: React.FC<{
 
                     {showAddHistory && (
                         <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3 animate-fadeIn">
-                            <p className="text-[9px] font-black text-uninunez-teal uppercase tracking-widest">Registrar Avance Histórico</p>
+                            <p className="text-[9px] font-black text-uninunez-teal uppercase tracking-widest">
+                                {editingHistoryEntry ? 'Editar Avance Histórico' : 'Registrar Avance Histórico'}
+                            </p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-[8px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Formato</label>
@@ -512,14 +552,46 @@ const ProjectForm: React.FC<{
                                     />
                                 </div>
                             </div>
-                            <div className="flex justify-end">
-                                <button
-                                    type="button"
-                                    onClick={handleAddHistoryEntry}
-                                    className="px-4 py-2 bg-uninunez-teal text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-md hover:bg-uninunez-tealLight transition-all"
-                                >
-                                    Guardar en Historial
-                                </button>
+                            
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+                                <label className="flex items-center gap-2 select-none cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={syncProjectStatus}
+                                        onChange={(e) => setSyncProjectStatus(e.target.checked)}
+                                        className="rounded text-uninunez-teal focus:ring-uninunez-teal h-4 w-4"
+                                    />
+                                    <span className="text-[9px] font-black text-uninunez-onix uppercase tracking-wide">
+                                        Sincronizar y actualizar también el estado actual del proyecto
+                                    </span>
+                                </label>
+                                <div className="flex justify-end gap-2">
+                                    {editingHistoryEntry && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowAddHistory(false);
+                                                setEditingHistoryEntry(null);
+                                                setHistoryForm({
+                                                    formatId: formats[0]?.id || '',
+                                                    statusId: statuses[0]?.id || '',
+                                                    presentationDate: '',
+                                                    filesUrl: ''
+                                                });
+                                            }}
+                                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-gray-300 transition-all"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveHistoryEntry}
+                                        className="px-4 py-2 bg-uninunez-teal text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-md hover:bg-uninunez-tealLight transition-all"
+                                    >
+                                        {editingHistoryEntry ? 'Guardar Cambios' : 'Guardar en Historial'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -562,13 +634,33 @@ const ProjectForm: React.FC<{
                                             {canEditDetails && (
                                                 <td className="px-4 py-2.5 text-center">
                                                     {entry.id !== 'current_active_temp' ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDeleteHistoryEntry(entry.id)}
-                                                            className="text-red-400 hover:text-red-600 p-1"
-                                                        >
-                                                            <TrashIcon className="w-3.5 h-3.5" />
-                                                        </button>
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setEditingHistoryEntry(entry);
+                                                                    setShowAddHistory(true);
+                                                                    setHistoryForm({
+                                                                        formatId: entry.formatId,
+                                                                        statusId: entry.statusId,
+                                                                        presentationDate: entry.presentationDate,
+                                                                        filesUrl: entry.filesUrl || ''
+                                                                    });
+                                                                }}
+                                                                className="text-uninunez-teal hover:text-uninunez-tealLight p-1 rounded hover:bg-uninunez-teal/5 transition-colors"
+                                                                title="Editar registro"
+                                                            >
+                                                                <EditIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteHistoryEntry(entry.id)}
+                                                                className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+                                                                title="Eliminar registro"
+                                                            >
+                                                                <TrashIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
                                                     ) : (
                                                         <span className="text-[8px] font-black text-uninunez-orange uppercase tracking-wider bg-uninunez-orange/10 px-1.5 py-0.5 rounded">Activo</span>
                                                     )}
