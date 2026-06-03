@@ -147,7 +147,13 @@ const ProjectForm: React.FC<{
         }
     };
 
-    const isEvaluationEnabled = true;
+    const isEvaluationEnabled = useMemo(() => {
+        if (!formData.formatId) return true;
+        const currentFormat = formats.find(f => f.id === formData.formatId);
+        if (!currentFormat) return true;
+        const fn = currentFormat.name.toUpperCase();
+        return fn.includes('111') || fn.includes('115') || fn.includes('ARTÍCULO') || fn.includes('ARTICULO') || fn.includes('ANTEPROYECTO');
+    }, [formData.formatId, formats]);
 
     const [studentSearch, setStudentSearch] = useState('');
     const [teacherSearch, setTeacherSearch] = useState('');
@@ -678,7 +684,7 @@ const ProjectForm: React.FC<{
             <div className="bg-uninunez-onix/5 p-5 rounded-2xl border border-uninunez-onix/10 space-y-4">
                 {!isEvaluationEnabled && (
                     <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3.5 text-xs font-bold leading-relaxed shadow-sm">
-                        ⚠️ La evaluación y asignación de calificaciones están bloqueadas. Solo se activan cuando el proyecto o su historial reflejan el <span className="font-extrabold text-uninunez-orange">Formato 115 (Artículo Final)</span>.
+                        ⚠️ La evaluación y asignación de calificaciones están bloqueadas. Solo se activan cuando el formato del proyecto pertenece al <span className="font-extrabold text-uninunez-orange">Formato 111 (Anteproyecto)</span> o <span className="font-extrabold text-uninunez-orange">Formato 115 (Artículo Final)</span>.
                     </div>
                 )}
                 <div className="flex justify-between items-center border-b border-uninunez-onix/10 pb-3">
@@ -689,18 +695,18 @@ const ProjectForm: React.FC<{
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className={`p-4 rounded-xl border-2 transition-all ${canGradeReviewer1 ? 'bg-white border-uninunez-teal/30 shadow-sm' : 'bg-gray-100 border-transparent opacity-60'}`}>
+                    <div className={`p-4 rounded-xl border-2 transition-all ${isEvaluationEnabled && canGradeReviewer1 ? 'bg-white border-uninunez-teal/30 shadow-sm' : 'bg-gray-100 border-transparent opacity-60'}`}>
                         <p className="text-[10px] font-black text-uninunez-teal uppercase mb-3 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-uninunez-teal"></span> Evaluador 1</p>
                         <div className="grid grid-cols-2 gap-3">
-                            <input type="number" step="0.1" name="writtenGradeReviewer1" placeholder="Escrito" value={formData.writtenGradeReviewer1 ?? ''} onChange={handleChange} disabled={!canGradeReviewer1} className="w-full text-xs border rounded-lg p-2 font-bold" />
-                            <input type="number" step="0.1" name="presentationGradeReviewer1" placeholder="Sust." value={formData.presentationGradeReviewer1 ?? ''} onChange={handleChange} disabled={!canGradeReviewer1} className="w-full text-xs border rounded-lg p-2 font-bold" />
+                            <input type="number" step="0.1" name="writtenGradeReviewer1" placeholder="Escrito" value={formData.writtenGradeReviewer1 ?? ''} onChange={handleChange} disabled={!isEvaluationEnabled || !canGradeReviewer1} className="w-full text-xs border rounded-lg p-2 font-bold" />
+                            <input type="number" step="0.1" name="presentationGradeReviewer1" placeholder="Sust." value={formData.presentationGradeReviewer1 ?? ''} onChange={handleChange} disabled={!isEvaluationEnabled || !canGradeReviewer1} className="w-full text-xs border rounded-lg p-2 font-bold" />
                         </div>
                     </div>
-                    <div className={`p-4 rounded-xl border-2 transition-all ${canGradeReviewer2 ? 'bg-white border-uninunez-teal/30 shadow-sm' : 'bg-gray-100 border-transparent opacity-60'}`}>
+                    <div className={`p-4 rounded-xl border-2 transition-all ${isEvaluationEnabled && canGradeReviewer2 ? 'bg-white border-uninunez-teal/30 shadow-sm' : 'bg-gray-100 border-transparent opacity-60'}`}>
                         <p className="text-[10px] font-black text-uninunez-teal uppercase mb-3 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-uninunez-teal"></span> Evaluador 2</p>
                         <div className="grid grid-cols-2 gap-3">
-                            <input type="number" step="0.1" name="writtenGradeReviewer2" placeholder="Escrito" value={formData.writtenGradeReviewer2 ?? ''} onChange={handleChange} disabled={!canGradeReviewer2} className="w-full text-xs border rounded-lg p-2 font-bold" />
-                            <input type="number" step="0.1" name="presentationGradeReviewer2" placeholder="Sust." value={formData.presentationGradeReviewer2 ?? ''} onChange={handleChange} disabled={!canGradeReviewer2} className="w-full text-xs border rounded-lg p-2 font-bold" />
+                            <input type="number" step="0.1" name="writtenGradeReviewer2" placeholder="Escrito" value={formData.writtenGradeReviewer2 ?? ''} onChange={handleChange} disabled={!isEvaluationEnabled || !canGradeReviewer2} className="w-full text-xs border rounded-lg p-2 font-bold" />
+                            <input type="number" step="0.1" name="presentationGradeReviewer2" placeholder="Sust." value={formData.presentationGradeReviewer2 ?? ''} onChange={handleChange} disabled={!isEvaluationEnabled || !canGradeReviewer2} className="w-full text-xs border rounded-lg p-2 font-bold" />
                         </div>
                     </div>
                 </div>

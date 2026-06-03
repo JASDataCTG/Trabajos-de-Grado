@@ -497,8 +497,8 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             .filter(p => {
                 const formatName = formats.find(f => f.id === p.formatId)?.name || '';
                 const fUpper = formatName.toUpperCase();
-                const is115OrArticle = fUpper.includes('115') || fUpper.includes('ARTÍCULO') || fUpper.includes('ARTICULO');
-                return (p.finalGrade !== null && p.finalGrade !== undefined) && is115OrArticle;
+                const isEvaluable = fUpper.includes('111') || fUpper.includes('ANTEPROYECTO') || fUpper.includes('115') || fUpper.includes('ARTÍCULO') || fUpper.includes('ARTICULO');
+                return (p.finalGrade !== null && p.finalGrade !== undefined) && isEvaluable;
             })
             .map(p => {
                 const programName = programs.find(pr => pr.id === p.programId)?.name || 'N/A';
@@ -1085,7 +1085,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                         </svg>
                         <div>
                             <span className="font-extrabold text-uninunez-orange uppercase tracking-wide block mb-1">Nota Importante para Revisores / Evaluadores:</span>
-                            Los formatos <span className="underline decoration-amber-400">111 (Anteproyecto)</span> no se evalúan con notas cuantitativas ni reciben calificaciones. Únicamente son evaluados y calificados de manera definitiva aquellos proyectos que se encuentran bajo el <span className="underline decoration-amber-400">Formato 115 y Artículo Final</span>.
+                            Tanto los formatos <span className="underline decoration-amber-400">111 (Anteproyecto)</span> como <span className="underline decoration-amber-400">115 y Artículo Final</span> son completamente evaluados mediante calificación cuantitativa. Aquí podrá visualizar el consolidado definitivo para ambos tipos de trabajo.
                         </div>
                     </div>
 

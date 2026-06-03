@@ -140,12 +140,12 @@ export const DashboardPage: React.FC = () => {
                 .slice(0, 5)
         );
 
-        // Filter Formato 115 projects assigned to teacher
-        const isFormat115 = (formatId: string) => {
+        // Filter Formato 111 (Anteproyecto) and Formato 115 (Artículo Final) projects assigned to teacher
+        const isEvaluableFormat = (formatId: string) => {
             const f = allFormats.find(fmt => fmt.id === formatId);
             if (!f) return false;
             const fn = f.name.toUpperCase();
-            return fn.includes('115') || fn.includes('ARTÍCULO') || fn.includes('ARTICULO');
+            return fn.includes('111') || fn.includes('115') || fn.includes('ARTÍCULO') || fn.includes('ARTICULO') || fn.includes('ANTEPROYECTO');
         };
 
         if (isTeacher && user?.teacherId) {
@@ -153,7 +153,7 @@ export const DashboardPage: React.FC = () => {
             const assignedProjectIds = new Set(
                 projectTeachers.filter(pt => pt.teacherId === tutorId).map(pt => pt.projectId)
             );
-            const projects115ForTutor = projects.filter(p => assignedProjectIds.has(p.id) && isFormat115(p.formatId));
+            const projects115ForTutor = projects.filter(p => assignedProjectIds.has(p.id) && isEvaluableFormat(p.formatId));
             setEvaluations(projects115ForTutor);
 
             // Pre-populate forms
@@ -334,7 +334,7 @@ export const DashboardPage: React.FC = () => {
                 />
             </div>
 
-            {/* TARGET SECTOR: Formato 115 Pending Evaluation widget for Teachers */}
+            {/* TARGET SECTOR: Formato 111 / 115 Pending Evaluation widget for Teachers */}
             {isTeacher && evaluations.length > 0 && (
                 <div className="bg-gradient-to-br from-uninunez-teal/5 to-white rounded-3xl shadow-sm border border-uninunez-teal/20 overflow-hidden animate-fadeIn">
                     <div className="p-5 md:p-6 border-b border-uninunez-teal/10 flex justify-between items-center bg-white/60">
@@ -345,9 +345,9 @@ export const DashboardPage: React.FC = () => {
                             </span>
                             <div>
                                 <h2 className="text-sm font-black text-uninunez-onix uppercase tracking-wider font-display">
-                                    Proyectos Pendientes de Evaluación (Formato 115)
+                                    Proyectos Pendientes de Evaluación (Formatos 111 y 115)
                                 </h2>
-                                <p className="text-[10px] text-uninunez-ash font-medium mt-0.5">Usted ha sido asignado en estos proyectos que se encuentran en etapa de Artículo Final.</p>
+                                <p className="text-[10px] text-uninunez-ash font-medium mt-0.5">Usted ha sido asignado en estos proyectos que se encuentran en etapa de Anteproyecto o Artículo Final.</p>
                             </div>
                         </div>
                         <span className="bg-uninunez-orange/10 text-uninunez-orange text-[9px] font-black px-3 py-1 rounded-full uppercase">
