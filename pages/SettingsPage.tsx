@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { db } from '../services/database';
 import { Status, Format, TeacherRole, Program, Faculty } from '../types';
 import { EditIcon, TrashIcon, PlusIcon } from '../components/Icons';
@@ -14,7 +14,7 @@ interface SettingsListProps<T extends Entity> {
     items: T[];
     placeholder: string;
     faculties?: Faculty[];
-    onAdd: (name: string, extraId?: string) => void;
+    onAdd: (name: string, extraId?: string) => Promise<void> | void;
     onUpdate: (item: T) => void;
     onDelete: (item: T) => void;
     isLoading?: boolean;
@@ -24,25 +24,53 @@ interface SettingsListProps<T extends Entity> {
 const SettingsList = <T extends {id: string; name: string, facultyId?: string}>({ 
     title, items, placeholder, faculties, onAdd, onUpdate, onDelete, isLoading, type 
 }: SettingsListProps<T>) => {
-    const { isAdmin } = useAuth();
+    const { isAdmin, isTeacher } = useAuth();
+    const canManage = isAdmin || isTeacher;
+
     const [newItemName, setNewItemName] = useState('');
     const [selectedFacultyId, setSelectedFacultyId] = useState('');
     const [editingItem, setEditingItem] = useState<T | null>(null);
+    const [inputError, setInputError] = useState<string | null>(null);
+    const [successFeedback, setSuccessFeedback] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const inputRef = useRef<HTMLInputElement>(null);
+    const selectRef = useRef<HTMLSelectElement>(null);
 
     // Lógica de ordenación alfabética
     const sortedItems = useMemo(() => {
         return [...items].sort((a, b) => a.name.localeCompare(b.name));
     }, [items]);
 
-    const handleAdd = () => {
-        if (newItemName.trim()) {
-            if (type === 'program' && !selectedFacultyId) {
-                alert("Debes seleccionar una facultad para el programa.");
-                return;
-            }
-            onAdd(newItemName.trim(), selectedFacultyId);
+    const handleAdd = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+
+        const trimmed = newItemName.trim();
+        if (!trimmed) {
+            setInputError('Por favor escribe el nombre antes de agregar.');
+            inputRef.current?.focus();
+            return;
+        }
+
+        if (type === 'program' && !selectedFacultyId) {
+            setInputError('Debes seleccionar una facultad para el programa académico.');
+            selectRef.current?.focus();
+            return;
+        }
+
+        setInputError(null);
+        setIsSubmitting(true);
+
+        try {
+            await onAdd(trimmed, selectedFacultyId);
             setNewItemName('');
             setSelectedFacultyId('');
+            setSuccessFeedback('¡Registro agregado con éxito a la base de datos!');
+            setTimeout(() => setSuccessFeedback(null), 3000);
+        } catch (error: any) {
+            setInputError(error?.message || 'Error al guardar en la base de datos.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
     
@@ -51,7 +79,7 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string}>(
             onUpdate(editingItem);
             setEditingItem(null);
         }
-    }
+    };
 
     return (
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full overflow-hidden transition-all hover:shadow-md min-h-[400px]">
@@ -67,33 +95,90 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string}>(
             </div>
             
             <div className="p-5 flex-grow">
-                {isAdmin && (
-                    <div className="space-y-2 mb-6">
-                        <input
-                            type="text"
-                            value={newItemName}
-                            onChange={(e) => setNewItemName(e.target.value)}
-                            placeholder={placeholder}
-                            className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-4 text-xs font-bold focus:ring-1 focus:ring-uninunez-orange outline-none transition-all"
-                        />
-                        {type === 'program' && faculties && (
-                            <select 
-                                value={selectedFacultyId}
-                                onChange={(e) => setSelectedFacultyId(e.target.value)}
-                                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-4 text-xs font-bold focus:ring-1 focus:ring-uninunez-teal outline-none"
-                            >
-                                <option value="">Seleccionar Facultad...</option>
-                                {faculties.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                            </select>
-                        )}
+                {canManage && (
+                    <form onSubmit={handleAdd} className="space-y-2.5 mb-6">
+                        <div className="space-y-2">
+                            <input
+                                ref={inputRef}
+                                id={`input-name-${type}`}
+                                type="text"
+                                value={newItemName}
+                                onChange={(e) => {
+                                    setNewItemName(e.target.value);
+                                    if (inputError) setInputError(null);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleAdd();
+                                    }
+                                }}
+                                placeholder={placeholder}
+                                className={`w-full bg-gray-50/90 border ${
+                                    inputError ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200 focus:border-uninunez-orange focus:ring-2 focus:ring-uninunez-orange/20'
+                                } rounded-xl py-2.5 px-4 text-xs font-bold text-uninunez-onix outline-none transition-all placeholder:text-gray-400 placeholder:font-normal`}
+                            />
+                            {type === 'program' && faculties && (
+                                <select 
+                                    ref={selectRef}
+                                    id={`select-faculty-${type}`}
+                                    value={selectedFacultyId}
+                                    onChange={(e) => {
+                                        setSelectedFacultyId(e.target.value);
+                                        if (inputError) setInputError(null);
+                                    }}
+                                    className={`w-full bg-gray-50/90 border ${
+                                        inputError && !selectedFacultyId ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200 focus:border-uninunez-teal focus:ring-2 focus:ring-uninunez-teal/20'
+                                    } rounded-xl py-2.5 px-4 text-xs font-bold text-uninunez-onix outline-none transition-all`}
+                                >
+                                    <option value="">Seleccionar Facultad...</option>
+                                    {faculties.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                </select>
+                            )}
+                        </div>
+
+                        {/* Botón activo para agregar */}
                         <button 
-                            onClick={handleAdd} 
-                            disabled={!newItemName.trim()}
-                            className="w-full bg-uninunez-orange text-white py-2.5 rounded-xl shadow-lg hover:bg-uninunez-orangeLight disabled:bg-gray-200 disabled:shadow-none transition-all flex justify-center items-center font-black text-[10px] uppercase tracking-widest"
+                            type="submit"
+                            id={`btn-add-${type}`}
+                            disabled={isSubmitting}
+                            className="w-full bg-uninunez-orange text-white py-2.5 px-4 rounded-xl shadow-md hover:bg-uninunez-orangeLight hover:shadow-lg active:scale-[0.98] transition-all flex justify-center items-center font-black text-xs uppercase tracking-wider cursor-pointer disabled:opacity-75 disabled:cursor-wait"
                         >
-                            <PlusIcon className="h-4 w-4 mr-2"/> AGREGAR
+                            {isSubmitting ? (
+                                <>
+                                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    GUARDANDO...
+                                </>
+                            ) : (
+                                <>
+                                    <PlusIcon className="h-4 w-4 mr-2 stroke-[3]"/> AGREGAR
+                                </>
+                            )}
                         </button>
-                    </div>
+
+                        {/* Mensaje de validación o error */}
+                        {inputError && (
+                            <div className="text-[11px] font-bold text-red-600 flex items-center gap-1.5 bg-red-50 p-2.5 rounded-xl border border-red-200 animate-fadeIn">
+                                <svg className="w-4 h-4 flex-shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                </svg>
+                                <span>{inputError}</span>
+                            </div>
+                        )}
+
+                        {/* Feedback de éxito */}
+                        {successFeedback && (
+                            <div className="text-[11px] font-bold text-emerald-700 flex items-center gap-1.5 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 animate-fadeIn">
+                                <svg className="w-4 h-4 flex-shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                                <span>{successFeedback}</span>
+                            </div>
+                        )}
+                    </form>
                 )}
 
                 {isLoading ? (
@@ -113,7 +198,7 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string}>(
                                 <li key={item.id} className="group flex justify-between items-center bg-gray-50/40 hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 p-3 rounded-xl transition-all">
                                     <div className="flex items-center gap-3">
                                         <div className="flex flex-col">
-                                            {editingItem?.id === item.id && isAdmin ? (
+                                            {editingItem?.id === item.id && canManage ? (
                                                 <input 
                                                     type="text"
                                                     value={editingItem.name}
@@ -136,7 +221,7 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string}>(
                                         </div>
                                     </div>
                                     
-                                    {isAdmin && (
+                                    {canManage && (
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                                             <button onClick={() => setEditingItem(item)} className="p-1.5 text-uninunez-teal hover:bg-uninunez-teal/10 rounded-lg"><EditIcon className="h-3.5 w-3.5" /></button>
                                             <button onClick={() => onDelete(item)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><TrashIcon className="h-3.5 w-3.5" /></button>
@@ -153,7 +238,9 @@ const SettingsList = <T extends {id: string; name: string, facultyId?: string}>(
 };
 
 export const SettingsPage: React.FC = () => {
-    const { isAdmin } = useAuth();
+    const { isAdmin, isTeacher } = useAuth();
+    const canManage = isAdmin || isTeacher;
+
     const [faculties, setFaculties] = useState<Faculty[]>([]);
     const [statuses, setStatuses] = useState<Status[]>([]);
     const [formats, setFormats] = useState<Format[]>([]);
@@ -188,7 +275,7 @@ export const SettingsPage: React.FC = () => {
     useEffect(() => { loadData(); }, [loadData]);
     
     const handleAdd = async (type: EntityType, name: string, facultyId?: string) => {
-        if (!isAdmin) return;
+        if (!canManage) return;
         try {
             if(type === 'faculty') await db.addFaculty({ name });
             else if(type === 'status') await db.addStatus({ name });
@@ -198,12 +285,12 @@ export const SettingsPage: React.FC = () => {
             await loadData();
         } catch (error: any) {
             console.error("Error al crear registro:", error);
-            alert("Error al crear el registro: " + (error.message || "Error desconocido"));
+            throw new Error(error.message || "Error desconocido al crear registro");
         }
     };
     
     const handleUpdate = async (type: EntityType, item: Entity) => {
-        if (!isAdmin) return;
+        if (!canManage) return;
         try {
             if(type === 'faculty') await db.updateFaculty(item as Faculty);
             else if(type === 'status') await db.updateStatus(item as Status);
@@ -222,7 +309,7 @@ export const SettingsPage: React.FC = () => {
     };
 
     const handleDelete = async () => {
-        if (!deletingItem || !isAdmin) return;
+        if (!deletingItem || !canManage) return;
         const { item, type } = deletingItem;
         try {
             if(type === 'faculty') await db.deleteFaculty(item.id);
@@ -234,7 +321,7 @@ export const SettingsPage: React.FC = () => {
         } finally {
             setDeletingItem(null);
         }
-    }
+    };
 
     return (
         <div className="space-y-8 animate-fadeIn max-w-7xl mx-auto px-2 md:px-0">
