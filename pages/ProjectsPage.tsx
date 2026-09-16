@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const ProjectForm: React.FC<{
     project: Partial<Project> | null;
-    onSave: (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>, studentIds: string[]) => Promise<void>;
+    onSave: (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>, studentIds: string[], studentProgramsMap?: Record<string, string>) => Promise<void>;
     onClose: () => void;
     statuses: Status[];
     formats: Format[];
@@ -28,8 +28,10 @@ const ProjectForm: React.FC<{
     const [formData, setFormData] = useState<Partial<Project>>({});
     const [assignments, setAssignments] = useState<Array<{teacherId: string, roleId: string, tempId: number}>>([]);
     const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>([]);
+    const [studentPrograms, setStudentPrograms] = useState<Record<string, string>>({});
     const [newAssignment, setNewAssignment] = useState({ teacherId: '', roleId: '' });
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+    const [selectedStudentProgramId, setSelectedStudentProgramId] = useState<string>('');
     const [isSaving, setIsSaving] = useState(false);
 
     const [historyEntries, setHistoryEntries] = useState<ProjectFormatHistory[]>([]);
@@ -207,8 +209,17 @@ const ProjectForm: React.FC<{
         setFormData(initialData);
         setAssignments(initialAssignments.map(a => ({ teacherId: a.teacherId, roleId: a.roleId, tempId: Math.random() })));
         setAssignedStudentIds(initialStudentIds);
+        const initProgMap: Record<string, string> = {};
+        initialStudentIds.forEach(sid => {
+            const st = allStudents.find(s => s.id === sid);
+            if (st?.programId) {
+                initProgMap[sid] = st.programId;
+            }
+        });
+        setStudentPrograms(initProgMap);
         setNewAssignment({ teacherId: '', roleId: '' });
         setSelectedStudent(null);
+        setSelectedStudentProgramId('');
     }, [project, initialAssignments, initialStudentIds, statuses, formats, programs, allStudents]);
 
     const calculateFinalAverage = (data: Partial<Project>) => {
@@ -268,16 +279,53 @@ const ProjectForm: React.FC<{
         }
     };
 
-    const handleAddStudent = () => {
+    const handleAddStudent = async () => {
         if (selectedStudent && !assignedStudentIds.includes(selectedStudent.id)) {
+            const finalProgId = selectedStudentProgramId || selectedStudent.programId || formData.programId || '';
+            setStudentPrograms(prev => ({ ...prev, [selectedStudent.id]: finalProgId }));
             setAssignedStudentIds(prev => [...prev, selectedStudent.id]);
+
+            // Si el proyecto aún no tiene un programa asignado, asignarle el programa del estudiante
+            if (!formData.programId && finalProgId) {
+                setFormData(prev => ({ ...prev, programId: finalProgId }));
+            }
+
+            // Actualizar inmediatamente en base de datos si se seleccionó o cambió
+            if (finalProgId && finalProgId !== selectedStudent.programId) {
+                try {
+                    await db.updateStudent({ ...selectedStudent, programId: finalProgId });
+                } catch (e) {
+                    console.warn("No se pudo pre-actualizar el programa del estudiante:", e);
+                }
+            }
+
             setSelectedStudent(null);
+            setSelectedStudentProgramId('');
             setStudentSearch('');
             setShowStudentResults(false);
         }
     };
 
-    const removeStudent = (id: string) => setAssignedStudentIds(prev => prev.filter(sid => sid !== id));
+    const handleUpdateStudentProgram = async (studentId: string, newProgramId: string) => {
+        setStudentPrograms(prev => ({ ...prev, [studentId]: newProgramId }));
+        const student = allStudents.find(s => s.id === studentId);
+        if (student) {
+            try {
+                await db.updateStudent({ ...student, programId: newProgramId });
+            } catch (e) {
+                console.warn("No se pudo actualizar el programa del estudiante:", e);
+            }
+        }
+    };
+
+    const removeStudent = (id: string) => {
+        setAssignedStudentIds(prev => prev.filter(sid => sid !== id));
+        setStudentPrograms(prev => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+        });
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -286,7 +334,7 @@ const ProjectForm: React.FC<{
         const dataToSave = { ...formData, finalGrade: calculateFinalAverage(formData) };
         setIsSaving(true);
         try { 
-            await onSave(dataToSave, assignments, assignedStudentIds); 
+            await onSave(dataToSave, assignments, assignedStudentIds, studentPrograms); 
             onClose(); 
         }
         catch (error: any) { console.error(error); alert("Fallo al guardar: " + error.message); }
@@ -408,6 +456,12 @@ const ProjectForm: React.FC<{
                                                     .map(s => s.id);
                                                 if (relatedStudentIds.length > 0) {
                                                     setAssignedStudentIds(relatedStudentIds);
+                                                    const relatedProgs: Record<string, string> = {};
+                                                    relatedStudentIds.forEach(sid => {
+                                                        const sObj = allStudents.find(s => s.id === sid);
+                                                        if (sObj?.programId) relatedProgs[sid] = sObj.programId;
+                                                    });
+                                                    setStudentPrograms(prev => ({ ...prev, ...relatedProgs }));
                                                 }
 
                                                 if (allProjectTeachers) {
@@ -713,60 +767,176 @@ const ProjectForm: React.FC<{
             </div>
             
             <div className="pt-4 border-t border-gray-100">
-                <h4 className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-4 ml-1">Integrantes (Estudiantes)</h4>
-                <div className="flex flex-wrap gap-2 mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
+                    <h4 className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest ml-1">Integrantes (Estudiantes)</h4>
+                    <span className="text-[9px] text-uninunez-teal font-semibold">
+                        El programa del estudiante se puede actualizar al ingresarlo al proyecto
+                    </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2.5 mb-4">
                     {assignedStudentIds.length > 0 ? assignedStudentIds.map(sid => {
                         const student = allStudents.find(s => s.id === sid);
-                        const studentProgram = programs.find(p => p.id === student?.programId)?.name || 'N/A';
+                        const currentProgramId = studentPrograms[sid] ?? student?.programId ?? '';
                         return (
-                            <div key={sid} className="flex items-center bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm animate-fadeIn">
+                            <div key={sid} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white px-3.5 py-2.5 rounded-xl border border-gray-200 shadow-sm animate-fadeIn">
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] font-bold text-gray-700">{student?.name || 'Desconocido'}</span>
-                                    <span className="text-[8px] font-black text-uninunez-teal uppercase tracking-tighter">{studentProgram}</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[11px] font-bold text-gray-800">{student?.name || 'Desconocido'}</span>
+                                        {student?.cedula && <span className="text-[9px] text-gray-400 font-mono">({student.cedula})</span>}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                        <span className="text-[8px] font-black text-uninunez-ash uppercase tracking-widest">Programa:</span>
+                                        {canEditDetails ? (
+                                            <select
+                                                value={currentProgramId}
+                                                onChange={(e) => handleUpdateStudentProgram(sid, e.target.value)}
+                                                className="text-[9px] font-bold text-uninunez-teal bg-uninunez-teal/10 hover:bg-uninunez-teal/20 border border-uninunez-teal/30 rounded-lg px-2 py-0.5 outline-none transition-colors"
+                                                title="Cambiar programa académico del estudiante"
+                                            >
+                                                <option value="">Sin programa asignado</option>
+                                                {programs.map(p => (
+                                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <span className="text-[8px] font-black text-uninunez-teal uppercase tracking-tighter">
+                                                {programs.find(p => p.id === currentProgramId)?.name || 'Sin programa'}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                                {canEditDetails && <button type="button" onClick={() => removeStudent(sid)} className="text-red-400 hover:text-red-600 ml-2"><TrashIcon className="h-3.5 w-3.5"/></button>}
+                                {canEditDetails && (
+                                    <button 
+                                        type="button" 
+                                        onClick={() => removeStudent(sid)} 
+                                        className="text-red-400 hover:text-red-600 p-1 hover:bg-red-50 rounded-lg transition-colors self-end sm:self-center"
+                                        title="Desvincular estudiante"
+                                    >
+                                        <TrashIcon className="h-3.5 w-3.5"/>
+                                    </button>
+                                )}
                             </div>
                         );
                     }) : <p className="text-[10px] text-gray-400 italic py-2">No hay estudiantes vinculados todavía.</p>}
                 </div>
 
                 {canEditDetails && (
-                    <div className="relative bg-gray-50/50 p-4 rounded-2xl border-2 border-dashed border-gray-200 group focus-within:border-uninunez-orange transition-all">
-                        <div className="flex gap-2">
-                            <div className="flex-grow relative">
+                    <div className="relative bg-gray-50/70 p-4 rounded-2xl border-2 border-dashed border-gray-200 group focus-within:border-uninunez-orange transition-all space-y-3">
+                        <div>
+                            <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-1.5 ml-1">
+                                Buscar estudiante para ingresar al proyecto
+                            </label>
+                            <div className="relative">
                                 <input 
                                     type="text" 
                                     placeholder="Buscar por nombre o cédula..." 
                                     value={studentSearch}
-                                    onChange={(e) => { setStudentSearch(e.target.value.toUpperCase()); setShowStudentResults(true); }}
+                                    onChange={(e) => { 
+                                        setStudentSearch(e.target.value.toUpperCase()); 
+                                        setShowStudentResults(true); 
+                                        if (selectedStudent && e.target.value !== selectedStudent.name) {
+                                            setSelectedStudent(null);
+                                        }
+                                    }}
                                     onFocus={() => setShowStudentResults(true)}
-                                    className="w-full px-4 py-2.5 text-xs border border-gray-200 rounded-xl focus:ring-1 focus:ring-uninunez-orange outline-none font-bold uppercase"
+                                    className="w-full px-4 py-2.5 text-xs border border-gray-200 rounded-xl focus:ring-2 focus:ring-uninunez-orange/30 focus:border-uninunez-orange outline-none font-bold uppercase bg-white shadow-sm"
                                     autoComplete="off"
                                 />
                                 {showStudentResults && filteredStudentsList.length > 0 && (
                                     <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-2xl max-h-48 overflow-y-auto">
-                                        {filteredStudentsList.map(s => (
-                                            <li 
-                                                key={s.id} 
-                                                onClick={() => { setSelectedStudent(s); setStudentSearch(s.name); setShowStudentResults(false); }}
-                                                className="px-4 py-3 hover:bg-uninunez-orange/5 cursor-pointer border-b border-gray-50 last:border-0"
-                                            >
-                                                <div className="text-[11px] font-black text-uninunez-onix">{s.name}</div>
-                                                <div className="text-[9px] text-uninunez-ash">{s.cedula}</div>
-                                            </li>
-                                        ))}
+                                        {filteredStudentsList.map(s => {
+                                            const sProg = programs.find(p => p.id === s.programId)?.name || 'Sin programa';
+                                            return (
+                                                <li 
+                                                    key={s.id} 
+                                                    onClick={() => { 
+                                                        setSelectedStudent(s); 
+                                                        setStudentSearch(s.name); 
+                                                        setShowStudentResults(false); 
+                                                        setSelectedStudentProgramId(s.programId || formData.programId || programs[0]?.id || '');
+                                                    }}
+                                                    className="px-4 py-2.5 hover:bg-uninunez-orange/5 cursor-pointer border-b border-gray-50 last:border-0 flex justify-between items-center"
+                                                >
+                                                    <div>
+                                                        <div className="text-[11px] font-black text-uninunez-onix">{s.name}</div>
+                                                        <div className="text-[9px] text-uninunez-ash">CC: {s.cedula}</div>
+                                                    </div>
+                                                    <span className="text-[9px] font-bold text-uninunez-teal bg-uninunez-teal/10 px-2 py-0.5 rounded-md">
+                                                        {sProg}
+                                                    </span>
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 )}
                             </div>
-                            <button 
-                                type="button" 
-                                onClick={handleAddStudent} 
-                                disabled={!selectedStudent}
-                                className="bg-uninunez-orange text-white px-6 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:bg-gray-200 transition-all shadow-md active:scale-95"
-                            >
-                                Vincular
-                            </button>
                         </div>
+
+                        {/* Panel de configuración de programa al ingresar el estudiante */}
+                        {selectedStudent && (
+                            <div className="bg-white p-3.5 rounded-xl border border-uninunez-orange/30 shadow-sm animate-fadeIn space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-gray-100 pb-2">
+                                    <div>
+                                        <span className="text-[9px] font-black text-uninunez-ash uppercase tracking-wider">Estudiante Seleccionado:</span>
+                                        <p className="text-xs font-black text-uninunez-onix">
+                                            {selectedStudent.name} <span className="font-normal text-gray-500 font-mono text-[10px]">({selectedStudent.cedula})</span>
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedStudent(null);
+                                            setStudentSearch('');
+                                            setSelectedStudentProgramId('');
+                                        }}
+                                        className="text-[9px] text-gray-400 hover:text-red-500 underline font-medium self-start sm:self-auto"
+                                    >
+                                        Cancelar selección
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                                    <div className="sm:col-span-8">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-[9px] font-black text-uninunez-onix uppercase tracking-wider">
+                                                Programa Académico del Estudiante:
+                                            </label>
+                                            {formData.programId && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedStudentProgramId(formData.programId || '')}
+                                                    className="text-[8px] font-black text-uninunez-teal hover:underline uppercase"
+                                                    title="Asignar el mismo programa del proyecto"
+                                                >
+                                                    Usar programa del proyecto
+                                                </button>
+                                            )}
+                                        </div>
+                                        <select
+                                            value={selectedStudentProgramId}
+                                            onChange={(e) => setSelectedStudentProgramId(e.target.value)}
+                                            className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:ring-2 focus:ring-uninunez-teal/30 focus:border-uninunez-teal outline-none font-bold text-uninunez-teal bg-gray-50"
+                                        >
+                                            <option value="">Seleccionar Programa...</option>
+                                            {programs.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="sm:col-span-4">
+                                        <button 
+                                            type="button" 
+                                            onClick={handleAddStudent} 
+                                            className="w-full bg-uninunez-orange text-white py-2 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md hover:bg-uninunez-orangeLight active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                        >
+                                            <PlusIcon className="w-3.5 h-3.5 stroke-[3]" /> Vincular al Proyecto
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -932,7 +1102,12 @@ export const ProjectsPage: React.FC = () => {
 
     useEffect(() => { loadData(); }, [loadData]);
 
-    const handleSave = async (projectData: Partial<Project>, assignments: Array<{teacherId: string, roleId: string}>, studentIds: string[]) => {
+    const handleSave = async (
+        projectData: Partial<Project>, 
+        assignments: Array<{teacherId: string, roleId: string}>, 
+        studentIds: string[],
+        studentProgramsMap: Record<string, string> = {}
+    ) => {
         try {
             let savedProject: Project;
             if (editingProject) {
@@ -1000,7 +1175,8 @@ export const ProjectsPage: React.FC = () => {
                    if (s.projectId === savedProject.id && !studentIds.includes(s.id)) {
                        await db.updateStudent({ ...s, projectId: null });
                    } else if (studentIds.includes(s.id)) {
-                       await db.updateStudent({ ...s, projectId: savedProject.id });
+                       const updatedProgId = studentProgramsMap[s.id] || s.programId;
+                       await db.updateStudent({ ...s, projectId: savedProject.id, programId: updatedProgId });
                    }
                 }
             }
