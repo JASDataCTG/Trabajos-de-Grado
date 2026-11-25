@@ -188,25 +188,41 @@ export const db = {
     getProjects: async function(): Promise<Project[]> {
         if (!supabase) return [];
         const { data } = await supabase.from('projects').select('*').order('presentation_date', { ascending: false });
+        const toNumOrNull = (val: unknown): number | null => {
+            if (val === null || val === undefined || val === '') return null;
+            const n = Number(val);
+            return Number.isFinite(n) ? n : null;
+        };
         return (data || []).map(p => ({
             id: p.id, title: p.title, presentationDate: p.presentation_date, filesUrl: p.files_url,
             statusId: p.status_id, formatId: p.format_id, programId: p.program_id,
-            isApprovedByDirector: p.is_approved_by_director, finalGrade: p.final_grade,
-            writtenGradeReviewer1: p.written_grade_reviewer1, presentationGradeReviewer1: p.presentation_grade_reviewer1,
-            writtenGradeReviewer2: p.written_grade_reviewer2, presentationGradeReviewer2: p.presentation_grade_reviewer2
+            isApprovedByDirector: p.is_approved_by_director,
+            finalGrade: toNumOrNull(p.final_grade),
+            writtenGradeReviewer1: toNumOrNull(p.written_grade_reviewer1),
+            presentationGradeReviewer1: toNumOrNull(p.presentation_grade_reviewer1),
+            writtenGradeReviewer2: toNumOrNull(p.written_grade_reviewer2),
+            presentationGradeReviewer2: toNumOrNull(p.presentation_grade_reviewer2)
         }));
     },
 
     getProjectById: async function(id: string): Promise<Project | null> {
         if (!supabase) return null;
-        const { data, error } = await supabase.from('projects').select('*').eq('id', id).single();
+        const { data, error } = await supabase.from('projects').select('*').eq('id', id).maybeSingle();
         if (error || !data) return null;
+        const toNumOrNull = (val: unknown): number | null => {
+            if (val === null || val === undefined || val === '') return null;
+            const n = Number(val);
+            return Number.isFinite(n) ? n : null;
+        };
         return {
             id: data.id, title: data.title, presentationDate: data.presentation_date, filesUrl: data.files_url,
             statusId: data.status_id, formatId: data.format_id, programId: data.program_id,
-            isApprovedByDirector: data.is_approved_by_director, finalGrade: data.final_grade,
-            writtenGradeReviewer1: data.written_grade_reviewer1, presentationGradeReviewer1: data.presentation_grade_reviewer1,
-            writtenGradeReviewer2: data.written_grade_reviewer2, presentationGradeReviewer2: data.presentation_grade_reviewer2
+            isApprovedByDirector: data.is_approved_by_director,
+            finalGrade: toNumOrNull(data.final_grade),
+            writtenGradeReviewer1: toNumOrNull(data.written_grade_reviewer1),
+            presentationGradeReviewer1: toNumOrNull(data.presentation_grade_reviewer1),
+            writtenGradeReviewer2: toNumOrNull(data.written_grade_reviewer2),
+            presentationGradeReviewer2: toNumOrNull(data.presentation_grade_reviewer2)
         };
     },
 
@@ -215,7 +231,12 @@ export const db = {
         const id = generateId();
         const { error } = await supabase.from('projects').insert([{ 
             id, title: p.title, presentation_date: p.presentationDate, files_url: p.filesUrl, 
-            status_id: p.statusId, format_id: p.formatId, program_id: p.programId
+            status_id: p.statusId, format_id: p.formatId, program_id: p.programId,
+            final_grade: p.finalGrade ?? null,
+            written_grade_reviewer1: p.writtenGradeReviewer1 ?? null,
+            presentation_grade_reviewer1: p.presentationGradeReviewer1 ?? null,
+            written_grade_reviewer2: p.writtenGradeReviewer2 ?? null,
+            presentation_grade_reviewer2: p.presentationGradeReviewer2 ?? null
         }]);
         if (error) throw error;
         return { ...p, id } as Project;
@@ -820,6 +841,43 @@ export const db = {
             }
         }
         return filtered.sort((a, b) => new Date(a.presentationDate).getTime() - new Date(b.presentationDate).getTime());
+    },
+
+    getAllProjectFormatHistories: async function(): Promise<ProjectFormatHistory[]> {
+        const localHistory = this.getFormatHistoriesLocal();
+        const mergedById = new Map<string, ProjectFormatHistory>();
+        localHistory.forEach(h => mergedById.set(h.id, h));
+
+        if (supabase) {
+            try {
+                const { data, error } = await supabase
+                    .from('project_format_history')
+                    .select('*')
+                    .order('created_at', { ascending: true });
+                if (!error && data) {
+                    data.forEach((d: any) => {
+                        const entry: ProjectFormatHistory = {
+                            id: d.id,
+                            projectId: d.project_id || d.projectId,
+                            formatId: d.format_id || d.formatId,
+                            statusId: d.status_id || d.statusId,
+                            presentationDate: d.presentation_date || d.presentationDate,
+                            filesUrl: d.files_url || d.filesUrl,
+                            writtenGradeReviewer1: d.written_grade_reviewer1 !== undefined ? d.written_grade_reviewer1 : d.writtenGradeReviewer1,
+                            presentationGradeReviewer1: d.presentation_grade_reviewer1 !== undefined ? d.presentation_grade_reviewer1 : d.presentationGradeReviewer1,
+                            writtenGradeReviewer2: d.written_grade_reviewer2 !== undefined ? d.written_grade_reviewer2 : d.writtenGradeReviewer2,
+                            presentationGradeReviewer2: d.presentation_grade_reviewer2 !== undefined ? d.presentation_grade_reviewer2 : d.presentationGradeReviewer2,
+                            finalGrade: d.final_grade !== undefined ? d.final_grade : d.finalGrade,
+                            createdAt: d.created_at || d.createdAt
+                        };
+                        mergedById.set(entry.id, entry);
+                    });
+                }
+            } catch (err) {
+                console.warn("Error consultando historial general project_format_history:", err);
+            }
+        }
+        return Array.from(mergedById.values());
     },
 
     getFormatHistoriesLocal: function(): ProjectFormatHistory[] {

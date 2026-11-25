@@ -78,7 +78,45 @@ interface GradedProjectsReport {
     'Evaluador 2 - Escrito': string;
     'Evaluador 2 - Sustentación': string;
     'Nota Final': string;
+    'Estado de Calificación': string;
 }
+
+const parseGradeValue = (val: unknown): number | null => {
+    if (val === null || val === undefined || val === '') return null;
+    const num = Number(val);
+    return Number.isFinite(num) ? num : null;
+};
+
+const formatGradeValue = (val: unknown): string => {
+    const num = parseGradeValue(val);
+    return num !== null ? num.toFixed(2) : '---';
+};
+
+const computeEffectiveFinalGrade = (
+    w1: number | null,
+    p1: number | null,
+    w2: number | null,
+    p2: number | null,
+    storedFinal: number | null
+): number | null => {
+    if (storedFinal !== null) return storedFinal;
+    let avg1 = 0; let count1 = 0;
+    if (w1 !== null) { avg1 += w1; count1++; }
+    if (p1 !== null) { avg1 += p1; count1++; }
+    const finalAvg1 = count1 > 0 ? avg1 / count1 : null;
+
+    let avg2 = 0; let count2 = 0;
+    if (w2 !== null) { avg2 += w2; count2++; }
+    if (p2 !== null) { avg2 += p2; count2++; }
+    const finalAvg2 = count2 > 0 ? avg2 / count2 : null;
+
+    if (finalAvg1 !== null && finalAvg2 !== null) {
+        return Number(((finalAvg1 + finalAvg2) / 2).toFixed(2));
+    }
+    if (finalAvg1 !== null) return Number(finalAvg1.toFixed(2));
+    if (finalAvg2 !== null) return Number(finalAvg2.toFixed(2));
+    return null;
+};
 
 interface ReportsPageProps {
     isPublicView?: boolean;
@@ -228,7 +266,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
     }, [detailModal]);
 
     const loadReportData = useCallback(async (currentFilters: any) => {
-        const [projects, students, teachers, roles, statuses, formats, projectTeachers, programs] = await Promise.all([
+        const [projects, students, teachers, roles, statuses, formats, projectTeachers, programs, allHistories] = await Promise.all([
             db.getProjects(),
             db.getStudents(),
             db.getTeachers(),
@@ -236,7 +274,8 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             db.getStatuses(),
             db.getFormats(),
             db.getProjectTeachers(),
-            db.getPrograms()
+            db.getPrograms(),
+            db.getAllProjectFormatHistories()
         ]);
 
         setAllProjects(projects);
@@ -493,28 +532,77 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
 
         setTeacherProjectsDetail(teacherProjectsDetailData);
 
-        const gradedProjectsData: GradedProjectsReport[] = filteredProjects
-            .filter(p => {
-                const formatName = formats.find(f => f.id === p.formatId)?.name || '';
-                const fUpper = formatName.toUpperCase();
-                const isEvaluable = fUpper.includes('111') || fUpper.includes('ANTEPROYECTO') || fUpper.includes('115') || fUpper.includes('ARTÍCULO') || fUpper.includes('ARTICULO');
-                return (p.finalGrade !== null && p.finalGrade !== undefined) && isEvaluable;
-            })
-            .map(p => {
-                const programName = programs.find(pr => pr.id === p.programId)?.name || 'N/A';
-                const formatName = formats.find(f => f.id === p.formatId)?.name || 'N/A';
-                return {
-                    'id': p.id,
-                    'Título del Proyecto': p.title,
-                    'Formato del Proyecto': formatName,
-                    'Programa Académico': programName,
-                    'Evaluador 1 - Escrito': p.writtenGradeReviewer1 !== null ? p.writtenGradeReviewer1.toFixed(2) : '---',
-                    'Evaluador 1 - Sustentación': p.presentationGradeReviewer1 !== null ? p.presentationGradeReviewer1.toFixed(2) : '---',
-                    'Evaluador 2 - Escrito': p.writtenGradeReviewer2 !== null ? p.writtenGradeReviewer2.toFixed(2) : '---',
-                    'Evaluador 2 - Sustentación': p.presentationGradeReviewer2 !== null ? p.presentationGradeReviewer2.toFixed(2) : '---',
-                    'Nota Final': p.finalGrade !== null ? p.finalGrade.toFixed(2) : '---'
-                };
+        const historiesByProject = new Map<string, ProjectFormatHistory[]>();
+        allHistories.forEach(entry => {
+            const list = historiesByProject.get(entry.projectId) || [];
+            list.push(entry);
+            historiesByProject.set(entry.projectId, list);
+        });
+
+        const gradedProjectsData: GradedProjectsReport[] = [];
+        filteredProjects.forEach(p => {
+            let w1 = parseGradeValue(p.writtenGradeReviewer1);
+            let p1 = parseGradeValue(p.presentationGradeReviewer1);
+            let w2 = parseGradeValue(p.writtenGradeReviewer2);
+            let p2 = parseGradeValue(p.presentationGradeReviewer2);
+            let fg = parseGradeValue(p.finalGrade);
+            let displayFormatId = p.formatId;
+
+            const hasProjectGrades =
+                w1 !== null || p1 !== null || w2 !== null || p2 !== null || fg !== null;
+
+            if (!hasProjectGrades) {
+                const projectHistories = historiesByProject.get(p.id) || [];
+                const gradedHistories = projectHistories.filter(h =>
+                    parseGradeValue(h.writtenGradeReviewer1) !== null ||
+                    parseGradeValue(h.presentationGradeReviewer1) !== null ||
+                    parseGradeValue(h.writtenGradeReviewer2) !== null ||
+                    parseGradeValue(h.presentationGradeReviewer2) !== null ||
+                    parseGradeValue(h.finalGrade) !== null
+                );
+
+                if (gradedHistories.length === 0) return;
+
+                gradedHistories.sort((a, b) => {
+                    const timeA = new Date(a.createdAt || a.presentationDate || 0).getTime();
+                    const timeB = new Date(b.createdAt || b.presentationDate || 0).getTime();
+                    return timeB - timeA;
+                });
+
+                const latest = gradedHistories[0];
+                w1 = parseGradeValue(latest.writtenGradeReviewer1);
+                p1 = parseGradeValue(latest.presentationGradeReviewer1);
+                w2 = parseGradeValue(latest.writtenGradeReviewer2);
+                p2 = parseGradeValue(latest.presentationGradeReviewer2);
+                fg = parseGradeValue(latest.finalGrade);
+                if (latest.formatId) displayFormatId = latest.formatId;
+            }
+
+            const effectiveFinal = computeEffectiveFinalGrade(w1, p1, w2, p2, fg);
+            const filledCount = [w1, p1, w2, p2].filter(g => g !== null).length;
+            const gradeCompleteness =
+                filledCount === 4
+                    ? 'Completa (4/4)'
+                    : filledCount > 0
+                        ? `Parcial (${filledCount}/4)`
+                        : 'Nota Final Registrada';
+
+            const programName = programs.find(pr => pr.id === p.programId)?.name || 'N/A';
+            const formatName = formats.find(f => f.id === displayFormatId)?.name || 'N/A';
+
+            gradedProjectsData.push({
+                'id': p.id,
+                'Título del Proyecto': p.title,
+                'Formato del Proyecto': formatName,
+                'Programa Académico': programName,
+                'Evaluador 1 - Escrito': formatGradeValue(w1),
+                'Evaluador 1 - Sustentación': formatGradeValue(p1),
+                'Evaluador 2 - Escrito': formatGradeValue(w2),
+                'Evaluador 2 - Sustentación': formatGradeValue(p2),
+                'Nota Final': formatGradeValue(effectiveFinal),
+                'Estado de Calificación': gradeCompleteness
             });
+        });
         setGradedProjects(gradedProjectsData);
 
         setTeacherWorkloadChartData({
@@ -541,7 +629,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             setAllFormats(fo);
             loadReportData({
                 title: '', programId: '', statusId: '',
-                formatId: '', teacherId: '', startDate: '', endDate: '',
+                formatId: '', teacherId: '', roleId: '', startDate: '', endDate: '',
             });
         };
         initData();
@@ -649,14 +737,14 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <p className="text-[9px] font-bold text-uninunez-ash uppercase mb-1">Evaluador 1</p>
-                                <p className="text-xs font-black">Escrito: {project.writtenGradeReviewer1 || '-'} | Sust: {project.presentationGradeReviewer1 || '-'}</p>
+                                <p className="text-xs font-black">Escrito: {formatGradeValue(project.writtenGradeReviewer1)} | Sust: {formatGradeValue(project.presentationGradeReviewer1)}</p>
                             </div>
                             <div>
                                 <p className="text-[9px] font-bold text-uninunez-ash uppercase mb-1">Evaluador 2</p>
-                                <p className="text-xs font-black">Escrito: {project.writtenGradeReviewer2 || '-'} | Sust: {project.presentationGradeReviewer2 || '-'}</p>
+                                <p className="text-xs font-black">Escrito: {formatGradeValue(project.writtenGradeReviewer2)} | Sust: {formatGradeValue(project.presentationGradeReviewer2)}</p>
                             </div>
                             <div className="col-span-2 pt-2 border-t border-uninunez-teal/20">
-                                <p className="text-[10px] font-black text-uninunez-teal uppercase">Nota Final: {project.finalGrade?.toFixed(2) || '0.00'}</p>
+                                <p className="text-[10px] font-black text-uninunez-teal uppercase">Nota Final: {formatGradeValue(computeEffectiveFinalGrade(parseGradeValue(project.writtenGradeReviewer1), parseGradeValue(project.presentationGradeReviewer1), parseGradeValue(project.writtenGradeReviewer2), parseGradeValue(project.presentationGradeReviewer2), parseGradeValue(project.finalGrade)))}</p>
                             </div>
                         </div>
                     </div>
@@ -1085,13 +1173,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                         </svg>
                         <div>
                             <span className="font-extrabold text-uninunez-orange uppercase tracking-wide block mb-1">Nota Importante para Revisores / Evaluadores:</span>
-                            Tanto los formatos <span className="underline decoration-amber-400">111 (Anteproyecto)</span> como <span className="underline decoration-amber-400">115 y Artículo Final</span> son completamente evaluados mediante calificación cuantitativa. Aquí podrá visualizar el consolidado definitivo para ambos tipos de trabajo.
+                            Se muestran todos los proyectos que tengan al menos una calificación registrada (parcial o completa) en cualquier formato evaluado, incluyendo el promedio parcial cuando falten notas por registrar.
                         </div>
                     </div>
 
                     <ReportTableCard 
                         title="Proyectos Calificados" 
-                        description="Trabajos de grado que ya cuentan con calificaciones registradas, incluyendo el desglose de evaluaciones por jurado y el promedio definitivo."
+                        description="Trabajos de grado que cuentan con al menos una calificación registrada (completa o parcial), incluyendo el desglose por jurado y el promedio."
                         onExport={() => handleExport(gradedProjects, 'proyectos_calificados')}
                         hasData={gradedProjects.length > 0}
                         showExport={!isPublicView}
@@ -1122,10 +1210,21 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                                 }
                                                 if (key === 'Nota Final') {
                                                     const scoreNum = parseFloat(String(val));
-                                                    const isLow = isNaN(scoreNum) || scoreNum < 3.0;
+                                                    const isMissing = Number.isNaN(scoreNum);
+                                                    const isLow = !isMissing && scoreNum < 3.0;
                                                     return (
-                                                        <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
-                                                            <span className={`px-2.5 py-1 text-xs font-black rounded-lg ${isLow ? 'bg-red-50 text-red-600' : 'bg-jade/10 text-uninunez-jade'}`}>
+                                                        <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash whitespace-nowrap">
+                                                            <span className={`px-2.5 py-1 text-xs font-black rounded-lg ${isMissing ? 'bg-gray-100 text-gray-500' : isLow ? 'bg-red-50 text-red-600' : 'bg-jade/10 text-uninunez-jade'}`}>
+                                                                {String(val)}
+                                                            </span>
+                                                        </td>
+                                                    );
+                                                }
+                                                if (key === 'Estado de Calificación') {
+                                                    const isComplete = String(val).startsWith('Completa');
+                                                    return (
+                                                        <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash whitespace-nowrap">
+                                                            <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider ${isComplete ? 'bg-jade/10 text-uninunez-jade' : 'bg-amber-50 text-amber-700'}`}>
                                                                 {String(val)}
                                                             </span>
                                                         </td>
