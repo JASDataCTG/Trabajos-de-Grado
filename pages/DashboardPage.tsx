@@ -247,7 +247,7 @@ export const DashboardPage: React.FC = () => {
                 writtenGradeReviewer2: updatedProject.writtenGradeReviewer2,
                 presentationGradeReviewer2: updatedProject.presentationGradeReviewer2,
                 finalGrade: updatedProject.finalGrade,
-                createdAt: foundHistory ? foundHistory.createdAt : new Date().toISOString()
+                createdAt: new Date().toISOString()
             });
 
             // Refresh state

@@ -95,10 +95,81 @@ const normalizeTextKey = (val: unknown): string => {
     return cleanInvisibleChars(String(val)).trim().replace(/\s+/g, ' ').toLowerCase();
 };
 
-const isMissingPasswordColumnError = (error: any): boolean => {
+const isMissingColumnError = (error: any, columnName: string): boolean => {
     if (!error) return false;
     const msg = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase();
-    return error.code === 'PGRST204' || error.code === '42703' || (msg.includes('password') && (msg.includes('column') || msg.includes('schema')));
+    const col = columnName.toLowerCase();
+    return (
+        error.code === 'PGRST204' ||
+        error.code === '42703' ||
+        (msg.includes(col) && (msg.includes('column') || msg.includes('schema')))
+    );
+};
+
+const isMissingPasswordColumnError = (error: any): boolean => isMissingColumnError(error, 'password');
+
+const PROJECT_UPDATED_AT_STORAGE_KEY = 'uninunez_project_updated_at';
+
+const getLocalProjectUpdatedAtMap = (): Record<string, string> => {
+    try {
+        const raw = localStorage.getItem(PROJECT_UPDATED_AT_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch {
+        return {};
+    }
+};
+
+const setLocalProjectUpdatedAt = (projectId: string, isoTimestamp?: string): string => {
+    const ts = isoTimestamp || new Date().toISOString();
+    try {
+        const map = getLocalProjectUpdatedAtMap();
+        map[projectId] = ts;
+        localStorage.setItem(PROJECT_UPDATED_AT_STORAGE_KEY, JSON.stringify(map));
+    } catch {
+        // Ignore storage quota or private mode errors
+    }
+    return ts;
+};
+
+const deleteLocalProjectUpdatedAt = (projectId: string): void => {
+    try {
+        const map = getLocalProjectUpdatedAtMap();
+        if (projectId in map) {
+            delete map[projectId];
+            localStorage.setItem(PROJECT_UPDATED_AT_STORAGE_KEY, JSON.stringify(map));
+        }
+    } catch {
+        // Ignore storage errors
+    }
+};
+
+const parseTimestampMs = (val?: string | null): number => {
+    if (!val) return NaN;
+    const str = String(val).trim();
+    if (!str) return NaN;
+    const dateOnlyMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (dateOnlyMatch) {
+        const y = Number(dateOnlyMatch[1]);
+        const m = Number(dateOnlyMatch[2]);
+        const d = Number(dateOnlyMatch[3]);
+        return new Date(y, m - 1, d).getTime();
+    }
+    const parsed = Date.parse(str);
+    return Number.isFinite(parsed) ? parsed : NaN;
+};
+
+const pickLatestTimestamp = (...candidates: Array<string | null | undefined>): string | null => {
+    let bestStr: string | null = null;
+    let bestMs = -Infinity;
+    for (const c of candidates) {
+        if (!c) continue;
+        const ms = parseTimestampMs(c);
+        if (Number.isFinite(ms) && ms > bestMs) {
+            bestMs = ms;
+            bestStr = String(c).trim();
+        }
+    }
+    return bestStr;
 };
 
 async function findTeacherUserRows(teacher: { id: string; name?: string; email?: string; cedula?: string }) {
@@ -187,28 +258,52 @@ export const db = {
 
     getProjects: async function(): Promise<Project[]> {
         if (!supabase) return [];
-        const { data } = await supabase.from('projects').select('*').order('presentation_date', { ascending: false });
+        const [{ data }, histories] = await Promise.all([
+            supabase.from('projects').select('*').order('presentation_date', { ascending: false }),
+            this.getAllProjectFormatHistories().catch(() => [] as ProjectFormatHistory[])
+        ]);
+
+        const localUpdatedMap = getLocalProjectUpdatedAtMap();
+        const historyLatestByProject = new Map<string, string>();
+        histories.forEach(h => {
+            if (!h.projectId) return;
+            const current = historyLatestByProject.get(h.projectId);
+            const latest = pickLatestTimestamp(current, h.createdAt);
+            if (latest) historyLatestByProject.set(h.projectId, latest);
+        });
+
         const toNumOrNull = (val: unknown): number | null => {
             if (val === null || val === undefined || val === '') return null;
             const n = Number(val);
             return Number.isFinite(n) ? n : null;
         };
-        return (data || []).map(p => ({
-            id: p.id, title: p.title, presentationDate: p.presentation_date, filesUrl: p.files_url,
-            statusId: p.status_id, formatId: p.format_id, programId: p.program_id,
-            isApprovedByDirector: p.is_approved_by_director,
-            finalGrade: toNumOrNull(p.final_grade),
-            writtenGradeReviewer1: toNumOrNull(p.written_grade_reviewer1),
-            presentationGradeReviewer1: toNumOrNull(p.presentation_grade_reviewer1),
-            writtenGradeReviewer2: toNumOrNull(p.written_grade_reviewer2),
-            presentationGradeReviewer2: toNumOrNull(p.presentation_grade_reviewer2)
-        }));
+        return (data || []).map((p: any) => {
+            const updatedAt = pickLatestTimestamp(
+                p.updated_at,
+                historyLatestByProject.get(p.id),
+                localUpdatedMap[p.id],
+                p.created_at
+            );
+            return {
+                id: p.id, title: p.title, presentationDate: p.presentation_date, filesUrl: p.files_url,
+                statusId: p.status_id, formatId: p.format_id, programId: p.program_id,
+                isApprovedByDirector: p.is_approved_by_director,
+                finalGrade: toNumOrNull(p.final_grade),
+                writtenGradeReviewer1: toNumOrNull(p.written_grade_reviewer1),
+                presentationGradeReviewer1: toNumOrNull(p.presentation_grade_reviewer1),
+                writtenGradeReviewer2: toNumOrNull(p.written_grade_reviewer2),
+                presentationGradeReviewer2: toNumOrNull(p.presentation_grade_reviewer2),
+                createdAt: p.created_at || null,
+                updatedAt
+            };
+        });
     },
 
     getProjectById: async function(id: string): Promise<Project | null> {
         if (!supabase) return null;
         const { data, error } = await supabase.from('projects').select('*').eq('id', id).maybeSingle();
         if (error || !data) return null;
+        const localUpdatedMap = getLocalProjectUpdatedAtMap();
         const toNumOrNull = (val: unknown): number | null => {
             if (val === null || val === undefined || val === '') return null;
             const n = Number(val);
@@ -222,38 +317,54 @@ export const db = {
             writtenGradeReviewer1: toNumOrNull(data.written_grade_reviewer1),
             presentationGradeReviewer1: toNumOrNull(data.presentation_grade_reviewer1),
             writtenGradeReviewer2: toNumOrNull(data.written_grade_reviewer2),
-            presentationGradeReviewer2: toNumOrNull(data.presentation_grade_reviewer2)
+            presentationGradeReviewer2: toNumOrNull(data.presentation_grade_reviewer2),
+            createdAt: data.created_at || null,
+            updatedAt: pickLatestTimestamp(data.updated_at, localUpdatedMap[data.id], data.created_at)
         };
     },
 
     addProject: async function(p: Omit<Project, 'id'>) {
         if (!supabase) throw new Error("Supabase no configurado");
         const id = generateId();
-        const { error } = await supabase.from('projects').insert([{ 
-            id, title: p.title, presentation_date: p.presentationDate, files_url: p.filesUrl, 
+        const nowIso = new Date().toISOString();
+        const basePayload = {
+            id, title: p.title, presentation_date: p.presentationDate, files_url: p.filesUrl,
             status_id: p.statusId, format_id: p.formatId, program_id: p.programId,
             final_grade: p.finalGrade ?? null,
             written_grade_reviewer1: p.writtenGradeReviewer1 ?? null,
             presentation_grade_reviewer1: p.presentationGradeReviewer1 ?? null,
             written_grade_reviewer2: p.writtenGradeReviewer2 ?? null,
             presentation_grade_reviewer2: p.presentationGradeReviewer2 ?? null
-        }]);
+        };
+        let { error } = await supabase.from('projects').insert([{ ...basePayload, updated_at: nowIso }]);
+        if (isMissingColumnError(error, 'updated_at')) {
+            const retry = await supabase.from('projects').insert([basePayload]);
+            error = retry.error;
+        }
         if (error) throw error;
-        return { ...p, id } as Project;
+        setLocalProjectUpdatedAt(id, nowIso);
+        return { ...p, id, createdAt: nowIso, updatedAt: nowIso } as Project;
     },
 
     updateProject: async function(p: Project) {
         if (!supabase) throw new Error("Supabase no configurado");
+        const nowIso = new Date().toISOString();
         const { data: oldProject } = await supabase.from('projects').select('status_id, final_grade').eq('id', p.id).single();
-        const { error } = await supabase.from('projects').update({ 
-            title: p.title, presentation_date: p.presentationDate, files_url: p.filesUrl, 
-            status_id: p.statusId, format_id: p.formatId, program_id: p.programId, 
-            final_grade: p.finalGrade, written_grade_reviewer1: p.writtenGradeReviewer1, 
-            presentation_grade_reviewer1: p.presentationGradeReviewer1, 
-            written_grade_reviewer2: p.writtenGradeReviewer2, 
+        const basePayload = {
+            title: p.title, presentation_date: p.presentationDate, files_url: p.filesUrl,
+            status_id: p.statusId, format_id: p.formatId, program_id: p.programId,
+            final_grade: p.finalGrade, written_grade_reviewer1: p.writtenGradeReviewer1,
+            presentation_grade_reviewer1: p.presentationGradeReviewer1,
+            written_grade_reviewer2: p.writtenGradeReviewer2,
             presentation_grade_reviewer2: p.presentationGradeReviewer2
-        }).eq('id', p.id);
+        };
+        let { error } = await supabase.from('projects').update({ ...basePayload, updated_at: nowIso }).eq('id', p.id);
+        if (isMissingColumnError(error, 'updated_at')) {
+            const retry = await supabase.from('projects').update(basePayload).eq('id', p.id);
+            error = retry.error;
+        }
         if (error) throw error;
+        setLocalProjectUpdatedAt(p.id, nowIso);
         
         if (oldProject && (oldProject.status_id !== p.statusId || oldProject.final_grade !== p.finalGrade)) {
             this.getProjectContext(p.id).then(async context => {
@@ -265,7 +376,19 @@ export const db = {
                 );
             });
         }
-        return p;
+        return { ...p, updatedAt: nowIso };
+    },
+
+    touchProjectUpdatedAt: async function(projectId: string, isoTimestamp?: string): Promise<string> {
+        const nowIso = setLocalProjectUpdatedAt(projectId, isoTimestamp);
+        if (supabase) {
+            try {
+                await supabase.from('projects').update({ updated_at: nowIso }).eq('id', projectId);
+            } catch {
+                // Ignore if updated_at column does not exist on projects table
+            }
+        }
+        return nowIso;
     },
 
     deleteProject: async function(id: string) {
@@ -275,6 +398,7 @@ export const db = {
         await supabase.from('project_teachers').delete().eq('project_id', id);
         await supabase.from('students').update({ project_id: null }).eq('project_id', id);
         await supabase.from('projects').delete().eq('id', id);
+        deleteLocalProjectUpdatedAt(id);
         if (project) {
             notificationService.notifyProjectChange('delete', project as any, context.students, context.teachers);
         }
@@ -890,37 +1014,44 @@ export const db = {
     },
 
     saveProjectFormatHistoryEntry: async function(entry: ProjectFormatHistory): Promise<ProjectFormatHistory> {
+        const effectiveTs = entry.createdAt || new Date().toISOString();
+        const normalizedEntry: ProjectFormatHistory = { ...entry, createdAt: effectiveTs };
         const localHistory = this.getFormatHistoriesLocal();
-        const idx = localHistory.findIndex(h => h.id === entry.id);
+        const idx = localHistory.findIndex(h => h.id === normalizedEntry.id);
         if (idx !== -1) {
-            localHistory[idx] = entry;
+            localHistory[idx] = normalizedEntry;
         } else {
-            localHistory.push(entry);
+            localHistory.push(normalizedEntry);
         }
         localStorage.setItem('uninunez_format_histories', JSON.stringify(localHistory));
+        if (normalizedEntry.projectId) {
+            const currentLocal = getLocalProjectUpdatedAtMap()[normalizedEntry.projectId];
+            const latest = pickLatestTimestamp(currentLocal, effectiveTs);
+            if (latest) setLocalProjectUpdatedAt(normalizedEntry.projectId, latest);
+        }
 
         if (supabase) {
             try {
                 const dbEntry = {
-                    id: entry.id,
-                    project_id: entry.projectId,
-                    format_id: entry.formatId,
-                    status_id: entry.statusId,
-                    presentation_date: entry.presentationDate,
-                    files_url: entry.filesUrl,
-                    written_grade_reviewer1: entry.writtenGradeReviewer1,
-                    presentation_grade_reviewer1: entry.presentationGradeReviewer1,
-                    written_grade_reviewer2: entry.writtenGradeReviewer2,
-                    presentation_grade_reviewer2: entry.presentationGradeReviewer2,
-                    final_grade: entry.finalGrade,
-                    created_at: entry.createdAt || new Date().toISOString()
+                    id: normalizedEntry.id,
+                    project_id: normalizedEntry.projectId,
+                    format_id: normalizedEntry.formatId,
+                    status_id: normalizedEntry.statusId,
+                    presentation_date: normalizedEntry.presentationDate,
+                    files_url: normalizedEntry.filesUrl,
+                    written_grade_reviewer1: normalizedEntry.writtenGradeReviewer1,
+                    presentation_grade_reviewer1: normalizedEntry.presentationGradeReviewer1,
+                    written_grade_reviewer2: normalizedEntry.writtenGradeReviewer2,
+                    presentation_grade_reviewer2: normalizedEntry.presentationGradeReviewer2,
+                    final_grade: normalizedEntry.finalGrade,
+                    created_at: effectiveTs
                 };
                 await supabase.from('project_format_history').upsert([dbEntry]);
             } catch (err) {
                 console.warn("No se pudo upsertar en project_format_history de Supabase:", err);
             }
         }
-        return entry;
+        return normalizedEntry;
     },
 
     deleteProjectFormatHistoryEntry: async function(id: string): Promise<void> {

@@ -28,6 +28,8 @@ export interface Project {
   writtenGradeReviewer2: number | null;
   presentationGradeReviewer2: number | null;
   finalGrade: number | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface ProjectFormatHistory {

@@ -100,6 +100,7 @@ const ProjectForm: React.FC<{
 
         const targetId = editingHistoryEntry ? editingHistoryEntry.id : (Date.now().toString(36) + Math.random().toString(36).substring(2));
 
+        const nowIso = new Date().toISOString();
         const entryToSave: ProjectFormatHistory = {
             id: targetId,
             projectId: project.id,
@@ -112,10 +113,11 @@ const ProjectForm: React.FC<{
             writtenGradeReviewer2: editingHistoryEntry ? editingHistoryEntry.writtenGradeReviewer2 : null,
             presentationGradeReviewer2: editingHistoryEntry ? editingHistoryEntry.presentationGradeReviewer2 : null,
             finalGrade: editingHistoryEntry ? editingHistoryEntry.finalGrade : null,
-            createdAt: editingHistoryEntry?.createdAt || new Date().toISOString()
+            createdAt: nowIso
         };
 
         await db.saveProjectFormatHistoryEntry(entryToSave);
+        await db.touchProjectUpdatedAt(project.id, nowIso);
 
         if (syncProjectStatus) {
             setFormData(prev => ({
@@ -1030,6 +1032,40 @@ export const ProjectsPage: React.FC = () => {
     const [deletingProject, setDeletingProject] = useState<Project | null>(null);
     const [userPerms, setUserPerms] = useState<Record<string, any>>({});
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortField, setSortField] = useState<'presentationDate' | 'updatedAt'>('presentationDate');
+    const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc');
+
+    const handleToggleSort = (field: 'presentationDate' | 'updatedAt') => {
+        if (sortField === field) {
+            setSortDirection(prev => (prev === 'desc' ? 'asc' : 'desc'));
+        } else {
+            setSortField(field);
+            setSortDirection('desc');
+        }
+    };
+
+    const getDateSortMs = (val?: string | null): number => {
+        if (!val) return -Infinity;
+        const str = String(val).trim();
+        if (!str) return -Infinity;
+        const dateOnly = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (dateOnly) {
+            return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])).getTime();
+        }
+        const parsed = Date.parse(str);
+        return Number.isFinite(parsed) ? parsed : -Infinity;
+    };
+
+    const formatUpdatedAtDisplay = (updatedAt?: string | null, fallbackDate?: string | null): string => {
+        const raw = updatedAt || fallbackDate;
+        if (!raw) return 'Sin fecha';
+        const str = String(raw).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+        const dt = new Date(str);
+        if (Number.isNaN(dt.getTime())) return fallbackDate || str;
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    };
 
     const loadData = useCallback(async () => {
         setIsLoading(true);
@@ -1129,7 +1165,7 @@ export const ProjectsPage: React.FC = () => {
                                 writtenGradeReviewer2: editingProject.writtenGradeReviewer2,
                                 presentationGradeReviewer2: editingProject.presentationGradeReviewer2,
                                 finalGrade: editingProject.finalGrade,
-                                createdAt: new Date().toISOString()
+                                createdAt: editingProject.updatedAt || editingProject.presentationDate || new Date().toISOString()
                             });
                         }
                     } catch (e) {
@@ -1160,7 +1196,7 @@ export const ProjectsPage: React.FC = () => {
                     writtenGradeReviewer2: savedProject.writtenGradeReviewer2,
                     presentationGradeReviewer2: savedProject.presentationGradeReviewer2,
                     finalGrade: savedProject.finalGrade,
-                    createdAt: found ? found.createdAt : new Date().toISOString()
+                    createdAt: savedProject.updatedAt || new Date().toISOString()
                 });
             }
 
@@ -1198,22 +1234,50 @@ export const ProjectsPage: React.FC = () => {
     };
 
     const filteredProjects = useMemo(() => {
-        if (!searchTerm.trim()) return projects;
-        const term = searchTerm.toLowerCase();
-        return projects.filter(p => {
-            const titleMatch = p.title.toLowerCase().includes(term);
-            const authorsMatch = students
-                .filter(s => s.projectId === p.id)
-                .some(s => s.name.toLowerCase().includes(term));
-            const teachersMatch = projectTeachers
-                .filter(pt => pt.projectId === p.id)
-                .some(pt => {
-                    const teacher = teachers.find(t => t.id === pt.teacherId);
-                    return teacher?.name.toLowerCase().includes(term);
-                });
-            return titleMatch || authorsMatch || teachersMatch;
+        const term = searchTerm.trim().toLowerCase();
+        const baseList = !term
+            ? [...projects]
+            : projects.filter(p => {
+                const titleMatch = p.title.toLowerCase().includes(term);
+                const authorsMatch = students
+                    .filter(s => s.projectId === p.id)
+                    .some(s => s.name.toLowerCase().includes(term));
+                const teachersMatch = projectTeachers
+                    .filter(pt => pt.projectId === p.id)
+                    .some(pt => {
+                        const teacher = teachers.find(t => t.id === pt.teacherId);
+                        return teacher?.name.toLowerCase().includes(term);
+                    });
+                return titleMatch || authorsMatch || teachersMatch;
+            });
+
+        const dir = sortDirection === 'desc' ? -1 : 1;
+        return baseList.sort((a, b) => {
+            const primaryA = sortField === 'updatedAt'
+                ? getDateSortMs(a.updatedAt || a.presentationDate)
+                : getDateSortMs(a.presentationDate);
+            const primaryB = sortField === 'updatedAt'
+                ? getDateSortMs(b.updatedAt || b.presentationDate)
+                : getDateSortMs(b.presentationDate);
+
+            if (primaryA !== primaryB) {
+                return (primaryA - primaryB) * dir;
+            }
+
+            const secondaryA = sortField === 'updatedAt'
+                ? getDateSortMs(a.presentationDate)
+                : getDateSortMs(a.updatedAt || a.presentationDate);
+            const secondaryB = sortField === 'updatedAt'
+                ? getDateSortMs(b.presentationDate)
+                : getDateSortMs(b.updatedAt || b.presentationDate);
+
+            if (secondaryA !== secondaryB) {
+                return (secondaryA - secondaryB) * dir;
+            }
+
+            return a.title.localeCompare(b.title);
         });
-    }, [projects, searchTerm, students, teachers, projectTeachers]);
+    }, [projects, searchTerm, students, teachers, projectTeachers, sortField, sortDirection]);
     
     return (
         <div className="space-y-6">
@@ -1247,6 +1311,44 @@ export const ProjectsPage: React.FC = () => {
             </div>
 
             <div className="bg-white shadow-sm border border-gray-100 rounded-[2rem] overflow-hidden min-h-[400px]">
+                <div className="px-6 sm:px-8 py-4 border-b border-gray-100 bg-gray-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="text-[11px] font-bold text-gray-500">
+                        Mostrando <span className="text-uninunez-onix font-black">{filteredProjects.length}</span> {filteredProjects.length === 1 ? 'proyecto' : 'proyectos'}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mr-1">Ordenar por:</span>
+                        <button
+                            type="button"
+                            onClick={() => handleToggleSort('presentationDate')}
+                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5 cursor-pointer ${
+                                sortField === 'presentationDate'
+                                    ? 'bg-uninunez-orange/10 text-uninunez-orange border-uninunez-orange/30 shadow-xs'
+                                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-uninunez-onix'
+                            }`}
+                            title="Ordenar por fecha de radicación"
+                        >
+                            <span>Radicación</span>
+                            {sortField === 'presentationDate' && (
+                                <span aria-hidden="true">{sortDirection === 'desc' ? '↓' : '↑'}</span>
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleToggleSort('updatedAt')}
+                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5 cursor-pointer ${
+                                sortField === 'updatedAt'
+                                    ? 'bg-uninunez-teal/10 text-uninunez-teal border-uninunez-teal/30 shadow-xs'
+                                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-uninunez-onix'
+                            }`}
+                            title="Ordenar por fecha de última actualización"
+                        >
+                            <span>Última Actualización</span>
+                            {sortField === 'updatedAt' && (
+                                <span aria-hidden="true">{sortDirection === 'desc' ? '↓' : '↑'}</span>
+                            )}
+                        </button>
+                    </div>
+                </div>
                 {isLoading ? (
                     <div className="flex flex-col items-center justify-center py-20">
                         <div className="w-12 h-12 border-4 border-uninunez-orange border-t-transparent rounded-full animate-spin"></div>
@@ -1271,7 +1373,17 @@ export const ProjectsPage: React.FC = () => {
                                             ) : (
                                                 <div className="text-sm font-bold text-uninunez-onix">{p.title}</div>
                                             )}
-                                            <div className="text-[10px] text-gray-400 mt-1 uppercase font-bold">Radicación: {p.presentationDate}</div>
+                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] mt-1.5 uppercase font-bold">
+                                                <span className={sortField === 'presentationDate' ? 'text-uninunez-orange' : 'text-gray-400'}>
+                                                    Radicación: {p.presentationDate || 'Sin fecha'}
+                                                </span>
+                                                <span
+                                                    className={sortField === 'updatedAt' ? 'text-uninunez-teal' : 'text-gray-400'}
+                                                    title={p.updatedAt ? 'Fecha de la última actualización registrada' : 'Sin actualizaciones posteriores a la radicación'}
+                                                >
+                                                    Últ. Actualización: {formatUpdatedAtDisplay(p.updatedAt, p.presentationDate)}
+                                                </span>
+                                            </div>
                                         </td>
                                         <td className="px-8 py-6">
                                             <div className="flex flex-wrap gap-1">
