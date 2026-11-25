@@ -67,7 +67,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicReports }) => 
         try {
             const success = await login(selectedUsername, password);
             if (!success) {
-                setError('Credenciales no válidas para el perfil seleccionado. Verifica tu número de documento o clave de acceso.');
+                const selectedTeacher = selectedUsername.startsWith('teacher:')
+                    ? teachers.find(t => String(t.id) === selectedUsername.slice('teacher:'.length))
+                    : null;
+                if (selectedTeacher && !String(selectedTeacher.cedula || '').trim()) {
+                    setError('Este docente no tiene un número de cédula registrado en el sistema. Solicita al administrador actualizar el documento en el módulo de Docentes.');
+                } else {
+                    setError('Credenciales no válidas para el perfil seleccionado. Verifica tu número de documento o clave de acceso.');
+                }
             }
         } catch (err) {
             setError('Excepción en el módulo de autenticación.');

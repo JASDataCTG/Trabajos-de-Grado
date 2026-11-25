@@ -1,6 +1,6 @@
 
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { db } from '../services/database';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { db, AuthFailureReason } from '../services/database';
 import { User } from '../types';
 
 interface AuthContextType {
@@ -9,6 +9,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isTeacher: boolean;
   isStudent: boolean;
+  lastAuthError: AuthFailureReason | null;
   canEditProject: (projectId: string) => Promise<boolean>;
   canGradeProject: (projectId: string) => Promise<{ canGrade: boolean, reviewerRole: string | null }>;
   login: (username: string, password: string) => Promise<boolean>;
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [lastAuthError, setLastAuthError] = useState<AuthFailureReason | null>(null);
 
   useEffect(() => {
     try {
@@ -35,16 +37,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
+    setLastAuthError(null);
     try {
-        const authenticatedUser = await db.authenticateUser(username, password);
-        if (authenticatedUser) {
-          const safeSessionUser: User = { ...authenticatedUser, password: '' };
+        const result = await db.authenticateUserWithReason(username, password);
+        if (result.user) {
+          const safeSessionUser: User = { ...result.user, password: '' };
           setUser(safeSessionUser);
           localStorage.setItem('degreeProjectManagerUser', JSON.stringify(safeSessionUser));
           return true;
         }
+        setLastAuthError(result.reason || 'invalid_credentials');
     } catch (e) {
         console.error("Error en proceso de login:", e);
+        setLastAuthError('invalid_credentials');
     }
     return false;
   };
@@ -94,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isStudent = user?.role === 'student';
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, isAdmin, isTeacher, isStudent, login, logout, canEditProject, canGradeProject }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isAdmin, isTeacher, isStudent, lastAuthError, login, logout, canEditProject, canGradeProject }}>
       {children}
     </AuthContext.Provider>
   );

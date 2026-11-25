@@ -257,7 +257,18 @@ export const TeachersPage: React.FC = () => {
                         </div>
                     </div>
                     {editingTeacher && (
-                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2.5">
+                            <div className="text-[11px] text-uninunez-ash flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-200/70">
+                                <span>
+                                    Documento registrado actualmente:{' '}
+                                    <strong className="font-mono text-uninunez-onix">
+                                        {String(editingTeacher.cedula || '').trim() || 'Sin registrar'}
+                                    </strong>
+                                </span>
+                                <span className="text-[10px] font-bold text-uninunez-teal">
+                                    {String(editingTeacher.cedula || '').replace(/\D/g, '').length} dígitos numéricos
+                                </span>
+                            </div>
                             <label className="flex items-start gap-2.5 cursor-pointer">
                                 <input
                                     type="checkbox"
@@ -268,7 +279,7 @@ export const TeachersPage: React.FC = () => {
                                 <span className="text-xs text-uninunez-onix font-semibold leading-snug">
                                     Restablecer clave de acceso al número de cédula
                                     <span className="block text-[11px] font-normal text-uninunez-ash mt-0.5">
-                                        Úsalo si el docente olvidó una contraseña personalizada. Si modificas la cédula y no había clave personalizada, se sincroniza automáticamente.
+                                        Úsalo si el docente olvidó una contraseña personalizada o si su acceso estaba desincronizado.
                                     </span>
                                 </span>
                             </label>
