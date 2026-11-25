@@ -17,6 +17,8 @@ export const TeachersPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
     const [deletingTeacher, setDeletingTeacher] = useState<Teacher | null>(null);
+    const [resetPasswordToCedula, setResetPasswordToCedula] = useState(false);
+    const [saveError, setSaveError] = useState('');
 
     // Filtros
     const [filterProgram, setFilterProgram] = useState('');
@@ -49,8 +51,8 @@ export const TeachersPage: React.FC = () => {
     const filteredTeachers = useMemo(() => {
         return teachers.filter(t => {
             const matchesSearch = !searchTerm || 
-                                 t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                 t.cedula.includes(searchTerm);
+                                 String(t.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                 String(t.cedula || '').includes(searchTerm);
             
             // Lógica de filtro por programa y fechas para docentes:
             // Un docente coincide si tiene algún proyecto asignado que cumpla los criterios.
@@ -72,14 +74,34 @@ export const TeachersPage: React.FC = () => {
         });
     }, [teachers, searchTerm, filterProgram, filterStartDate, filterEndDate, projectTeachers, projects]);
 
+    const openCreateModal = () => {
+        setEditingTeacher(null);
+        setResetPasswordToCedula(false);
+        setSaveError('');
+        setIsModalOpen(true);
+    };
+
+    const openEditModal = (teacher: Teacher) => {
+        setEditingTeacher(teacher);
+        setResetPasswordToCedula(false);
+        setSaveError('');
+        setIsModalOpen(true);
+    };
+
     const handleSave = async (teacherData: any) => {
-        if (editingTeacher) {
-            await db.updateTeacher({ ...editingTeacher, ...teacherData });
-        } else {
-            await db.addTeacher(teacherData);
+        setSaveError('');
+        try {
+            if (editingTeacher) {
+                await db.updateTeacher({ ...editingTeacher, ...teacherData }, { resetPasswordToCedula });
+            } else {
+                await db.addTeacher(teacherData);
+            }
+            loadData();
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error('Error guardando docente:', error);
+            setSaveError('No se pudo guardar el docente. Verifica los datos e intenta nuevamente.');
         }
-        loadData();
-        setIsModalOpen(false);
     };
 
     const handleDelete = async () => {
@@ -99,7 +121,7 @@ export const TeachersPage: React.FC = () => {
                 </div>
                 {isAdmin && (
                     <button 
-                        onClick={() => { setEditingTeacher(null); setIsModalOpen(true); }} 
+                        onClick={openCreateModal} 
                         className="bg-uninunez-onix text-white px-6 py-3 rounded-xl flex items-center text-[10px] font-black uppercase tracking-widest shadow-xl hover:opacity-90 transition-all justify-center lg:w-auto w-full"
                     >
                         <PlusIcon className="h-5 w-5 mr-1"/> Nuevo Docente
@@ -186,7 +208,7 @@ export const TeachersPage: React.FC = () => {
                                         <td className="px-8 py-5 text-xs font-semibold text-uninunez-teal">{t.email}</td>
                                         <td className="px-8 py-5 text-right">
                                             <div className="flex justify-end gap-2">
-                                                {isAdmin && <button onClick={() => { setEditingTeacher(t); setIsModalOpen(true); }} className="p-2.5 bg-uninunez-onix/5 text-uninunez-onix hover:bg-uninunez-onix hover:text-white rounded-xl shadow-sm transition-all"><EditIcon className="h-5 w-5"/></button>}
+                                                {isAdmin && <button onClick={() => openEditModal(t)} className="p-2.5 bg-uninunez-onix/5 text-uninunez-onix hover:bg-uninunez-onix hover:text-white rounded-xl shadow-sm transition-all"><EditIcon className="h-5 w-5"/></button>}
                                                 {isAdmin && <button onClick={() => setDeletingTeacher(t)} className="p-2.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl shadow-sm transition-all"><TrashIcon className="h-5 w-5"/></button>}
                                             </div>
                                         </td>
@@ -234,6 +256,29 @@ export const TeachersPage: React.FC = () => {
                             />
                         </div>
                     </div>
+                    {editingTeacher && (
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+                            <label className="flex items-start gap-2.5 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={resetPasswordToCedula}
+                                    onChange={(e) => setResetPasswordToCedula(e.target.checked)}
+                                    className="mt-0.5 rounded border-gray-300 text-uninunez-orange focus:ring-uninunez-orange"
+                                />
+                                <span className="text-xs text-uninunez-onix font-semibold leading-snug">
+                                    Restablecer clave de acceso al número de cédula
+                                    <span className="block text-[11px] font-normal text-uninunez-ash mt-0.5">
+                                        Úsalo si el docente olvidó una contraseña personalizada. Si modificas la cédula y no había clave personalizada, se sincroniza automáticamente.
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+                    )}
+                    {saveError && (
+                        <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-xs font-bold text-red-600">
+                            {saveError}
+                        </div>
+                    )}
                     <div className="flex justify-end gap-2 pt-6 border-t mt-4">
                         <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3 border-2 border-gray-100 rounded-xl text-[10px] font-black uppercase text-gray-400">Cancelar</button>
                         <button className="px-8 py-3 bg-uninunez-orange text-white rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-uninunez-orangeLight transition-all">Guardar Registro</button>

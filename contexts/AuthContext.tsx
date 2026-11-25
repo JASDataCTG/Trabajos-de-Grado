@@ -21,20 +21,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('degreeProjectManagerUser');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    try {
+      const storedUser = localStorage.getItem('degreeProjectManagerUser');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        if (parsed && parsed.id && parsed.role) {
+          setUser({ ...parsed, password: '' });
+        }
+      }
+    } catch {
+      localStorage.removeItem('degreeProjectManagerUser');
     }
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-        const foundUser = await db.getUserByUsername(username.trim());
-        
-        // Comparación robusta: convertir a string y quitar espacios
-        if (foundUser && String(foundUser.password).trim() === String(password).trim()) {
-          setUser(foundUser);
-          localStorage.setItem('degreeProjectManagerUser', JSON.stringify(foundUser));
+        const authenticatedUser = await db.authenticateUser(username, password);
+        if (authenticatedUser) {
+          const safeSessionUser: User = { ...authenticatedUser, password: '' };
+          setUser(safeSessionUser);
+          localStorage.setItem('degreeProjectManagerUser', JSON.stringify(safeSessionUser));
           return true;
         }
     } catch (e) {

@@ -31,6 +31,71 @@ async function fetchCatalog(table: string) {
     }
 }
 
+const isEmptySecret = (val: unknown): boolean => {
+    if (val === null || val === undefined) return true;
+    const str = String(val).trim();
+    return str === '' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined';
+};
+
+const normalizeDocument = (val: unknown): string => {
+    if (isEmptySecret(val)) return '';
+    return String(val).replace(/[\s.,\-]/g, '').trim();
+};
+
+const isDocumentLike = (val: string): boolean => {
+    const trimmed = val.trim();
+    return trimmed.length > 0 && /^[\d\s.,\-]+$/.test(trimmed);
+};
+
+const secretMatches = (expected: unknown, provided: string): boolean => {
+    if (isEmptySecret(expected)) return false;
+    const expStr = String(expected).trim();
+    const provStr = String(provided).trim();
+    if (!expStr || !provStr) return false;
+    if (expStr === provStr) return true;
+    if (isDocumentLike(expStr) && isDocumentLike(provStr)) {
+        const normExp = normalizeDocument(expStr);
+        const normProv = normalizeDocument(provStr);
+        return normExp.length > 0 && normExp === normProv;
+    }
+    return false;
+};
+
+const normalizeTextKey = (val: unknown): string => {
+    if (val === null || val === undefined) return '';
+    return String(val).trim().replace(/\s+/g, ' ').toLowerCase();
+};
+
+const isMissingPasswordColumnError = (error: any): boolean => {
+    if (!error) return false;
+    const msg = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase();
+    return error.code === 'PGRST204' || error.code === '42703' || (msg.includes('password') && (msg.includes('column') || msg.includes('schema')));
+};
+
+async function findTeacherUserRows(teacher: { id: string; name?: string; email?: string; cedula?: string }) {
+    if (!supabase) return [];
+    const { data: allUsers } = await supabase.from('users').select('*');
+    if (!allUsers || allUsers.length === 0) return [];
+
+    const byTeacherId = allUsers.filter((u: any) => u.teacher_id === teacher.id);
+    if (byTeacherId.length > 0) return byTeacherId;
+
+    const nameKey = normalizeTextKey(teacher.name);
+    const emailKey = normalizeTextKey(teacher.email);
+    const cedulaNorm = normalizeDocument(teacher.cedula);
+
+    return allUsers.filter((u: any) => {
+        if (u.role === 'admin') return false;
+        const uKey = normalizeTextKey(u.username);
+        const uDoc = normalizeDocument(u.username);
+        return (
+            (nameKey !== '' && uKey === nameKey) ||
+            (emailKey !== '' && uKey === emailKey) ||
+            (cedulaNorm !== '' && uDoc === cedulaNorm)
+        );
+    });
+}
+
 export const db = {
     initializeDB: async function() {
         if (!supabase) return;
@@ -143,30 +208,50 @@ export const db = {
     getStudents: async function(): Promise<Student[]> {
         if (!supabase) return [];
         const { data } = await supabase.from('students').select('*').order('name', { ascending: true });
-        return (data || []).map((s: any) => ({ id: s.id, name: s.name, email: s.email, cedula: s.cedula, projectId: s.project_id, programId: s.program_id, password: s.password }));
+        return (data || []).map((s: any) => ({ id: s.id, name: s.name, email: s.email, cedula: s.cedula !== null && s.cedula !== undefined ? String(s.cedula).trim() : '', projectId: s.project_id, programId: s.program_id, password: s.password }));
     },
     
     getStudentById: async function(id: string): Promise<Student | null> {
         if (!supabase) return null;
-        const { data } = await supabase.from('students').select('*').eq('id', id).single();
+        const { data } = await supabase.from('students').select('*').eq('id', id).maybeSingle();
         if (!data) return null;
-        return { id: data.id, name: data.name, email: data.email, cedula: data.cedula, projectId: data.project_id, programId: data.program_id, password: data.password };
+        return { id: data.id, name: data.name, email: data.email, cedula: data.cedula !== null && data.cedula !== undefined ? String(data.cedula).trim() : '', projectId: data.project_id, programId: data.program_id, password: data.password };
     },
     
     addStudent: async function(s: Omit<Student, 'id'>) {
         if (!supabase) throw new Error("Supabase no configurado");
         const id = generateId();
-        const password = s.password || s.cedula;
-        await supabase.from('students').insert([{ id, name: s.name, email: s.email, cedula: s.cedula, program_id: s.programId, password }]);
-        await supabase.from('users').insert([{ id: generateId(), username: s.name, password, role: 'student', student_id: id }]);
-        return { ...s, id } as Student;
+        const cleanName = String(s.name || '').trim();
+        const cleanEmail = String(s.email || '').trim();
+        const cleanCedula = String(s.cedula || '').trim();
+        const password = !isEmptySecret(s.password) ? String(s.password).trim() : cleanCedula;
+
+        let { error } = await supabase.from('students').insert([{ id, name: cleanName, email: cleanEmail, cedula: cleanCedula, program_id: s.programId, password }]);
+        if (isMissingPasswordColumnError(error)) {
+            const retry = await supabase.from('students').insert([{ id, name: cleanName, email: cleanEmail, cedula: cleanCedula, program_id: s.programId }]);
+            error = retry.error;
+        }
+        if (error) throw error;
+
+        await supabase.from('users').insert([{ id: generateId(), username: cleanName, password, role: 'student', student_id: id }]);
+        return { ...s, id, name: cleanName, email: cleanEmail, cedula: cleanCedula } as Student;
     },
     
     updateStudent: async function(s: Student) {
         if (!supabase) throw new Error("Supabase no configurado");
-        await supabase.from('students').update({ name: s.name, email: s.email, cedula: s.cedula, program_id: s.programId, project_id: s.projectId, password: s.password }).eq('id', s.id);
-        if (s.password) {
-            await supabase.from('users').update({ password: s.password }).eq('student_id', s.id);
+        const cleanName = String(s.name || '').trim();
+        const cleanEmail = String(s.email || '').trim();
+        const cleanCedula = String(s.cedula || '').trim();
+
+        let { error } = await supabase.from('students').update({ name: cleanName, email: cleanEmail, cedula: cleanCedula, program_id: s.programId, project_id: s.projectId, password: s.password }).eq('id', s.id);
+        if (isMissingPasswordColumnError(error)) {
+            const retry = await supabase.from('students').update({ name: cleanName, email: cleanEmail, cedula: cleanCedula, program_id: s.programId, project_id: s.projectId }).eq('id', s.id);
+            error = retry.error;
+        }
+        if (error) throw error;
+
+        if (!isEmptySecret(s.password)) {
+            await supabase.from('users').update({ username: cleanName, password: String(s.password).trim() }).eq('student_id', s.id);
         }
         return s;
     },
@@ -174,45 +259,163 @@ export const db = {
     getTeachers: async function(): Promise<Teacher[]> {
         if (!supabase) return [];
         const { data } = await supabase.from('teachers').select('*').order('name', { ascending: true });
-        return data || [];
+        return (data || []).map((t: any) => ({
+            ...t,
+            name: t.name !== null && t.name !== undefined ? String(t.name) : '',
+            email: t.email !== null && t.email !== undefined ? String(t.email) : '',
+            cedula: t.cedula !== null && t.cedula !== undefined ? String(t.cedula).trim() : '',
+        }));
     },
     
     getTeacherById: async function(id: string): Promise<Teacher | null> {
         if (!supabase) return null;
-        const { data } = await supabase.from('teachers').select('*').eq('id', id).single();
-        return data || null;
+        const { data } = await supabase.from('teachers').select('*').eq('id', id).maybeSingle();
+        if (!data) return null;
+        return {
+            ...data,
+            name: data.name !== null && data.name !== undefined ? String(data.name) : '',
+            email: data.email !== null && data.email !== undefined ? String(data.email) : '',
+            cedula: data.cedula !== null && data.cedula !== undefined ? String(data.cedula).trim() : '',
+        };
     },
     
     addTeacher: async function(t: Omit<Teacher, 'id'>) {
         if (!supabase) throw new Error("Supabase no configurado");
         const id = generateId();
-        const password = t.password || t.cedula;
-        await supabase.from('teachers').insert([{ id, name: t.name, email: t.email, cedula: t.cedula, password }]);
-        await supabase.from('users').insert([{ id: generateId(), username: t.name, password, role: 'teacher', teacher_id: id }]);
-        return { ...t, id } as Teacher;
+        const cleanName = String(t.name || '').trim();
+        const cleanEmail = String(t.email || '').trim();
+        const cleanCedula = String(t.cedula || '').trim();
+        const effectivePassword = !isEmptySecret(t.password) ? String(t.password).trim() : cleanCedula;
+
+        let { error: teacherError } = await supabase
+            .from('teachers')
+            .insert([{ id, name: cleanName, email: cleanEmail, cedula: cleanCedula, password: effectivePassword }]);
+
+        if (isMissingPasswordColumnError(teacherError)) {
+            const retry = await supabase
+                .from('teachers')
+                .insert([{ id, name: cleanName, email: cleanEmail, cedula: cleanCedula }]);
+            teacherError = retry.error;
+        }
+        if (teacherError) throw teacherError;
+
+        const existingUsers = await findTeacherUserRows({ id, name: cleanName, email: cleanEmail, cedula: cleanCedula });
+        if (existingUsers.length > 0) {
+            await supabase
+                .from('users')
+                .update({ username: cleanName, password: effectivePassword, role: 'teacher', teacher_id: id })
+                .eq('id', existingUsers[0].id);
+        } else {
+            await supabase
+                .from('users')
+                .insert([{ id: generateId(), username: cleanName, password: effectivePassword, role: 'teacher', teacher_id: id }]);
+        }
+
+        return { ...t, id, name: cleanName, email: cleanEmail, cedula: cleanCedula, password: effectivePassword } as Teacher;
     },
     
-    updateTeacher: async function(t: Teacher) {
+    updateTeacher: async function(t: Teacher, options?: { resetPasswordToCedula?: boolean }) {
         if (!supabase) throw new Error("Supabase no configurado");
-        await supabase.from('teachers').update({ name: t.name, email: t.email, cedula: t.cedula, password: t.password }).eq('id', t.id);
-        await supabase.from('users').update({ username: t.name, password: t.password || t.cedula }).eq('teacher_id', t.id);
-        return t;
+        const cleanName = String(t.name || '').trim();
+        const cleanEmail = String(t.email || '').trim();
+        const cleanCedula = String(t.cedula || '').trim();
+
+        const { data: prevTeacher } = await supabase
+            .from('teachers')
+            .select('*')
+            .eq('id', t.id)
+            .maybeSingle();
+
+        const existingUsers = await findTeacherUserRows({
+            id: t.id,
+            name: prevTeacher?.name || cleanName,
+            email: prevTeacher?.email || cleanEmail,
+            cedula: prevTeacher?.cedula || cleanCedula
+        });
+        const existingUser = existingUsers[0] || null;
+
+        const prevCedula = String(prevTeacher?.cedula ?? '').trim();
+        const prevPass = !isEmptySecret(existingUser?.password)
+            ? String(existingUser.password).trim()
+            : (!isEmptySecret(prevTeacher?.password) ? String(prevTeacher.password).trim() : '');
+
+        const shouldSyncToCedula =
+            !!options?.resetPasswordToCedula ||
+            !prevPass ||
+            secretMatches(prevPass, prevCedula);
+
+        const effectivePassword = shouldSyncToCedula ? cleanCedula : prevPass;
+
+        let { error: teacherError } = await supabase
+            .from('teachers')
+            .update({ name: cleanName, email: cleanEmail, cedula: cleanCedula, password: effectivePassword })
+            .eq('id', t.id);
+
+        if (isMissingPasswordColumnError(teacherError)) {
+            const retry = await supabase
+                .from('teachers')
+                .update({ name: cleanName, email: cleanEmail, cedula: cleanCedula })
+                .eq('id', t.id);
+            teacherError = retry.error;
+        }
+        if (teacherError) throw teacherError;
+
+        if (existingUser) {
+            await supabase
+                .from('users')
+                .update({ username: cleanName, password: effectivePassword, role: 'teacher', teacher_id: t.id })
+                .eq('id', existingUser.id);
+        } else {
+            await supabase
+                .from('users')
+                .insert([{ id: generateId(), username: cleanName, password: effectivePassword, role: 'teacher', teacher_id: t.id }]);
+        }
+
+        return { ...t, name: cleanName, email: cleanEmail, cedula: cleanCedula, password: effectivePassword };
     },
     
     updateTeacherPassword: async function(id: string, newPassword: string) {
         if (!supabase) return;
-        await Promise.all([
-            supabase.from('teachers').update({ password: newPassword }).eq('id', id),
-            supabase.from('users').update({ password: newPassword }).eq('teacher_id', id)
-        ]);
+        const cleanPass = String(newPassword).trim();
+        const teacher = await this.getTeacherById(id);
+
+        const { error: teacherErr } = await supabase
+            .from('teachers')
+            .update({ password: cleanPass })
+            .eq('id', id);
+        if (teacherErr && !isMissingPasswordColumnError(teacherErr)) {
+            throw teacherErr;
+        }
+
+        const existingUsers = await findTeacherUserRows({
+            id,
+            name: teacher?.name,
+            email: teacher?.email,
+            cedula: teacher?.cedula
+        });
+
+        if (existingUsers.length > 0) {
+            const { error: userErr } = await supabase
+                .from('users')
+                .update({ password: cleanPass, teacher_id: id, ...(teacher?.name ? { username: teacher.name.trim() } : {}) })
+                .eq('id', existingUsers[0].id);
+            if (userErr) throw userErr;
+        } else if (teacher) {
+            const { error: insertErr } = await supabase
+                .from('users')
+                .insert([{ id: generateId(), username: teacher.name.trim(), password: cleanPass, role: 'teacher', teacher_id: id }]);
+            if (insertErr) throw insertErr;
+        }
     },
     
     updateStudentPassword: async function(id: string, newPassword: string) {
         if (!supabase) return;
-        await Promise.all([
-            supabase.from('students').update({ password: newPassword }).eq('id', id),
-            supabase.from('users').update({ password: newPassword }).eq('student_id', id)
-        ]);
+        const cleanPass = String(newPassword).trim();
+        const { error: studentErr } = await supabase.from('students').update({ password: cleanPass }).eq('id', id);
+        if (studentErr && !isMissingPasswordColumnError(studentErr)) {
+            throw studentErr;
+        }
+        await supabase.from('users').update({ password: cleanPass }).eq('student_id', id);
     },
     
     deleteTeacher: async function(id: string) {
@@ -221,10 +424,170 @@ export const db = {
         await supabase.from('teachers').delete().eq('id', id);
     },
 
+    authenticateTeacherById: async function(teacherId: string, rawPassword: string): Promise<User | null> {
+        if (!supabase || !teacherId || !rawPassword) return null;
+
+        const { data: rawTeacher } = await supabase
+            .from('teachers')
+            .select('*')
+            .eq('id', teacherId)
+            .maybeSingle();
+
+        if (!rawTeacher) return null;
+
+        const teacherName = String(rawTeacher.name ?? '').trim();
+        const teacherEmail = String(rawTeacher.email ?? '').trim();
+        const teacherCedula = String(rawTeacher.cedula ?? '').trim();
+        const hasPasswordColumn = 'password' in rawTeacher;
+        const teacherPassword = hasPasswordColumn && !isEmptySecret(rawTeacher.password)
+            ? String(rawTeacher.password).trim()
+            : '';
+
+        const matchedUserRows = await findTeacherUserRows({
+            id: rawTeacher.id,
+            name: teacherName,
+            email: teacherEmail,
+            cedula: teacherCedula
+        });
+
+        const validUserRow = matchedUserRows.find((u: any) => secretMatches(u.password, rawPassword));
+        const matchesTeacherPassword = teacherPassword !== '' && secretMatches(teacherPassword, rawPassword);
+
+        const hasCustomTeacherPassword =
+            teacherPassword !== '' &&
+            !secretMatches(teacherPassword, teacherCedula);
+
+        const existingUserWithPass = matchedUserRows.find((u: any) => !isEmptySecret(u.password));
+        const hasCustomUserOnlyPassword =
+            !hasPasswordColumn &&
+            !!existingUserWithPass &&
+            !isDocumentLike(String(existingUserWithPass.password)) &&
+            !secretMatches(existingUserWithPass.password, teacherCedula);
+
+        const canUseCedula = !hasCustomTeacherPassword && !hasCustomUserOnlyPassword;
+        const matchesCedula = canUseCedula && secretMatches(teacherCedula, rawPassword);
+
+        if (!validUserRow && !matchesTeacherPassword && !matchesCedula) {
+            return null;
+        }
+
+        const primaryUser = validUserRow || matchedUserRows[0] || null;
+        const syncedPassword = validUserRow
+            ? String(validUserRow.password).trim()
+            : (matchesTeacherPassword ? teacherPassword : teacherCedula);
+
+        const userId = primaryUser?.id || generateId();
+
+        try {
+            if (primaryUser) {
+                const needsSync =
+                    primaryUser.teacher_id !== rawTeacher.id ||
+                    normalizeTextKey(primaryUser.username) !== normalizeTextKey(teacherName) ||
+                    isEmptySecret(primaryUser.password) ||
+                    (matchesCedula && !secretMatches(primaryUser.password, syncedPassword));
+
+                if (needsSync) {
+                    await supabase
+                        .from('users')
+                        .update({
+                            username: teacherName,
+                            password: syncedPassword,
+                            role: 'teacher',
+                            teacher_id: rawTeacher.id
+                        })
+                        .eq('id', primaryUser.id);
+                }
+            } else {
+                await supabase
+                    .from('users')
+                    .insert([{
+                        id: userId,
+                        username: teacherName,
+                        password: syncedPassword,
+                        role: 'teacher',
+                        teacher_id: rawTeacher.id
+                    }]);
+            }
+        } catch (syncErr) {
+            console.warn('Error sincronizando usuario docente al iniciar sesión:', syncErr);
+        }
+
+        return {
+            id: userId,
+            username: teacherName,
+            password: '',
+            role: 'teacher',
+            teacherId: rawTeacher.id,
+            studentId: null
+        };
+    },
+
+    authenticateUser: async function(identifier: string, password: string): Promise<User | null> {
+        if (!supabase) return null;
+        const rawIdentifier = String(identifier || '').trim();
+        const rawPassword = String(password || '').trim();
+        if (!rawIdentifier || !rawPassword) return null;
+
+        if (rawIdentifier.startsWith('teacher:')) {
+            const teacherId = rawIdentifier.slice('teacher:'.length).trim();
+            return await this.authenticateTeacherById(teacherId, rawPassword);
+        }
+
+        const { data: allUsers } = await supabase.from('users').select('*');
+        const usersList = allUsers || [];
+        const idKey = normalizeTextKey(rawIdentifier);
+
+        if (idKey === 'admin') {
+            const adminMatch = usersList.find((u: any) =>
+                (u.role === 'admin' || normalizeTextKey(u.username) === 'admin') &&
+                !isEmptySecret(u.password) &&
+                String(u.password).trim() === rawPassword
+            );
+            if (!adminMatch) return null;
+            return {
+                id: adminMatch.id,
+                username: adminMatch.username,
+                password: '',
+                role: adminMatch.role,
+                teacherId: adminMatch.teacher_id || null,
+                studentId: adminMatch.student_id || null
+            };
+        }
+
+        const teachers = await this.getTeachers();
+        const idDoc = normalizeDocument(rawIdentifier);
+        const matchedTeacher = teachers.find(t =>
+            normalizeTextKey(t.name) === idKey ||
+            (t.email && normalizeTextKey(t.email) === idKey) ||
+            (idDoc !== '' && normalizeDocument(t.cedula) === idDoc)
+        );
+        if (matchedTeacher) {
+            return await this.authenticateTeacherById(matchedTeacher.id, rawPassword);
+        }
+
+        const matchedUser = usersList.find((u: any) =>
+            normalizeTextKey(u.username) === idKey &&
+            secretMatches(u.password, rawPassword)
+        );
+        if (!matchedUser) return null;
+
+        return {
+            id: matchedUser.id,
+            username: matchedUser.username,
+            password: '',
+            role: matchedUser.role,
+            teacherId: matchedUser.teacher_id || null,
+            studentId: matchedUser.student_id || null
+        };
+    },
+
     getUserByUsername: async function(username: string): Promise<User | null> {
         if (!supabase) return null;
-        const { data } = await supabase.from('users').select('*').eq('username', username).single();
-        return data ? { ...data, teacherId: data.teacher_id, studentId: data.student_id } : null;
+        const targetKey = normalizeTextKey(username);
+        if (!targetKey) return null;
+        const { data } = await supabase.from('users').select('*');
+        const found = (data || []).find((u: any) => normalizeTextKey(u.username) === targetKey);
+        return found ? { ...found, teacherId: found.teacher_id, studentId: found.student_id } : null;
     },
     
     getUsers: async function(): Promise<User[]> {
