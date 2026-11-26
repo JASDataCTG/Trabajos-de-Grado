@@ -1,5 +1,5 @@
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import React from 'react';
 import { db } from '../services/database';
 import { Project, Student, Teacher, Status, Format, Program, ProjectFormatHistory } from '../types';
@@ -16,6 +16,7 @@ interface ProjectStatusReport {
     'Estado': string;
     'Formato': string;
     'Fecha de Presentación': string;
+    'Última Actualización': string;
     'Estudiantes Asignados': string;
     'Programas de Estudiantes': string;
     'Docentes / Roles': string;
@@ -66,6 +67,7 @@ interface TeacherProjectsDetailReport {
     'Estado del Proyecto': string;
     'Formato del Proyecto': string;
     'Fecha de Radicación': string;
+    'Última Actualización': string;
 }
 
 interface GradedProjectsReport {
@@ -79,7 +81,43 @@ interface GradedProjectsReport {
     'Evaluador 2 - Sustentación': string;
     'Nota Final': string;
     'Estado de Calificación': string;
+    'Fecha de Radicación': string;
+    'Última Actualización': string;
 }
+
+const getDateSortMs = (val?: string | null): number => {
+    if (!val) return -Infinity;
+    const str = String(val).trim();
+    if (!str) return -Infinity;
+    const dateOnly = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (dateOnly) {
+        return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])).getTime();
+    }
+    const parsed = Date.parse(str);
+    return Number.isFinite(parsed) ? parsed : -Infinity;
+};
+
+const toLocalDateKey = (val?: string | null): string => {
+    if (!val) return '';
+    const str = String(val).trim();
+    const dateOnly = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (dateOnly) return dateOnly[1];
+    const dt = new Date(str);
+    if (Number.isNaN(dt.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+};
+
+const formatUpdatedAtDisplay = (updatedAt?: string | null, fallbackDate?: string | null): string => {
+    const raw = updatedAt || fallbackDate;
+    if (!raw) return 'N/A';
+    const str = String(raw).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const dt = new Date(str);
+    if (Number.isNaN(dt.getTime())) return fallbackDate || str;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+};
 
 const parseGradeValue = (val: unknown): number | null => {
     if (val === null || val === undefined || val === '') return null;
@@ -122,7 +160,7 @@ interface ReportsPageProps {
     isPublicView?: boolean;
 }
 
-const ReportTableCard: React.FC<{ title: string; description: string; children: React.ReactNode; onExport: () => void; hasData: boolean; showExport?: boolean }> = ({ title, description, children, onExport, hasData, showExport = true }) => (
+const ReportTableCard: React.FC<{ title: string; description: string; children: React.ReactNode; onExport: () => void; hasData: boolean; showExport?: boolean; headerActions?: React.ReactNode }> = ({ title, description, children, onExport, hasData, showExport = true, headerActions }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-6 border-b bg-gray-50/50">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -130,16 +168,19 @@ const ReportTableCard: React.FC<{ title: string; description: string; children: 
                     <h3 className="text-xl font-bold text-uninunez-onix font-display uppercase tracking-tight">{title}</h3>
                     <p className="text-sm text-uninunez-ash mt-1">{description}</p>
                 </div>
-                {showExport && (
-                    <button
-                        onClick={onExport}
-                        disabled={!hasData}
-                        className="flex items-center gap-2 bg-uninunez-teal text-white px-5 py-2.5 rounded-lg hover:bg-uninunez-tealLight text-xs font-black shadow-lg transition-all disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed uppercase tracking-wider"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                        Descargar CSV
-                    </button>
-                )}
+                <div className="flex flex-wrap items-center gap-3">
+                    {headerActions}
+                    {showExport && (
+                        <button
+                            onClick={onExport}
+                            disabled={!hasData}
+                            className="flex items-center gap-2 bg-uninunez-teal text-white px-5 py-2.5 rounded-lg hover:bg-uninunez-tealLight text-xs font-black shadow-lg transition-all disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed uppercase tracking-wider"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            Descargar CSV
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
         <div className="overflow-x-auto scrollbar-thin">
@@ -235,9 +276,33 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         formatId: '',
         teacherId: '',
         roleId: '',
+        dateFilterField: 'presentationDate' as 'presentationDate' | 'updatedAt',
         startDate: '',
         endDate: '',
     });
+
+    const [sortField, setSortField] = useState<'presentationDate' | 'updatedAt'>('presentationDate');
+    const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc');
+    const [teacherDetailSort, setTeacherDetailSort] = useState<'teacher' | 'presentationDate' | 'updatedAt'>('teacher');
+    const [teacherDetailSortDir, setTeacherDetailSortDir] = useState<'asc' | 'desc'>('asc');
+
+    const handleToggleProjectSort = (field: 'presentationDate' | 'updatedAt') => {
+        if (sortField === field) {
+            setSortDirection(prev => (prev === 'desc' ? 'asc' : 'desc'));
+        } else {
+            setSortField(field);
+            setSortDirection('desc');
+        }
+    };
+
+    const handleToggleTeacherDetailSort = (field: 'teacher' | 'presentationDate' | 'updatedAt') => {
+        if (teacherDetailSort === field) {
+            setTeacherDetailSortDir(prev => (prev === 'desc' ? 'asc' : 'desc'));
+        } else {
+            setTeacherDetailSort(field);
+            setTeacherDetailSortDir(field === 'teacher' ? 'asc' : 'desc');
+        }
+    };
 
     const [allPrograms, setAllPrograms] = useState<Program[]>([]);
     const [allStatuses, setAllStatuses] = useState<Status[]>([]);
@@ -298,11 +363,22 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
         if (currentFilters.formatId) {
             filteredProjects = filteredProjects.filter(p => p.formatId === currentFilters.formatId);
         }
+        const getFilterDateKey = (p: Project) =>
+            currentFilters.dateFilterField === 'updatedAt'
+                ? toLocalDateKey(p.updatedAt || p.presentationDate)
+                : toLocalDateKey(p.presentationDate);
+
         if (currentFilters.startDate) {
-            filteredProjects = filteredProjects.filter(p => new Date(p.presentationDate) >= new Date(currentFilters.startDate));
+            filteredProjects = filteredProjects.filter(p => {
+                const key = getFilterDateKey(p);
+                return key !== '' && key >= currentFilters.startDate;
+            });
         }
         if (currentFilters.endDate) {
-            filteredProjects = filteredProjects.filter(p => new Date(p.presentationDate) <= new Date(currentFilters.endDate));
+            filteredProjects = filteredProjects.filter(p => {
+                const key = getFilterDateKey(p);
+                return key !== '' && key <= currentFilters.endDate;
+            });
         }
         if (currentFilters.teacherId || currentFilters.roleId) {
             const projectIdsForTeacher = projectTeachers
@@ -351,6 +427,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 'Estado': statuses.find(s => s.id === p.statusId)?.name || 'N/A', 
                 'Formato': formats.find(f => f.id === p.formatId)?.name || 'N/A',
                 'Fecha de Presentación': p.presentationDate, 
+                'Última Actualización': formatUpdatedAtDisplay(p.updatedAt, p.presentationDate),
                 'Estudiantes Asignados': studentNames || 'Ninguno',
                 'Programas de Estudiantes': studentPrograms || 'N/A',
                 'Docentes / Roles': assignedTeachers || 'Ninguno',
@@ -519,7 +596,8 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                     'Rol Asignado': role?.name || 'N/A',
                     'Estado del Proyecto': statusName,
                     'Formato del Proyecto': formatName,
-                    'Fecha de Radicación': project.presentationDate || 'N/A'
+                    'Fecha de Radicación': project.presentationDate || 'N/A',
+                    'Última Actualización': formatUpdatedAtDisplay(project.updatedAt, project.presentationDate)
                 });
             }
         });
@@ -600,7 +678,9 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 'Evaluador 2 - Escrito': formatGradeValue(w2),
                 'Evaluador 2 - Sustentación': formatGradeValue(p2),
                 'Nota Final': formatGradeValue(effectiveFinal),
-                'Estado de Calificación': gradeCompleteness
+                'Estado de Calificación': gradeCompleteness,
+                'Fecha de Radicación': p.presentationDate || 'N/A',
+                'Última Actualización': formatUpdatedAtDisplay(p.updatedAt, p.presentationDate)
             });
         });
         setGradedProjects(gradedProjectsData);
@@ -629,11 +709,90 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             setAllFormats(fo);
             loadReportData({
                 title: '', programId: '', statusId: '',
-                formatId: '', teacherId: '', roleId: '', startDate: '', endDate: '',
+                formatId: '', teacherId: '', roleId: '',
+                dateFilterField: 'presentationDate', startDate: '', endDate: '',
             });
         };
         initData();
     }, [loadReportData]);
+
+    const projectsById = useMemo(() => {
+        const map = new Map<string, Project>();
+        allProjects.forEach(p => map.set(p.id, p));
+        return map;
+    }, [allProjects]);
+
+    const compareProjectsByDates = useCallback((projA: Project | undefined, projB: Project | undefined, field: 'presentationDate' | 'updatedAt', direction: 'desc' | 'asc', titleA: string, titleB: string) => {
+        const dir = direction === 'desc' ? -1 : 1;
+        const primaryA = field === 'updatedAt'
+            ? getDateSortMs(projA?.updatedAt || projA?.presentationDate)
+            : getDateSortMs(projA?.presentationDate);
+        const primaryB = field === 'updatedAt'
+            ? getDateSortMs(projB?.updatedAt || projB?.presentationDate)
+            : getDateSortMs(projB?.presentationDate);
+
+        if (primaryA !== primaryB) return (primaryA - primaryB) * dir;
+
+        const secondaryA = field === 'updatedAt'
+            ? getDateSortMs(projA?.presentationDate)
+            : getDateSortMs(projA?.updatedAt || projA?.presentationDate);
+        const secondaryB = field === 'updatedAt'
+            ? getDateSortMs(projB?.presentationDate)
+            : getDateSortMs(projB?.updatedAt || projB?.presentationDate);
+
+        if (secondaryA !== secondaryB) return (secondaryA - secondaryB) * dir;
+
+        return titleA.localeCompare(titleB);
+    }, []);
+
+    const sortedProjectStatus = useMemo(() => {
+        return [...projectStatus].sort((a, b) =>
+            compareProjectsByDates(
+                projectsById.get(a.id),
+                projectsById.get(b.id),
+                sortField,
+                sortDirection,
+                a['Título del Proyecto'],
+                b['Título del Proyecto']
+            )
+        );
+    }, [projectStatus, projectsById, sortField, sortDirection, compareProjectsByDates]);
+
+    const sortedGradedProjects = useMemo(() => {
+        return [...gradedProjects].sort((a, b) =>
+            compareProjectsByDates(
+                projectsById.get(a.id),
+                projectsById.get(b.id),
+                sortField,
+                sortDirection,
+                a['Título del Proyecto'],
+                b['Título del Proyecto']
+            )
+        );
+    }, [gradedProjects, projectsById, sortField, sortDirection, compareProjectsByDates]);
+
+    const sortedTeacherProjectsDetail = useMemo(() => {
+        return [...teacherProjectsDetail].sort((a, b) => {
+            if (teacherDetailSort === 'teacher') {
+                const dir = teacherDetailSortDir === 'desc' ? -1 : 1;
+                const cmpTeacher = a['Nombre del Docente'].localeCompare(b['Nombre del Docente']) * dir;
+                if (cmpTeacher !== 0) return cmpTeacher;
+                return a['Rol Asignado'].localeCompare(b['Rol Asignado']);
+            }
+            const projA = projectsById.get(a.id.split('_')[0]);
+            const projB = projectsById.get(b.id.split('_')[0]);
+            const cmpDates = compareProjectsByDates(
+                projA,
+                projB,
+                teacherDetailSort,
+                teacherDetailSortDir,
+                a['Título del Proyecto'],
+                b['Título del Proyecto']
+            );
+            if (cmpDates !== 0) return cmpDates;
+            return a['Nombre del Docente'].localeCompare(b['Nombre del Docente']);
+        });
+    }, [teacherProjectsDetail, projectsById, teacherDetailSort, teacherDetailSortDir, compareProjectsByDates]);
 
     const handleExport = (data: any[], filename: string) => {
         if (data.length === 0) return;
@@ -662,10 +821,15 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
             formatId: '',
             teacherId: '',
             roleId: '',
+            dateFilterField: 'presentationDate' as 'presentationDate' | 'updatedAt',
             startDate: '',
             endDate: '',
         };
         setFilters(resetFilters);
+        setSortField('presentationDate');
+        setSortDirection('desc');
+        setTeacherDetailSort('teacher');
+        setTeacherDetailSortDir('asc');
         loadReportData(resetFilters);
     };
 
@@ -697,6 +861,14 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                         <div className="bg-gray-50 p-4 rounded-2xl">
                             <p className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Formato</p>
                             <p className="text-sm font-bold text-uninunez-onix">{format}</p>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-2xl">
+                            <p className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Fecha de Radicación</p>
+                            <p className="text-sm font-bold text-uninunez-onix">{project.presentationDate || 'Sin fecha'}</p>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-2xl">
+                            <p className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Última Actualización</p>
+                            <p className="text-sm font-bold text-uninunez-teal">{formatUpdatedAtDisplay(project.updatedAt, project.presentationDate)}</p>
                         </div>
                         <div className="bg-gray-50 p-4 rounded-2xl col-span-2">
                             <p className="text-[10px] font-black text-uninunez-ash uppercase tracking-widest mb-1">Programa Principal</p>
@@ -994,12 +1166,42 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                         </select>
                     </div>
                     <div>
-                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Fecha Desde (Radicación)</label>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Filtrar Fechas Por</label>
+                        <select name="dateFilterField" value={filters.dateFilterField} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 outline-none h-[46px]">
+                            <option value="presentationDate">FECHA DE RADICACIÓN</option>
+                            <option value="updatedAt">ÚLTIMA ACTUALIZACIÓN</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">
+                            Fecha Desde ({filters.dateFilterField === 'updatedAt' ? 'Actualización' : 'Radicación'})
+                        </label>
                         <input type="date" name="startDate" value={filters.startDate || ''} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 focus:ring-uninunez-orange outline-none h-[46px]" />
                     </div>
                     <div>
-                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Fecha Hasta (Radicación)</label>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">
+                            Fecha Hasta ({filters.dateFilterField === 'updatedAt' ? 'Actualización' : 'Radicación'})
+                        </label>
                         <input type="date" name="endDate" value={filters.endDate || ''} onChange={handleFilterChange} className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 focus:ring-uninunez-orange outline-none h-[46px]" />
+                    </div>
+                    <div>
+                        <label className="block text-[9px] font-black text-uninunez-ash uppercase tracking-widest mb-2 ml-1">Ordenar Listados Por</label>
+                        <select
+                            value={`${sortField}_${sortDirection}`}
+                            onChange={(e) => {
+                                const [field, dir] = e.target.value.split('_') as ['presentationDate' | 'updatedAt', 'desc' | 'asc'];
+                                setSortField(field);
+                                setSortDirection(dir);
+                                setTeacherDetailSort(field);
+                                setTeacherDetailSortDir(dir);
+                            }}
+                            className="block w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-bold bg-gray-50 outline-none h-[46px]"
+                        >
+                            <option value="presentationDate_desc">RADICACIÓN (MÁS RECIENTES)</option>
+                            <option value="presentationDate_asc">RADICACIÓN (MÁS ANTIGUOS)</option>
+                            <option value="updatedAt_desc">ÚLT. ACTUALIZACIÓN (MÁS RECIENTES)</option>
+                            <option value="updatedAt_asc">ÚLT. ACTUALIZACIÓN (MÁS ANTIGUOS)</option>
+                        </select>
                     </div>
                 </div>
                 <div className="flex justify-end items-center gap-4 mt-10 pt-6 border-t border-gray-100">
@@ -1116,22 +1318,51 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                 <div className="space-y-6 animate-fadeIn">
                     <ReportTableCard 
                         title="Matriz de Seguimiento de Proyectos" 
-                        description="Visión consolidada con estados, formatos y roles docentes asignados."
-                        onExport={() => handleExport(projectStatus, 'seguimiento_proyectos_curn')}
-                        hasData={projectStatus.length > 0}
+                        description="Visión consolidada con estados, formatos, fechas de radicación, última actualización y roles docentes asignados."
+                        onExport={() => handleExport(sortedProjectStatus, 'seguimiento_proyectos_curn')}
+                        hasData={sortedProjectStatus.length > 0}
                         showExport={!isPublicView}
+                        headerActions={
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mr-1">Ordenar:</span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleProjectSort('presentationDate')}
+                                    className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1 cursor-pointer ${
+                                        sortField === 'presentationDate'
+                                            ? 'bg-uninunez-orange/10 text-uninunez-orange border-uninunez-orange/30'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-uninunez-onix'
+                                    }`}
+                                >
+                                    <span>Radicación</span>
+                                    {sortField === 'presentationDate' && <span>{sortDirection === 'desc' ? '↓' : '↑'}</span>}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleProjectSort('updatedAt')}
+                                    className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1 cursor-pointer ${
+                                        sortField === 'updatedAt'
+                                            ? 'bg-uninunez-teal/10 text-uninunez-teal border-uninunez-teal/30'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-uninunez-onix'
+                                    }`}
+                                >
+                                    <span>Últ. Actualización</span>
+                                    {sortField === 'updatedAt' && <span>{sortDirection === 'desc' ? '↓' : '↑'}</span>}
+                                </button>
+                            </div>
+                        }
                     >
                         <table className="w-full text-left">
                             <thead className="bg-gray-50/80 border-b border-gray-100">
                                 <tr>
-                                    {projectStatus.length > 0 && Object.keys(projectStatus[0]).filter(k => k !== 'id').map(key => (
+                                    {sortedProjectStatus.length > 0 && Object.keys(sortedProjectStatus[0]).filter(k => k !== 'id').map(key => (
                                         <th key={key} className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{key}</th>
                                     ))}
                                     <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {projectStatus.map((row, index) => (
+                                {sortedProjectStatus.map((row, index) => (
                                     <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
                                         {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => {
                                             if (key === 'Título del Proyecto' && row['Enlace a Archivos'] && row['Enlace a Archivos'] !== 'Sin enlace') {
@@ -1140,6 +1371,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                                         <a href={String(row['Enlace a Archivos'])} target="_blank" rel="noopener noreferrer" className="text-uninunez-teal font-bold hover:underline">
                                                             {String(val)}
                                                         </a>
+                                                    </td>
+                                                );
+                                            }
+                                            if (key === 'Última Actualización') {
+                                                return (
+                                                    <td key={i} className={`px-6 py-5 text-[11px] leading-tight whitespace-nowrap font-bold ${sortField === 'updatedAt' ? 'text-uninunez-teal' : 'text-uninunez-ash'}`}>
+                                                        {String(val)}
                                                     </td>
                                                 );
                                             }
@@ -1179,22 +1417,51 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
 
                     <ReportTableCard 
                         title="Proyectos Calificados" 
-                        description="Trabajos de grado que cuentan con al menos una calificación registrada (completa o parcial), incluyendo el desglose por jurado y el promedio."
-                        onExport={() => handleExport(gradedProjects, 'proyectos_calificados')}
-                        hasData={gradedProjects.length > 0}
+                        description="Trabajos de grado que cuentan con al menos una calificación registrada (completa o parcial), incluyendo el desglose por jurado, el promedio y la fecha de última actualización."
+                        onExport={() => handleExport(sortedGradedProjects, 'proyectos_calificados')}
+                        hasData={sortedGradedProjects.length > 0}
                         showExport={!isPublicView}
+                        headerActions={
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mr-1">Ordenar:</span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleProjectSort('presentationDate')}
+                                    className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1 cursor-pointer ${
+                                        sortField === 'presentationDate'
+                                            ? 'bg-uninunez-orange/10 text-uninunez-orange border-uninunez-orange/30'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-uninunez-onix'
+                                    }`}
+                                >
+                                    <span>Radicación</span>
+                                    {sortField === 'presentationDate' && <span>{sortDirection === 'desc' ? '↓' : '↑'}</span>}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleProjectSort('updatedAt')}
+                                    className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1 cursor-pointer ${
+                                        sortField === 'updatedAt'
+                                            ? 'bg-uninunez-teal/10 text-uninunez-teal border-uninunez-teal/30'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-uninunez-onix'
+                                    }`}
+                                >
+                                    <span>Últ. Actualización</span>
+                                    {sortField === 'updatedAt' && <span>{sortDirection === 'desc' ? '↓' : '↑'}</span>}
+                                </button>
+                            </div>
+                        }
                     >
                         <table className="w-full text-left">
                             <thead className="bg-gray-50/80 border-b border-gray-100">
                                 <tr>
-                                    {gradedProjects.length > 0 && Object.keys(gradedProjects[0]).filter(k => k !== 'id').map(key => (
+                                    {sortedGradedProjects.length > 0 && Object.keys(sortedGradedProjects[0]).filter(k => k !== 'id').map(key => (
                                         <th key={key} className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{key}</th>
                                     ))}
                                     <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {gradedProjects.map((row, index) => {
+                                {sortedGradedProjects.map((row, index) => {
                                     const originalProject = allProjects.find(p => p.id === row.id);
                                     return (
                                         <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
@@ -1230,6 +1497,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                                         </td>
                                                     );
                                                 }
+                                                if (key === 'Última Actualización') {
+                                                    return (
+                                                        <td key={i} className={`px-6 py-5 text-[11px] leading-tight whitespace-nowrap font-bold ${sortField === 'updatedAt' ? 'text-uninunez-teal' : 'text-uninunez-ash'}`}>
+                                                            {String(val)}
+                                                        </td>
+                                                    );
+                                                }
                                                 return (
                                                     <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
                                                         {String(val)}
@@ -1242,9 +1516,9 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                         </tr>
                                     );
                                 })}
-                                {gradedProjects.length === 0 && (
+                                {sortedGradedProjects.length === 0 && (
                                     <tr>
-                                        <td colSpan={10} className="px-6 py-10 text-center text-sm font-medium text-uninunez-ash">
+                                        <td colSpan={12} className="px-6 py-10 text-center text-sm font-medium text-uninunez-ash">
                                             No se encontraron proyectos calificados con los filtros seleccionados.
                                         </td>
                                     </tr>
@@ -1261,21 +1535,62 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                     <ReportTableCard 
                         title="Proyectos a Cargo por Docente y Rol" 
                         description="Relación detallada de proyectos asignados a cada docente (Tutores, Cotutores y Revisores/Evaluadores/Jurados)."
-                        onExport={() => handleExport(teacherProjectsDetail, 'proyectos_a_cargo_docentes')}
-                        hasData={teacherProjectsDetail.length > 0}
+                        onExport={() => handleExport(sortedTeacherProjectsDetail, 'proyectos_a_cargo_docentes')}
+                        hasData={sortedTeacherProjectsDetail.length > 0}
                         showExport={!isPublicView}
+                        headerActions={
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mr-1">Ordenar:</span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleTeacherDetailSort('teacher')}
+                                    className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1 cursor-pointer ${
+                                        teacherDetailSort === 'teacher'
+                                            ? 'bg-uninunez-onix/10 text-uninunez-onix border-uninunez-onix/30'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-uninunez-onix'
+                                    }`}
+                                >
+                                    <span>Docente</span>
+                                    {teacherDetailSort === 'teacher' && <span>{teacherDetailSortDir === 'desc' ? '↓' : '↑'}</span>}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleTeacherDetailSort('presentationDate')}
+                                    className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1 cursor-pointer ${
+                                        teacherDetailSort === 'presentationDate'
+                                            ? 'bg-uninunez-orange/10 text-uninunez-orange border-uninunez-orange/30'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-uninunez-onix'
+                                    }`}
+                                >
+                                    <span>Radicación</span>
+                                    {teacherDetailSort === 'presentationDate' && <span>{teacherDetailSortDir === 'desc' ? '↓' : '↑'}</span>}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleTeacherDetailSort('updatedAt')}
+                                    className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1 cursor-pointer ${
+                                        teacherDetailSort === 'updatedAt'
+                                            ? 'bg-uninunez-teal/10 text-uninunez-teal border-uninunez-teal/30'
+                                            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-uninunez-onix'
+                                    }`}
+                                >
+                                    <span>Últ. Actualización</span>
+                                    {teacherDetailSort === 'updatedAt' && <span>{teacherDetailSortDir === 'desc' ? '↓' : '↑'}</span>}
+                                </button>
+                            </div>
+                        }
                     >
                         <table className="w-full text-left">
                             <thead className="bg-gray-50/80 border-b border-gray-100">
                                 <tr>
-                                    {teacherProjectsDetail.length > 0 && Object.keys(teacherProjectsDetail[0]).filter(k => k !== 'id').map(key => (
+                                    {sortedTeacherProjectsDetail.length > 0 && Object.keys(sortedTeacherProjectsDetail[0]).filter(k => k !== 'id').map(key => (
                                         <th key={key} className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{key}</th>
                                     ))}
                                     <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {teacherProjectsDetail.map((row, index) => (
+                                {sortedTeacherProjectsDetail.map((row, index) => (
                                     <tr key={index} className="hover:bg-uninunez-teal/5 transition-colors group">
                                         {Object.entries(row).filter(([k]) => k !== 'id').map(([key, val], i) => {
                                             if (key === 'Título del Proyecto') {
@@ -1290,6 +1605,13 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ isPublicView = false }
                                                         </td>
                                                     );
                                                 }
+                                            }
+                                            if (key === 'Última Actualización') {
+                                                return (
+                                                    <td key={i} className={`px-6 py-5 text-[11px] leading-tight whitespace-nowrap font-bold ${teacherDetailSort === 'updatedAt' ? 'text-uninunez-teal' : 'text-uninunez-ash'}`}>
+                                                        {String(val)}
+                                                    </td>
+                                                );
                                             }
                                             return (
                                                 <td key={i} className="px-6 py-5 text-[11px] leading-tight text-uninunez-ash">
